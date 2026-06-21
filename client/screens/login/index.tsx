@@ -14,7 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
-import { Logo } from '@/components/Logo';
+import Logo from '@/components/Logo';
 
 const APP_NAME = '号簿云';
 

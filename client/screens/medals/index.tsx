@@ -159,11 +159,15 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 8,
   },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+  },
   headerTitle: {
     fontSize: 20,
     fontWeight: "bold",
     color: "#333",
-    marginBottom: 12,
   },
   progressCard: {
     backgroundColor: "#F8F8F8",
@@ -200,6 +204,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderLeftWidth: 4,
     borderLeftColor: "#FA8C16",
+  },
+  tipHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
   },
   tipTitle: {
     fontSize: 14,
