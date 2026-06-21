@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -38,6 +39,7 @@ function MenuItem({ name, color, title, subtitle, badge, onPress }: MenuItemProp
 }
 
 export default function ProfileScreen() {
+  const router = useRouter();
   const { user, signOut, session } = useAuth();
   const [points, setPoints] = useState(0);
   const [medalCount, setMedalCount] = useState(0);
@@ -146,6 +148,13 @@ export default function ProfileScreen() {
               title="勋章墙"
               subtitle="查看已获得勋章"
               onPress={() => Alert.alert('提示', '勋章墙开发中')}
+            />
+            <MenuItem
+              name="game-controller"
+              color="#9C27B0"
+              title="推广中心"
+              subtitle="看广告/玩游戏赚积分"
+              onPress={() => router.push('/promo')}
             />
           </View>
         </View>

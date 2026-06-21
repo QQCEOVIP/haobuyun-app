@@ -1,6 +1,9 @@
 import express from "express";
 import cors from "cors";
 import pointsRouter from "./routes/points";
+// TODO: 扩展点预留 - 广告和游戏路由
+// import adsRouter from "./routes/ads";    // 广告回调 (AdMob/穿山甲/优量汇)
+// import gameRouter from "./routes/game";  // 小游戏 (H5/外部渠道)
 
 const app = express();
 const port = process.env.PORT || 9091;
@@ -17,6 +20,10 @@ app.get('/api/v1/health', (req, res) => {
 
 // 积分体系路由
 app.use('/api/v1/points', pointsRouter);
+
+// TODO: 扩展点预留 - 以下路由待接入广告/游戏后启用
+// app.use('/api/v1/ads', adsRouter);    // 广告回调接口
+// app.use('/api/v1/games', gameRouter); // 小游戏接口
 
 app.listen(port, () => {
   console.log(`Server listening at http://localhost:${port}/`);
