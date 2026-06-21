@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { db } from "../database";
-import { userPoints, pointRecords, shopProducts, exchangeRecords, medals, userMedals, reportValidations, checkinStreaks, dailyReports, flaggedAccounts, invalidReports } from "../database/shared/schema";
+import { db } from "../storage/database";
+import { userPoints, pointRecords, shopProducts, exchangeRecords, medals, userMedals, reportValidations, checkinStreaks, dailyReports, flaggedAccounts, invalidReports } from "../storage/database/shared/schema";
 import { eq, desc, and, sql, gte, lt } from "drizzle-orm";
 import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
