@@ -23,7 +23,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": `com.yunhaobu.app`
+      "package": `com.haobuyun.app`
     },
     "web": {
       "bundler": "metro",
@@ -49,29 +49,29 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       [
         "expo-image-picker",
         {
-          "photosPermission": `允许云号簿App访问您的相册，以便您上传或保存图片。`,
-          "cameraPermission": `允许云号簿App使用您的相机，以便您直接拍摄照片上传。`,
-          "microphonePermission": `允许云号簿App访问您的麦克风，以便您拍摄带有声音的视频。`
+          "photosPermission": `允许号簿云App访问您的相册，以便您上传或保存图片。`,
+          "cameraPermission": `允许号簿云App使用您的相机，以便您直接拍摄照片上传。`,
+          "microphonePermission": `允许号簿云App访问您的麦克风，以便您拍摄带有声音的视频。`
         }
       ],
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": `云号簿App需要访问您的位置以提供周边服务及导航功能。`
+          "locationWhenInUsePermission": `号簿云App需要访问您的位置以提供周边服务及导航功能。`
         }
       ],
       [
         "expo-camera",
         {
-          "cameraPermission": `云号簿App需要访问相机以拍摄照片和视频。`,
-          "microphonePermission": `云号簿App需要访问麦克风以录制视频声音。`,
+          "cameraPermission": `号簿云App需要访问相机以拍摄照片和视频。`,
+          "microphonePermission": `号簿云App需要访问麦克风以录制视频声音。`,
           "recordAudioAndroid": true
         }
       ],
       [
         "expo-contacts",
         {
-          "contactsPermission": `允许云号簿App访问您的通讯录，以便检测失效号码和备份联系人信息。`
+          "contactsPermission": `允许号簿云App访问您的通讯录，以便检测失效号码和备份联系人信息。`
         }
       ]
     ],
