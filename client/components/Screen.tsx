@@ -105,15 +105,15 @@ const KeyboardAwareScrollable = ({
   const commonProps = {
     ...childAttrs,
     contentContainerStyle: enhancedContentStyle,
-    keyboardShouldPersistTaps: childAttrs['keyboardShouldPersistTaps'] ?? 'handled',
-    keyboardDismissMode: childAttrs['keyboardDismissMode'] ?? 'on-drag',
+    keyboardShouldPersistTaps: (childAttrs['keyboardShouldPersistTaps'] as 'handled' | 'always' | 'never') ?? 'handled',
+    keyboardDismissMode: (childAttrs['keyboardDismissMode'] as 'none' | 'interactive' | 'on-drag') ?? 'on-drag',
     enableOnAndroid: true,
     // 类似于原代码中的 setTimeout/scrollToEnd 逻辑，这里设置额外的滚动高度确保输入框可见
     extraHeight: 100,
     // 禁用自带的 ScrollView 自动 inset，由外部 padding 控制
     enableAutomaticScroll: true,
     ...(Platform.OS === 'ios'
-      ? { contentInsetAdjustmentBehavior: childAttrs['contentInsetAdjustmentBehavior'] ?? contentInsetBehaviorIOS }
+      ? { contentInsetAdjustmentBehavior: (childAttrs['contentInsetAdjustmentBehavior'] as 'automatic' | 'never' | 'always' | 'scrollableAxes') ?? contentInsetBehaviorIOS }
       : {}),
   };
 
@@ -122,15 +122,15 @@ const KeyboardAwareScrollable = ({
   // 根据组件类型返回对应的 KeyboardAware 版本
   // 注意：不再使用 KeyboardAvoidingView，直接替换为增强版 ScrollView
   if (t === ScrollView) {
-    return <KeyboardAwareScrollView {...commonProps} />;
+    return <KeyboardAwareScrollView {...(commonProps as any)} />;
   }
 
   if (t === FlatList) {
-    return <KeyboardAwareFlatList {...commonProps} />;
+    return <KeyboardAwareFlatList {...(commonProps as any)} />;
   }
 
   if (t === SectionList) {
-    return <KeyboardAwareSectionList {...commonProps} />;
+    return <KeyboardAwareSectionList {...(commonProps as any)} />;
   }
 
   // 理论上不应运行到这里，如果是非标准组件则原样返回，仅修改样式

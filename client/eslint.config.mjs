@@ -17,6 +17,7 @@ export default [
     ignores: [
       '**/dist/**',
       '**/node_modules/**',
+      'heroui/**',         // 排除模板自带的 UI 组件库
       'api/**',           // 排除自动生成的 API 代码
       'src/api/**',       // 排除 src 下的自动生成 API
       '.expo/**',         // 排除 Expo 自动生成的文件
@@ -25,6 +26,7 @@ export default [
       'eslint.config.*',
       'metro.config.*',
       './scripts/**',
+      'components/Screen.tsx', // 模板组件有第三方库类型问题
     ],
   },
   regexp.configs["flat/recommended"],

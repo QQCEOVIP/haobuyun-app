@@ -1,0 +1,302 @@
+import React from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '@/contexts/AuthContext';
+
+interface MenuItemProps {
+  name: string;
+  color: string;
+  title: string;
+  subtitle?: string;
+  onPress: () => void;
+}
+
+function MenuItem({ name, color, title, subtitle, onPress }: MenuItemProps) {
+  return (
+    <TouchableOpacity style={styles.menuItem} onPress={onPress}>
+      <View style={[styles.menuIconContainer, { backgroundColor: `${color}20` }]}>
+        <Ionicons name={name as any} size={22} color={color} />
+      </View>
+      <View style={styles.menuTextContainer}>
+        <Text style={styles.menuTitle}>{title}</Text>
+        {subtitle && <Text style={styles.menuSubtitle}>{subtitle}</Text>}
+      </View>
+      <Ionicons name="chevron-forward" size={20} color="#C0C4CC" />
+    </TouchableOpacity>
+  );
+}
+
+export default function ProfileScreen() {
+  const { user, signOut } = useAuth();
+
+  const handleLogout = () => {
+    Alert.alert(
+      '确认退出',
+      '确定要退出登录吗？',
+      [
+        { text: '取消', style: 'cancel' },
+        {
+          text: '确定',
+          style: 'destructive',
+          onPress: async () => {
+            await signOut();
+          },
+        },
+      ]
+    );
+  };
+
+  const userEmail = (user as any)?.email || '';
+  const userName = userEmail.split('@')[0] || '用户';
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={styles.header}>
+          <Text style={styles.title}>我的</Text>
+        </View>
+
+        {/* 用户信息 */}
+        <View style={styles.userCard}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>
+              {userEmail[0]?.toUpperCase() || '?'}
+            </Text>
+          </View>
+          <View style={styles.userInfo}>
+            <Text style={styles.userName}>{userName}</Text>
+            <Text style={styles.userEmail}>{userEmail}</Text>
+          </View>
+        </View>
+
+        {/* 功能菜单 */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>数据管理</Text>
+          <View style={styles.menuCard}>
+            <MenuItem
+              name="cloud-upload"
+              color="#4A90D9"
+              title="备份通讯录"
+              subtitle="将通讯录备份到云端"
+              onPress={() => Alert.alert('提示', '备份功能开发中')}
+            />
+            <MenuItem
+              name="share-outline"
+              color="#67C23A"
+              title="导出通讯录"
+              subtitle="导出为 vCard/CSV 格式"
+              onPress={() => Alert.alert('提示', '导出功能开发中')}
+            />
+            <MenuItem
+              name="cloud-download"
+              color="#9069D9"
+              title="导入通讯录"
+              subtitle="从其他设备导入"
+              onPress={() => Alert.alert('提示', '导入功能开发中')}
+            />
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>标签管理</Text>
+          <View style={styles.menuCard}>
+            <MenuItem
+              name="pricetag"
+              color="#E6A23C"
+              title="管理标签"
+              subtitle="客户、朋友、家人、同事..."
+              onPress={() => Alert.alert('提示', '标签管理开发中')}
+            />
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>设置</Text>
+          <View style={styles.menuCard}>
+            <MenuItem
+              name="notifications"
+              color="#F56C6C"
+              title="通知设置"
+              subtitle="检测结果通知"
+              onPress={() => Alert.alert('提示', '通知设置开发中')}
+            />
+            <MenuItem
+              name="lock-closed"
+              color="#909399"
+              title="隐私设置"
+              subtitle="数据共享与权限"
+              onPress={() => Alert.alert('提示', '隐私设置开发中')}
+            />
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>关于</Text>
+          <View style={styles.menuCard}>
+            <MenuItem
+              name="document-text"
+              color="#4A90D9"
+              title="用户协议"
+              onPress={() => Alert.alert('用户协议', '号码管家用户服务协议内容...')}
+            />
+            <MenuItem
+              name="shield-checkmark"
+              color="#67C23A"
+              title="隐私政策"
+              onPress={() => Alert.alert('隐私政策', '号码管家隐私政策内容...')}
+            />
+            <MenuItem
+              name="information-circle"
+              color="#909399"
+              title="关于我们"
+              subtitle="版本 1.0.0"
+              onPress={() => Alert.alert('关于', '号码管家 v1.0.0\n帮您管理通讯录健康度')}
+            />
+          </View>
+        </View>
+
+        {/* 退出登录 */}
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+          <Text style={styles.logoutText}>退出登录</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#F5F7FA',
+  },
+  scrollContent: {
+    paddingBottom: 120,
+  },
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 16,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#303133',
+  },
+  userCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 20,
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 24,
+    shadowColor: '#D1D9E6',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  avatar: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#4A90D9',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarText: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  userInfo: {
+    flex: 1,
+    marginLeft: 16,
+  },
+  userName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#303133',
+  },
+  userEmail: {
+    fontSize: 13,
+    color: '#909399',
+    marginTop: 4,
+  },
+  section: {
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#909399',
+    marginLeft: 20,
+    marginBottom: 8,
+  },
+  menuCard: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 20,
+    borderRadius: 12,
+    overflow: 'hidden',
+    shadowColor: '#D1D9E6',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F5F7FA',
+  },
+  menuIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  menuTextContainer: {
+    flex: 1,
+  },
+  menuTitle: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#303133',
+  },
+  menuSubtitle: {
+    fontSize: 12,
+    color: '#909399',
+    marginTop: 2,
+  },
+  logoutButton: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 20,
+    marginTop: 24,
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    shadowColor: '#D1D9E6',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  logoutText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#F56C6C',
+  },
+});

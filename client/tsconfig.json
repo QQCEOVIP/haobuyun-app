@@ -10,8 +10,29 @@
       "@/*": ["./*"]
     }
   },
-  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
+  "include": [
+    "app/**/*.ts",
+    "app/**/*.tsx",
+    "screens/**/*.ts",
+    "screens/**/*.tsx",
+    "components/**/*.ts",
+    "components/**/*.tsx",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "hooks/**/*.ts",
+    "hooks/**/*.tsx",
+    "contexts/**/*.ts",
+    "contexts/**/*.tsx",
+    "storage/**/*.ts",
+    "storage/**/*.tsx",
+    "global.css",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts"
+  ],
   "exclude": [
+    "heroui",
+    "heroui/**",
+    "**/heroui/**",
     "node_modules",
     "**/*.spec.ts",
     "**/*.test.ts",
