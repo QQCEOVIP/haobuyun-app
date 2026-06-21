@@ -17,7 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
 
 const APP_ICON_URL = 'https://coze-coding-project.tos.coze.site/gen_project_icon/2026-06-21/7653829780214923264_1782049086.png?sign=4904113271-3a7575ab72-0-8d0b9c7afcfc0d6e4e3ccdc6007a756bb644412d3055ab740ff143aa38d40b1e';
-const APP_NAME = '号簿云App';
+const APP_NAME = '号簿云';
 
 export default function LoginScreen() {
   const [isLogin, setIsLogin] = useState(true);
