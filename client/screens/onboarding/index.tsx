@@ -31,7 +31,7 @@ export default function OnboardingScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         <Image source={{ uri: APP_ICON_URL }} style={styles.icon} />
-        <Text style={styles.title}>号码管家</Text>
+        <Text style={styles.title}>号簿云</Text>
         <Text style={styles.subtitle}>
           帮您检测通讯录中的失效号码
         </Text>
@@ -77,7 +77,7 @@ export default function OnboardingScreen() {
         <View style={styles.permissionCard}>
           <Text style={styles.permissionTitle}>需要您的授权</Text>
           <Text style={styles.permissionText}>
-            号码管家需要访问您的通讯录，以便检测失效号码和备份联系人信息。我们承诺：
+            号簿云需要访问您的通讯录，以便检测失效号码和备份联系人信息。我们承诺：
           </Text>
           <View style={styles.promiseList}>
             <Text style={styles.promiseItem}>- 不会上传您的通讯录到服务器</Text>

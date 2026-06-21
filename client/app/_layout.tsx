@@ -54,6 +54,11 @@ export default function RootLayout() {
             <Stack.Screen name="login" options={{ title: "登录" }} />
             <Stack.Screen name="onboarding" options={{ title: "引导" }} />
             <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="points" options={{ title: "我的积分" }} />
+            <Stack.Screen name="shop" options={{ title: "积分商城" }} />
+            <Stack.Screen name="shopExchanges" options={{ title: "兑换记录" }} />
+            <Stack.Screen name="leaderboard" options={{ title: "排行榜" }} />
+            <Stack.Screen name="medals" options={{ title: "勋章墙" }} />
           </Stack>
         </AuthGuard>
         <Toast />

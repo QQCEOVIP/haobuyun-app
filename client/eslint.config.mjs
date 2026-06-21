@@ -77,6 +77,9 @@ export default [
       'quotes': 'off',
       'indent': 'off',
       "no-empty": ["error", { "allowEmptyCatch": true }],
+      // 允许 Animated.Value 使用 useRef
+      'react-hooks/refs': 'off',
+      'react-hooks/immutability': 'off',
       "no-unused-expressions": "warn",
       "no-useless-escape": "warn",
       'import/no-unresolved': 'error',

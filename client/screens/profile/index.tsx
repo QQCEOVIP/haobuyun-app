@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface MenuItemProps {
@@ -16,10 +17,11 @@ interface MenuItemProps {
   color: string;
   title: string;
   subtitle?: string;
+  badge?: string;
   onPress: () => void;
 }
 
-function MenuItem({ name, color, title, subtitle, onPress }: MenuItemProps) {
+function MenuItem({ name, color, title, subtitle, badge, onPress }: MenuItemProps) {
   return (
     <TouchableOpacity style={styles.menuItem} onPress={onPress}>
       <View style={[styles.menuIconContainer, { backgroundColor: `${color}20` }]}>
@@ -29,13 +31,43 @@ function MenuItem({ name, color, title, subtitle, onPress }: MenuItemProps) {
         <Text style={styles.menuTitle}>{title}</Text>
         {subtitle && <Text style={styles.menuSubtitle}>{subtitle}</Text>}
       </View>
+      {badge && <View style={styles.badge}><Text style={styles.badgeText}>{badge}</Text></View>}
       <Ionicons name="chevron-forward" size={20} color="#C0C4CC" />
     </TouchableOpacity>
   );
 }
 
 export default function ProfileScreen() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, session } = useAuth();
+  const [points, setPoints] = useState(0);
+  const [medalCount, setMedalCount] = useState(0);
+
+  // 获取积分和勋章数量
+  const fetchStats = useCallback(async () => {
+    if (!session?.access_token) return;
+    try {
+      const [pointsRes, medalsRes] = await Promise.all([
+        fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/points/balance`, {
+          headers: { "x-session": session.access_token }
+        }),
+        fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/points/medals/mine`, {
+          headers: { "x-session": session.access_token }
+        })
+      ]);
+      const pointsData = await pointsRes.json();
+      const medalsData = await medalsRes.json();
+      setPoints(pointsData.balance || 0);
+      setMedalCount(medalsData.medals?.length || 0);
+    } catch (error) {
+      console.error('获取数据失败:', error);
+    }
+  }, [session]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchStats();
+    }, [fetchStats])
+  );
 
   const handleLogout = () => {
     Alert.alert(
@@ -77,7 +109,48 @@ export default function ProfileScreen() {
           </View>
         </View>
 
+        {/* 积分卡片 */}
+        <View style={styles.pointsCard}>
+          <TouchableOpacity style={styles.pointsItem} onPress={() => Alert.alert('提示', '积分商城开发中')}>
+            <Text style={styles.pointsValue}>{points}</Text>
+            <Text style={styles.pointsLabel}>我的积分</Text>
+          </TouchableOpacity>
+          <View style={styles.pointsDivider} />
+          <TouchableOpacity style={styles.pointsItem} onPress={() => Alert.alert('提示', '勋章墙开发中')}>
+            <Text style={styles.pointsValue}>{medalCount}</Text>
+            <Text style={styles.pointsLabel}>已获勋章</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* 功能菜单 */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>积分激励</Text>
+          <View style={styles.menuCard}>
+            <MenuItem
+              name="gift"
+              color="#FA8C16"
+              title="积分商城"
+              subtitle="积分兑换好礼"
+              onPress={() => Alert.alert('提示', '积分商城开发中')}
+            />
+            <MenuItem
+              name="podium"
+              color="#4A90D9"
+              title="排行榜"
+              subtitle="周榜/月榜Top10奖励"
+              onPress={() => Alert.alert('提示', '排行榜开发中')}
+            />
+            <MenuItem
+              name="ribbon"
+              color="#F56C6C"
+              title="勋章墙"
+              subtitle="查看已获得勋章"
+              onPress={() => Alert.alert('提示', '勋章墙开发中')}
+            />
+          </View>
+        </View>
+
+        {/* 数据管理 */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>数据管理</Text>
           <View style={styles.menuCard}>
@@ -145,20 +218,20 @@ export default function ProfileScreen() {
               name="document-text"
               color="#4A90D9"
               title="用户协议"
-              onPress={() => Alert.alert('用户协议', '号码管家用户服务协议内容...')}
+              onPress={() => Alert.alert('用户协议', '号簿云用户服务协议内容...')}
             />
             <MenuItem
               name="shield-checkmark"
               color="#67C23A"
               title="隐私政策"
-              onPress={() => Alert.alert('隐私政策', '号码管家隐私政策内容...')}
+              onPress={() => Alert.alert('隐私政策', '号簿云隐私政策内容...')}
             />
             <MenuItem
               name="information-circle"
               color="#909399"
               title="关于我们"
               subtitle="版本 1.0.0"
-              onPress={() => Alert.alert('关于', '号码管家 v1.0.0\n帮您管理通讯录健康度')}
+              onPress={() => Alert.alert('关于', '号簿云 v1.0.0\n帮您管理通讯录健康度')}
             />
           </View>
         </View>
@@ -280,6 +353,50 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#909399',
     marginTop: 2,
+  },
+  badge: {
+    backgroundColor: '#FA8C16',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginRight: 8,
+  },
+  badgeText: {
+    fontSize: 11,
+    color: '#FFF',
+    fontWeight: '600',
+  },
+  pointsCard: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 20,
+    padding: 20,
+    borderRadius: 16,
+    marginBottom: 24,
+    shadowColor: '#D1D9E6',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  pointsItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  pointsValue: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#FA8C16',
+  },
+  pointsLabel: {
+    fontSize: 13,
+    color: '#909399',
+    marginTop: 4,
+  },
+  pointsDivider: {
+    width: 1,
+    backgroundColor: '#F0F0F0',
+    marginHorizontal: 16,
   },
   logoutButton: {
     backgroundColor: '#FFFFFF',
