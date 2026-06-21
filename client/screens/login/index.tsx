@@ -163,6 +163,16 @@ export default function LoginScreen() {
                 {isLogin ? '还没有账号？去注册' : '已有账号？去登录'}
               </Text>
             </TouchableOpacity>
+
+            {/* 测试模式：快速体验入口 */}
+            <TouchableOpacity
+              style={styles.demoButton}
+              onPress={() => {
+                Alert.alert('提示', '注册需要邮箱验证。请使用已验证账号登录，或联系管理员获取测试账号。');
+              }}
+            >
+              <Text style={styles.demoText}>遇到问题？联系客服</Text>
+            </TouchableOpacity>
           </View>
 
           <View style={styles.privacy}>
@@ -282,6 +292,16 @@ const styles = StyleSheet.create({
   switchText: {
     color: '#4A90D9',
     fontSize: 14,
+  },
+  demoButton: {
+    alignItems: 'center',
+    marginTop: 12,
+    paddingVertical: 8,
+  },
+  demoText: {
+    color: '#909399',
+    fontSize: 12,
+    textDecorationLine: 'underline',
   },
   privacy: {
     marginTop: 32,
