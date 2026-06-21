@@ -1,0 +1,67 @@
+
+<svg width="192" height="192" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- 主渐变 - 蓝紫 -->
+    <linearGradient id="cloudGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4F46E5"/>
+      <stop offset="50%" style="stop-color:#6366F1"/>
+      <stop offset="100%" style="stop-color:#8B5CF6"/>
+    </linearGradient>
+    
+    <!-- 辅助渐变 - 浅紫 -->
+    <linearGradient id="cloudGradient2" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#A78BFA"/>
+      <stop offset="100%" style="stop-color:#7C3AED"/>
+    </linearGradient>
+    
+    <!-- 阴影滤镜 -->
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="3.84" stdDeviation="7.68" flood-color="#4F46E5" flood-opacity="0.3"/>
+    </filter>
+    
+    <!-- 内阴影 -->
+    <filter id="innerGlow">
+      <feGaussianBlur stdDeviation="2.88" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+  
+  <!-- 背景圆形/圆角方形 -->
+  <rect x="15" y="15" width="162" height="162" rx="35.64" ry="35.64" fill="url(#cloudGradient)"/>
+  
+  <!-- 云朵形状 (左上部分) -->
+  <g transform="translate(19.200000000000003, 15.36)" filter="url(#shadow)">
+    <!-- 云朵主体 -->
+    <ellipse cx="42.24" cy="48" rx="30.72" ry="23.04" fill="white" opacity="0.95"/>
+    <ellipse cx="72.96000000000001" cy="38.400000000000006" rx="26.880000000000003" ry="21.12" fill="white" opacity="0.95"/>
+    <ellipse cx="57.599999999999994" cy="53.760000000000005" rx="23.04" ry="17.28" fill="white" opacity="0.95"/>
+    <!-- 云朵底部 -->
+    <rect x="26.880000000000003" y="48" width="61.44" height="19.200000000000003" fill="white" opacity="0.95"/>
+  </g>
+  
+  <!-- 通讯录/笔记本 (右下方) -->
+  <g transform="translate(61.44, 72.96000000000001)">
+    <!-- 笔记本主体 -->
+    <rect x="0" y="0" width="80.64" height="92.16" rx="5.76" fill="white" opacity="0.95"/>
+    
+    <!-- 书脊/装订线 -->
+    <rect x="3.84" y="0" width="7.68" height="92.16" fill="url(#cloudGradient2)" opacity="0.8"/>
+    
+    <!-- 页面线 -->
+    <line x1="19.200000000000003" y1="23.04" x2="72.96000000000001" y2="23.04" stroke="#E5E7EB" stroke-width="2.88" stroke-linecap="round"/>
+    <line x1="19.200000000000003" y1="42.24" x2="67.19999999999999" y2="42.24" stroke="#E5E7EB" stroke-width="2.88" stroke-linecap="round"/>
+    <line x1="19.200000000000003" y1="61.44" x2="72.96000000000001" y2="61.44" stroke="#E5E7EB" stroke-width="2.88" stroke-linecap="round"/>
+    <line x1="19.200000000000003" y1="80.64" x2="61.44" y2="80.64" stroke="#E5E7EB" stroke-width="2.88" stroke-linecap="round"/>
+    
+    <!-- 人像占位符（联系人图标） -->
+    <circle cx="48" cy="72.96000000000001" r="9.600000000000001" fill="url(#cloudGradient2)" opacity="0.7"/>
+    <ellipse cx="48" cy="88.32000000000001" rx="13.440000000000001" ry="7.68" fill="url(#cloudGradient2)" opacity="0.5"/>
+  </g>
+  
+  <!-- 装饰点（数据节点） -->
+  <circle cx="34.56" cy="138.24" r="4.800000000000001" fill="white" opacity="0.6"/>
+  <circle cx="53.760000000000005" cy="149.76" r="3.84" fill="white" opacity="0.5"/>
+  
+  <!-- 高光层 -->
+  <ellipse cx="57.599999999999994" cy="38.400000000000006" rx="48" ry="15.36" fill="white" opacity="0.1"/>
+</svg>

@@ -11,7 +11,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     "slug": slugAppName,
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/icon-512.png",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -20,8 +20,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/images/ic_launcher_foreground.png",
+        "backgroundColor": "#4F46E5"
       },
       "package": `com.haobuyun.app`
     },
