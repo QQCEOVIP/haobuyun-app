@@ -1,13 +1,13 @@
 import { ExpoConfig, ConfigContext } from 'expo/config';
 
-const appName = process.env.COZE_PROJECT_NAME || process.env.EXPO_PUBLIC_COZE_PROJECT_NAME || '应用';
+const appName = process.env.COZE_PROJECT_NAME || process.env.EXPO_PUBLIC_COZE_PROJECT_NAME || '号簿云';
 const projectId = process.env.COZE_PROJECT_ID || process.env.EXPO_PUBLIC_COZE_PROJECT_ID;
-const slugAppName = projectId ? `app${projectId}` : 'myapp';
+const slugAppName = projectId ? `app${projectId}` : 'haobuyun';
 
 export default ({ config }: ConfigContext): ExpoConfig => {
   return {
     ...config,
-    "name": appName,
+    "name": "号簿云",
     "slug": slugAppName,
     "version": "1.0.0",
     "orientation": "portrait",
@@ -28,7 +28,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     "web": {
       "bundler": "metro",
       "output": "single",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "title": "号簿云"
     },
     "plugins": [
       process.env.EXPO_PUBLIC_BACKEND_BASE_URL ? [
