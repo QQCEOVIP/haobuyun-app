@@ -13,6 +13,7 @@ import Svg, { Circle } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/storage/supabase';
+import { AppLogo } from '@/components/Logo';
 
 interface ContactStats {
   total: number;
@@ -103,6 +104,9 @@ export default function HomeScreen() {
         }
       >
         <View style={styles.header}>
+          <View style={styles.logoContainer}>
+            <AppLogo size={48} />
+          </View>
           <Text style={styles.greeting}>你好，{userEmail.split('@')[0] || '用户'}</Text>
           <Text style={styles.title}>号码健康度</Text>
         </View>

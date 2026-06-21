@@ -4,14 +4,12 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Contacts from 'expo-contacts';
 import { Ionicons } from '@expo/vector-icons';
-
-const APP_ICON_URL = 'https://coze-coding-project.tos.coze.site/gen_project_icon/2026-06-21/7653829780214923264_1782049086.png?sign=4904113271-3a7575ab72-0-8d0b9c7afcfc0d6e4e3ccdc6007a756bb644412d3055ab740ff143aa38d40b1e';
+import Logo from '@/components/Logo';
 
 export default function OnboardingScreen() {
   const router = useRouter();
@@ -30,7 +28,7 @@ export default function OnboardingScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <Image source={{ uri: APP_ICON_URL }} style={styles.icon} />
+        <Logo size={120} />
         <Text style={styles.title}>号簿云</Text>
         <Text style={styles.subtitle}>
           帮您检测通讯录中的失效号码
@@ -112,10 +110,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 40,
   },
-  icon: {
-    width: 80,
-    height: 80,
-    borderRadius: 20,
+  logo: {
     alignSelf: 'center',
     marginBottom: 16,
   },
