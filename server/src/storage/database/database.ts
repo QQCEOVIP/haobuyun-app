@@ -10,6 +10,9 @@ const client = postgres(connectionString || '', {
   max: 10,
   idle_timeout: 20,
   connect_timeout: 10,
+  ssl: {
+    rejectUnauthorized: false // Supabase 需要 SSL 连接
+  }
 });
 
 // 创建 Drizzle ORM 实例
