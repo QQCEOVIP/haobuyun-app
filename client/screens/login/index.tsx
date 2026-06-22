@@ -27,6 +27,24 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const { signInWithEmail, signUpWithEmail } = useAuth();
 
+  // 测试模式：一键登录
+  const handleTestLogin = async () => {
+    setLoading(true);
+    try {
+      // 使用测试账号登录
+      const { error } = await signInWithEmail('test@haobuyun.app', 'test123456');
+      if (error) {
+        // 测试账号不存在，自动注册
+        const signUpResult = await signUpWithEmail('test@haobuyun.app', 'test123456');
+        if (signUpResult.error) {
+          Alert.alert('测试账号创建失败', '请联系管理员');
+        }
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!email || !password) {
       Alert.alert('提示', '请输入邮箱和密码');
@@ -164,14 +182,13 @@ export default function LoginScreen() {
               </Text>
             </TouchableOpacity>
 
-            {/* 测试模式：快速体验入口 */}
+            {/* 测试模式：一键体验 */}
             <TouchableOpacity
-              style={styles.demoButton}
-              onPress={() => {
-                Alert.alert('提示', '注册需要邮箱验证。请使用已验证账号登录，或联系管理员获取测试账号。');
-              }}
+              style={styles.testButton}
+              onPress={handleTestLogin}
+              disabled={loading}
             >
-              <Text style={styles.demoText}>遇到问题？联系客服</Text>
+              <Text style={styles.testButtonText}>测试模式：一键体验</Text>
             </TouchableOpacity>
           </View>
 
@@ -302,6 +319,18 @@ const styles = StyleSheet.create({
     color: '#909399',
     fontSize: 12,
     textDecorationLine: 'underline',
+  },
+  testButton: {
+    backgroundColor: '#67C23A',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  testButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
   privacy: {
     marginTop: 32,

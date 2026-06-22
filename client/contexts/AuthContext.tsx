@@ -47,8 +47,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signUpWithEmail = async (email: string, password: string) => {
+    // 注册（Supabase默认会发送验证邮件）
     const { error } = await supabase.auth.signUp({ email, password });
-    return { error: error ? new Error(error.message) : null };
+    if (error) return { error: new Error(error.message) };
+    
+    // 测试模式：注册成功后自动登录（假设邮箱已验证）
+    // 正式环境请在Supabase后台关闭 "Confirm email" 设置
+    const { error: loginError } = await supabase.auth.signInWithPassword({ email, password });
+    return { error: loginError ? new Error('注册成功！请先验证邮箱后再登录，或联系管理员开启免验证模式') : null };
   };
 
   const signOut = async () => {
