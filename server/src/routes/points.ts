@@ -5,7 +5,7 @@ import { eq, desc, and, sql, gte, lt } from "drizzle-orm";
 import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
 
-const router = Router();
+const router: any = Router();
 
 // 获取 Supabase Admin Client
 const getSupabaseAdmin = () => createClient(
@@ -34,7 +34,7 @@ const hashPhone = (phone: string): string => {
 };
 
 // 获取用户积分信息
-router.get("/balance", async (req, res) => {
+router.get("/balance", async (req: any, res: any) => {
   try {
     const userId = await getUserId(req);
     if (!userId) {
@@ -71,7 +71,7 @@ router.get("/balance", async (req, res) => {
 });
 
 // 获取积分记录
-router.get("/records", async (req, res) => {
+router.get("/records", async (req: any, res: any) => {
   try {
     const userId = await getUserId(req);
     if (!userId) {
@@ -122,7 +122,7 @@ router.get("/records", async (req, res) => {
 });
 
 // 标注号码并获取积分
-router.post("/report", async (req, res) => {
+router.post("/report", async (req: any, res: any) => {
   try {
     const userId = await getUserId(req);
     if (!userId) {
@@ -413,7 +413,7 @@ async function checkMedals(userId: string) {
 }
 
 // 获取商品列表
-router.get("/shop/products", async (req, res) => {
+router.get("/shop/products", async (req: any, res: any) => {
   try {
     const category = req.query.category as string;
 
@@ -453,7 +453,7 @@ router.get("/shop/products", async (req, res) => {
 });
 
 // 兑换商品
-router.post("/shop/exchange", async (req, res) => {
+router.post("/shop/exchange", async (req: any, res: any) => {
   try {
     const userId = await getUserId(req);
     if (!userId) {
@@ -513,14 +513,14 @@ router.post("/shop/exchange", async (req, res) => {
     });
 
     // 创建兑换记录
-    const exchangeRecord = await db.insert(exchangeRecords).values({
+    const [exchangeRecord] = await db.insert(exchangeRecords).values({
       user_id: userId,
       product_id: product.id,
       points_spent: product.price,
       status: "completed",
       metadata: product.metadata,
       completed_at: new Date()
-    });
+    }).returning();
 
     // 更新库存
     if (!product.is_unlimited && product.stock !== null) {
@@ -548,7 +548,7 @@ router.post("/shop/exchange", async (req, res) => {
 });
 
 // 获取兑换记录
-router.get("/shop/exchanges", async (req, res) => {
+router.get("/shop/exchanges", async (req: any, res: any) => {
   try {
     const userId = await getUserId(req);
     if (!userId) {
@@ -581,7 +581,7 @@ router.get("/shop/exchanges", async (req, res) => {
 });
 
 // 获取排行榜
-router.get("/leaderboard", async (req, res) => {
+router.get("/leaderboard", async (req: any, res: any) => {
   try {
     const period = (req.query.period as string) || "weekly";
     const limit = Math.min(parseInt(req.query.limit as string) || 10, 50);
@@ -633,7 +633,7 @@ router.get("/leaderboard", async (req, res) => {
 });
 
 // 获取勋章列表
-router.get("/medals", async (req, res) => {
+router.get("/medals", async (req: any, res: any) => {
   try {
     const allMedals = await db.query.medals.findMany({
       where: eq(medals.is_active, true),
@@ -668,7 +668,7 @@ router.get("/medals", async (req, res) => {
 });
 
 // 获取用户勋章墙
-router.get("/medals/mine", async (req, res) => {
+router.get("/medals/mine", async (req: any, res: any) => {
   try {
     const userId = await getUserId(req);
     if (!userId) {

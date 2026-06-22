@@ -8,7 +8,7 @@ import { contacts, backups } from '../storage/database/shared/schema';
 import { eq, and, desc } from 'drizzle-orm';
 import crypto from 'crypto';
 
-const router = Router();
+const router: any = Router();
 
 // 辅助函数：对手机号进行哈希处理（用于众包查询）
 function hashPhone(phone: string): string {
@@ -41,7 +41,7 @@ function requireAuth(req: any, res: any, next: any) {
   if (!userId) {
     return res.status(401).json({ error: '请先登录' });
   }
-  req.userId = userId;
+  (req as any).userId = userId;
   next();
 }
 
@@ -53,12 +53,12 @@ function requireAuth(req: any, res: any, next: any) {
  * 获取用户的所有联系人
  * GET /api/v1/contacts
  */
-router.get('/', requireAuth, async (req, res) => {
+router.get('/', requireAuth, async (req: any, res: any) => {
   try {
     const userContacts = await db
       .select()
       .from(contacts)
-      .where(eq(contacts.user_id, req.userId))
+      .where(eq(contacts.user_id, (req as any).userId))
       .orderBy(desc(contacts.updated_at));
 
     res.json({
@@ -76,14 +76,14 @@ router.get('/', requireAuth, async (req, res) => {
  * 获取单个联系人详情
  * GET /api/v1/contacts/:id
  */
-router.get('/:id', requireAuth, async (req, res) => {
+router.get('/:id', requireAuth, async (req: any, res: any) => {
   try {
     const contact = await db
       .select()
       .from(contacts)
       .where(and(
         eq(contacts.id, req.params.id),
-        eq(contacts.user_id, req.userId)
+        eq(contacts.user_id, (req as any).userId)
       ))
       .limit(1);
 
@@ -105,7 +105,7 @@ router.get('/:id', requireAuth, async (req, res) => {
  * 添加联系人
  * POST /api/v1/contacts
  */
-router.post('/', requireAuth, async (req, res) => {
+router.post('/', requireAuth, async (req: any, res: any) => {
   try {
     const { name, phone, avatar_url, notes } = req.body;
 
@@ -116,7 +116,7 @@ router.post('/', requireAuth, async (req, res) => {
     const phoneHash = hashPhone(phone);
     
     const newContact = await db.insert(contacts).values({
-      user_id: req.userId,
+      user_id: (req as any).userId,
       name,
       phone,
       phone_hash: phoneHash,
@@ -139,7 +139,7 @@ router.post('/', requireAuth, async (req, res) => {
  * 批量添加联系人（用于通讯录导入）
  * POST /api/v1/contacts/batch
  */
-router.post('/batch', requireAuth, async (req, res) => {
+router.post('/batch', requireAuth, async (req: any, res: any) => {
   try {
     const { contacts: contactList } = req.body;
 
@@ -153,7 +153,7 @@ router.post('/batch', requireAuth, async (req, res) => {
 
     // 构建插入数据
     const insertData = batchContacts.map((c: any) => ({
-      user_id: req.userId,
+      user_id: (req as any).userId,
       name: c.name || '未知',
       phone: c.phone || '',
       phone_hash: hashPhone(c.phone || ''),
@@ -181,7 +181,7 @@ router.post('/batch', requireAuth, async (req, res) => {
  * 更新联系人
  * PUT /api/v1/contacts/:id
  */
-router.put('/:id', requireAuth, async (req, res) => {
+router.put('/:id', requireAuth, async (req: any, res: any) => {
   try {
     const { name, phone, avatar_url, notes, status } = req.body;
 
@@ -191,7 +191,7 @@ router.put('/:id', requireAuth, async (req, res) => {
       .from(contacts)
       .where(and(
         eq(contacts.id, req.params.id),
-        eq(contacts.user_id, req.userId)
+        eq(contacts.user_id, (req as any).userId)
       ))
       .limit(1);
 
@@ -214,7 +214,7 @@ router.put('/:id', requireAuth, async (req, res) => {
       .set(updateData)
       .where(and(
         eq(contacts.id, req.params.id),
-        eq(contacts.user_id, req.userId)
+        eq(contacts.user_id, (req as any).userId)
       ))
       .returning();
 
@@ -232,13 +232,13 @@ router.put('/:id', requireAuth, async (req, res) => {
  * 删除联系人
  * DELETE /api/v1/contacts/:id
  */
-router.delete('/:id', requireAuth, async (req, res) => {
+router.delete('/:id', requireAuth, async (req: any, res: any) => {
   try {
     const deleted = await db
       .delete(contacts)
       .where(and(
         eq(contacts.id, req.params.id),
-        eq(contacts.user_id, req.userId)
+        eq(contacts.user_id, (req as any).userId)
       ))
       .returning();
 
@@ -264,13 +264,13 @@ router.delete('/:id', requireAuth, async (req, res) => {
  * 备份通讯录
  * POST /api/v1/contacts/backup
  */
-router.post('/backup', requireAuth, async (req, res) => {
+router.post('/backup', requireAuth, async (req: any, res: any) => {
   try {
     // 获取用户所有联系人
     const userContacts = await db
       .select()
       .from(contacts)
-      .where(eq(contacts.user_id, req.userId));
+      .where(eq(contacts.user_id, (req as any).userId));
 
     // 生成备份数据（JSON格式）
     const backupData = {
@@ -290,7 +290,7 @@ router.post('/backup', requireAuth, async (req, res) => {
 
     // 创建备份记录（实际存储应由对象存储服务处理，这里简化处理）
     const backupRecord = await db.insert(backups).values({
-      user_id: req.userId,
+      user_id: (req as any).userId,
       contact_count: userContacts.length,
       backup_type: 'full',
       metadata: backupData
@@ -316,12 +316,12 @@ router.post('/backup', requireAuth, async (req, res) => {
  * 获取备份列表
  * GET /api/v1/contacts/backups
  */
-router.get('/backups/list', requireAuth, async (req, res) => {
+router.get('/backups/list', requireAuth, async (req: any, res: any) => {
   try {
     const backupList = await db
       .select()
       .from(backups)
-      .where(eq(backups.user_id, req.userId))
+      .where(eq(backups.user_id, (req as any).userId))
       .orderBy(desc(backups.created_at))
       .limit(20);
 
@@ -339,14 +339,14 @@ router.get('/backups/list', requireAuth, async (req, res) => {
  * 下载备份
  * GET /api/v1/contacts/backup/:id
  */
-router.get('/backup/:id', requireAuth, async (req, res) => {
+router.get('/backup/:id', requireAuth, async (req: any, res: any) => {
   try {
     const backup = await db
       .select()
       .from(backups)
       .where(and(
         eq(backups.id, req.params.id),
-        eq(backups.user_id, req.userId)
+        eq(backups.user_id, (req as any).userId)
       ))
       .limit(1);
 
@@ -369,7 +369,7 @@ router.get('/backup/:id', requireAuth, async (req, res) => {
  * 恢复通讯录
  * POST /api/v1/contacts/restore
  */
-router.post('/restore', requireAuth, async (req, res) => {
+router.post('/restore', requireAuth, async (req: any, res: any) => {
   try {
     const { backup_id, merge_mode = 'replace' } = req.body;
 
@@ -383,7 +383,7 @@ router.post('/restore', requireAuth, async (req, res) => {
       .from(backups)
       .where(and(
         eq(backups.id, backup_id),
-        eq(backups.user_id, req.userId)
+        eq(backups.user_id, (req as any).userId)
       ))
       .limit(1);
 
@@ -401,11 +401,11 @@ router.post('/restore', requireAuth, async (req, res) => {
 
     if (merge_mode === 'replace') {
       // 替换模式：先删除旧联系人，再导入新联系人
-      await db.delete(contacts).where(eq(contacts.user_id, req.userId));
+      await db.delete(contacts).where(eq(contacts.user_id, (req as any).userId));
       
       // 批量导入
       const insertData = backupData.contacts.map((c: any) => ({
-        user_id: req.userId,
+        user_id: (req as any).userId,
         name: c.name || '未知',
         phone: c.phone || '',
         phone_hash: hashPhone(c.phone || ''),
@@ -429,14 +429,14 @@ router.post('/restore', requireAuth, async (req, res) => {
           .select()
           .from(contacts)
           .where(and(
-            eq(contacts.user_id, req.userId),
+            eq(contacts.user_id, (req as any).userId),
             eq(contacts.phone, c.phone)
           ))
           .limit(1);
 
         if (existing.length === 0) {
           await db.insert(contacts).values({
-            user_id: req.userId,
+            user_id: (req as any).userId,
             name: c.name || '未知',
             phone: c.phone,
             phone_hash: hashPhone(c.phone),
@@ -469,12 +469,12 @@ router.post('/restore', requireAuth, async (req, res) => {
  * 导出通讯录为 vCard 格式
  * GET /api/v1/contacts/export
  */
-router.get('/export', requireAuth, async (req, res) => {
+router.get('/export', requireAuth, async (req: any, res: any) => {
   try {
     const userContacts = await db
       .select()
       .from(contacts)
-      .where(eq(contacts.user_id, req.userId));
+      .where(eq(contacts.user_id, (req as any).userId));
 
     // 生成 vCard 格式
     const vCards = userContacts.map(c => {
