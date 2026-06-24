@@ -78,6 +78,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "supabaseUrl": process.env.COZE_SUPABASE_URL || "",
+      "supabaseAnonKey": process.env.COZE_SUPABASE_ANON_KEY || ""
     }
   }
 }
