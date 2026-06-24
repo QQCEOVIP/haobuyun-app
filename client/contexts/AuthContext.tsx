@@ -10,6 +10,7 @@ interface AuthContextType {
   signInWithEmail: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUpWithEmail: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
+  setSessionManually: (session: Session | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -61,6 +62,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
   };
 
+  const setSessionManually = (session: Session | null) => {
+    setSession(session);
+    setUser(session?.user ?? null);
+  };
+
   const value: AuthContextType = {
     session,
     user,
@@ -69,6 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signInWithEmail,
     signUpWithEmail,
     signOut,
+    setSessionManually,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,12 +1,19 @@
-import { Router } from "express";
+import { Router, Request, Response } from "express";
 import { createClient } from "@supabase/supabase-js";
 
-const router = Router();
+const router: Router = Router();
 
 // 获取Supabase管理员客户端
 function getSupabaseAdmin() {
   const supabaseUrl = process.env.SUPABASE_URL || process.env.COZE_SUPABASE_URL || "";
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.COZE_SUPABASE_SERVICE_ROLE_KEY || "";
+  return createClient(supabaseUrl, supabaseKey);
+}
+
+// 获取Supabase匿名客户端（用于登录验证）
+function getSupabaseClient() {
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.COZE_SUPABASE_URL || "";
+  const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.COZE_SUPABASE_ANON_KEY || "";
   return createClient(supabaseUrl, supabaseKey);
 }
 
@@ -48,6 +55,35 @@ router.post('/init-test-account', async (req, res) => {
     });
   } catch (err) {
     console.error('初始化测试账号异常:', err);
+    return res.status(500).json({ success: false, message: '服务器异常' });
+  }
+});
+
+// 测试账号登录（代理Supabase登录）
+router.post('/test-login', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const testEmail = 'test@haobuyun.app';
+    const testPassword = 'test123456';
+    
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: testEmail,
+      password: testPassword,
+    });
+    
+    if (error) {
+      console.error('测试账号登录失败:', error);
+      return res.status(401).json({ success: false, message: error.message });
+    }
+    
+    console.log('测试账号登录成功:', data.user?.email);
+    return res.status(200).json({
+      success: true,
+      user: data.user,
+      session: data.session,
+    });
+  } catch (err) {
+    console.error('测试账号登录异常:', err);
     return res.status(500).json({ success: false, message: '服务器异常' });
   }
 });

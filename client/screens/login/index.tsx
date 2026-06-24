@@ -27,7 +27,7 @@ export default function LoginScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { signInWithEmail, signUpWithEmail } = useAuth();
+  const { signInWithEmail, signUpWithEmail, setSessionManually } = useAuth();
 
   // 测试模式：一键登录
   const handleTestLogin = async () => {
@@ -39,22 +39,32 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       // 先调用 init-test-account 接口初始化测试账号
-      try {
-        const initResponse = await fetch(`${backendBaseUrl}/api/v1/test/init-test-account`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          signal: AbortSignal.timeout(5000),
-        });
-        // 即使初始化失败也继续（账号可能已存在）
-      } catch (e) {
-        // 忽略初始化错误，快速降级
+      await fetch(`${backendBaseUrl}/api/v1/test/init-test-account`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(5000),
+      });
+      
+      // 通过后端代理进行登录验证
+      const loginResponse = await fetch(`${backendBaseUrl}/api/v1/test/test-login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(10000),
+      });
+      
+      const loginData = await loginResponse.json();
+      
+      if (!loginResponse.ok || !loginData.success) {
+        Alert.alert('测试账号不可用', loginData.message || '登录失败');
+        return;
       }
       
-      // 使用测试账号登录
-      const { error } = await signInWithEmail('test@haobuyun.app', 'test123456');
-      if (error) {
-        Alert.alert('测试账号不可用', error.message);
-      }
+      // 登录成功，保存session到AuthContext
+      setSessionManually(loginData.session);
+      
+    } catch (e: any) {
+      console.log('测试登录异常:', e);
+      Alert.alert('测试账号不可用', e.message || '网络请求失败');
     } finally {
       setLoading(false);
     }
