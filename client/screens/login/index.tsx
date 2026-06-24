@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/storage/supabase';
 import Logo from '@/components/Logo';
 
 const APP_NAME = '号簿云';
@@ -34,11 +35,18 @@ export default function LoginScreen() {
       // 使用测试账号登录
       const { error } = await signInWithEmail('test@haobuyun.app', 'test123456');
       if (error) {
-        // 测试账号不存在，自动注册
-        const signUpResult = await signUpWithEmail('test@haobuyun.app', 'test123456');
-        if (signUpResult.error) {
-          Alert.alert('测试账号创建失败', '请联系管理员');
+        // 测试账号不存在，尝试注册（Supabase需要关闭邮件验证或使用服务密钥）
+        // 直接调用Supabase注册，跳过登录检查
+        const { error: signUpError } = await supabase.auth.signUp({
+          email: 'test@haobuyun.app',
+          password: 'test123456',
+        });
+        if (signUpError) {
+          // 注册也失败，显示具体错误
+          Alert.alert('测试账号不可用', signUpError.message);
         }
+        // 无论注册成功与否，都提示用户稍后重试或联系管理员
+        Alert.alert('测试账号初始化中', '请稍后重试，或联系管理员初始化测试账号');
       }
     } finally {
       setLoading(false);
