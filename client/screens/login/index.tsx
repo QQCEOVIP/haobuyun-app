@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import Constants from 'expo-constants';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/storage/supabase';
 import Logo from '@/components/Logo';
@@ -30,23 +31,29 @@ export default function LoginScreen() {
 
   // 测试模式：一键登录
   const handleTestLogin = async () => {
+    // 获取后端服务地址
+    const backendBaseUrl = process.env.EXPO_PUBLIC_BACKEND_BASE_URL || 
+      (Constants.expoConfig && Constants.expoConfig.extra && Constants.expoConfig.extra.backendBaseUrl) || 
+      'http://localhost:9091';
+    
     setLoading(true);
     try {
+      // 先调用 init-test-account 接口初始化测试账号
+      try {
+        const initResponse = await fetch(`${backendBaseUrl}/api/v1/test/init-test-account`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: AbortSignal.timeout(5000),
+        });
+        // 即使初始化失败也继续（账号可能已存在）
+      } catch (e) {
+        // 忽略初始化错误，快速降级
+      }
+      
       // 使用测试账号登录
       const { error } = await signInWithEmail('test@haobuyun.app', 'test123456');
       if (error) {
-        // 测试账号不存在，尝试注册（Supabase需要关闭邮件验证或使用服务密钥）
-        // 直接调用Supabase注册，跳过登录检查
-        const { error: signUpError } = await supabase.auth.signUp({
-          email: 'test@haobuyun.app',
-          password: 'test123456',
-        });
-        if (signUpError) {
-          // 注册也失败，显示具体错误
-          Alert.alert('测试账号不可用', signUpError.message);
-        }
-        // 无论注册成功与否，都提示用户稍后重试或联系管理员
-        Alert.alert('测试账号初始化中', '请稍后重试，或联系管理员初始化测试账号');
+        Alert.alert('测试账号不可用', error.message);
       }
     } finally {
       setLoading(false);
