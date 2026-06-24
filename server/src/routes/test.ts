@@ -88,4 +88,46 @@ router.post('/test-login', async (req, res) => {
   }
 });
 
+
+// 初始化管理员账号
+router.post('/init-admin-account', async (req, res) => {
+  try {
+    const supabase = getSupabaseAdmin();
+
+    const adminEmail = 'admin@haobuyun.app';
+    const adminPassword = 'admin';
+
+    // 先尝试删除已存在的管理员账号
+    const { data: existingUsers } = await supabase.auth.admin.listUsers();
+    const adminUser = existingUsers?.users?.find(u => u.email === adminEmail);
+
+    if (adminUser) {
+      await supabase.auth.admin.deleteUser(adminUser.id);
+    }
+
+    // 创建管理员账号
+    const { data, error } = await supabase.auth.admin.createUser({
+      email: adminEmail,
+      password: adminPassword,
+      email_confirm: true,
+    });
+
+    if (error) {
+      console.error('创建管理员账号失败:', error);
+      return res.status(500).json({ success: false, message: error.message });
+    }
+
+    console.log('管理员账号创建成功:', data.user?.email);
+    return res.status(200).json({
+      success: true,
+      message: '管理员账号初始化成功',
+      email: adminEmail,
+      password: adminPassword,
+    });
+  } catch (err) {
+    console.error('初始化管理员账号异常:', err);
+    return res.status(500).json({ success: false, message: '服务器异常' });
+  }
+});
+
 export default router;
