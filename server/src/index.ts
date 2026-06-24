@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import pointsRouter from "./routes/points";
 import contactsRouter from "./routes/contacts";
+import testRouter from "./routes/test";
 // TODO: 扩展点预留 - 广告和游戏路由
 // import adsRouter from "./routes/ads";    // 广告回调 (AdMob/穿山甲/优量汇)
 // import gameRouter from "./routes/game";  // 小游戏 (H5/外部渠道)
@@ -24,6 +25,9 @@ app.use('/api/v1/points', pointsRouter);
 
 // 通讯录管理路由
 app.use('/api/v1/contacts', contactsRouter);
+
+// 测试账号路由
+app.use('/api/v1/test', testRouter);
 
 // TODO: 扩展点预留 - 以下路由待接入广告/游戏后启用
 // app.use('/api/v1/ads', adsRouter);    // 广告回调接口
