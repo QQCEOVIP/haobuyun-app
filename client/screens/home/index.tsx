@@ -540,24 +540,24 @@ export default function HomeScreen() {
                   <Ionicons name="analytics" size={24} color="#9069D9" />
                 </View>
                 <Text style={styles.cloudSectionTitle}>数据分析</Text>
-                {backupAnalysis ? (
+                {analysisResult ? (
                   <View style={styles.analysisResult}>
                     <View style={styles.analysisRow}>
                       <Text style={styles.analysisLabel}>新增联系人</Text>
                       <Text style={[styles.analysisValue, { color: '#67C23A' }]}>
-                        +{backupAnalysis.added}
+                        +{analysisResult.added}
                       </Text>
                     </View>
                     <View style={styles.analysisRow}>
                       <Text style={styles.analysisLabel}>删除联系人</Text>
                       <Text style={[styles.analysisValue, { color: '#F56C6C' }]}>
-                        -{backupAnalysis.deleted}
+                        -{analysisResult.deleted}
                       </Text>
                     </View>
                     <View style={styles.analysisRow}>
                       <Text style={styles.analysisLabel}>修改联系人</Text>
                       <Text style={[styles.analysisValue, { color: '#E6A23C' }]}>
-                        ~{backupAnalysis.modified}
+                        ~{analysisResult.modified}
                       </Text>
                     </View>
                   </View>
@@ -566,7 +566,7 @@ export default function HomeScreen() {
                 )}
                 <TouchableOpacity
                   style={[styles.cloudButton, { backgroundColor: '#9069D9' }]}
-                  onPress={handleAnalysis}
+                  onPress={analyzeBackups}
                 >
                   <Text style={styles.cloudButtonText}>分析数据</Text>
                 </TouchableOpacity>
