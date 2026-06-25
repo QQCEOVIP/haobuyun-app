@@ -164,17 +164,17 @@ export default function HomeScreen() {
             </View>
             <Text style={styles.actionText}>一键检测</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionCard} onPress={() => router.push('/cleanup')}>
-            <View style={[styles.actionIcon, { backgroundColor: 'rgba(230, 162, 60, 0.12)' }]}>
-              <Ionicons name="brush" size={24} color="#E6A23C" />
-            </View>
-            <Text style={styles.actionText}>批量清理</Text>
-          </TouchableOpacity>
           <TouchableOpacity style={styles.actionCard} onPress={() => router.push('/profile')}>
             <View style={[styles.actionIcon, { backgroundColor: 'rgba(103, 194, 58, 0.12)' }]}>
               <Ionicons name="cloud" size={24} color="#67C23A" />
             </View>
             <Text style={styles.actionText}>云端备份</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.actionCard} onPress={() => router.push('/cleanup')}>
+            <View style={[styles.actionIcon, { backgroundColor: 'rgba(144, 105, 217, 0.12)' }]}>
+              <Ionicons name="download" size={24} color="#9069D9" />
+            </View>
+            <Text style={styles.actionText}>导入通讯录</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.actionCard}>
             <View style={[styles.actionIcon, { backgroundColor: 'rgba(245, 108, 108, 0.12)' }]}>
