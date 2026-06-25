@@ -34,6 +34,11 @@ export default function HomeScreen() {
   });
   const [detecting, setDetecting] = useState(false);
   const [detectionResult, setDetectionResult] = useState<any>(null);
+  const [cloudBackupVisible, setCloudBackupVisible] = useState(false);
+  const [cloudBackupTab, setCloudBackupTab] = useState<'backup' | 'restore' | 'records' | 'analysis'>('backup');
+  const [backups, setBackups] = useState<any[]>([]);
+  const [backupLoading, setBackupLoading] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<any>(null);
 
   const userId = (user as any)?.id;
   const userEmail = (user as any)?.email || '';
@@ -115,6 +120,117 @@ export default function HomeScreen() {
     } finally {
       setDetecting(false);
     }
+  };
+
+  // 云端备份相关函数
+  const handleBackup = async () => {
+    if (!session?.access_token) {
+      Alert.alert('提示', '请先登录');
+      return;
+    }
+    try {
+      const response = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/contacts/backup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-session': session.access_token,
+        },
+      });
+      const data = await response.json();
+      if (data.success) {
+        Alert.alert('成功', `已备份 ${data.data.contact_count} 个联系人到云端`);
+        fetchBackupList();
+      } else {
+        Alert.alert('错误', data.error || '备份失败');
+      }
+    } catch (error) {
+      console.error('备份失败:', error);
+      Alert.alert('错误', '备份失败，请重试');
+    }
+  };
+
+  const fetchBackupList = async () => {
+    if (!session?.access_token) return;
+    try {
+      const response = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/contacts/backups/list`, {
+        headers: { 'x-session': session.access_token },
+      });
+      const data = await response.json();
+      if (data.success) {
+        setBackupList(data.data || []);
+      }
+    } catch (error) {
+      console.error('获取备份列表失败:', error);
+    }
+  };
+
+  const handleRestore = async (backupId: string) => {
+    if (!session?.access_token) return;
+    Alert.alert(
+      '确认恢复',
+      '恢复通讯录将合并云端数据到本地，是否继续？',
+      [
+        { text: '取消', style: 'cancel' },
+        {
+          text: '恢复',
+          onPress: async () => {
+            try {
+              const response = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/contacts/restore`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'x-session': session.access_token,
+                },
+                body: JSON.stringify({ backup_id: backupId, mode: 'merge' }),
+              });
+              const data = await response.json();
+              if (data.success) {
+                Alert.alert('成功', data.message || '恢复成功');
+                fetchStats();
+              } else {
+                Alert.alert('错误', data.error || '恢复失败');
+              }
+            } catch (error) {
+              console.error('恢复失败:', error);
+              Alert.alert('错误', '恢复失败，请重试');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const analyzeBackups = () => {
+    if (backupList.length < 2) {
+      setAnalysisResult({ error: '至少需要2次备份才能进行对比分析' });
+      return;
+    }
+    const latest = backupList[0]?.metadata?.contacts || [];
+    const previous = backupList[1]?.metadata?.contacts || [];
+    
+    const latestPhones = new Set(latest.map((c: any) => c.phone));
+    const previousPhones = new Set(previous.map((c: any) => c.phone));
+    
+    const added = latest.filter((c: any) => !previousPhones.has(c.phone));
+    const deleted = previous.filter((c: any) => !latestPhones.has(c.phone));
+    
+    // 找出修改的联系人（相同号码但其他信息变化）
+    const modified: any[] = [];
+    latest.forEach((c: any) => {
+      const prev = previous.find((p: any) => p.phone === c.phone);
+      if (prev && (prev.name !== c.name || prev.status !== c.status)) {
+        modified.push({ phone: c.phone, oldName: prev.name, newName: c.name, oldStatus: prev.status, newStatus: c.status });
+      }
+    });
+    
+    setAnalysisResult({
+      latestDate: backupList[0].created_at,
+      previousDate: backupList[1].created_at,
+      added: added.length,
+      deleted: deleted.length,
+      modified: modified.length,
+      details: { added, deleted, modified },
+    });
   };
 
   const fetchStats = async () => {
@@ -256,7 +372,7 @@ export default function HomeScreen() {
             </View>
             <Text style={styles.actionText}>{detecting ? '检测中...' : '一键检测'}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionCard} onPress={() => router.push('/profile')}>
+          <TouchableOpacity style={styles.actionCard} onPress={() => setCloudBackupVisible(true)}>
             <View style={[styles.actionIcon, { backgroundColor: 'rgba(103, 194, 58, 0.12)' }]}>
               <Ionicons name="cloud" size={24} color="#67C23A" />
             </View>
@@ -317,6 +433,123 @@ export default function HomeScreen() {
             >
               <Text style={styles.modalButtonText}>知道了</Text>
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 云端备份模态框 */}
+      <Modal
+        visible={cloudBackupVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setCloudBackupVisible(false)}
+      >
+        <View style={styles.cloudModalOverlay}>
+          <View style={styles.cloudModalContent}>
+            <View style={styles.cloudModalHeader}>
+              <Text style={styles.cloudModalTitle}>云端备份</Text>
+              <TouchableOpacity onPress={() => setCloudBackupVisible(false)}>
+                <Ionicons name="close" size={24} color="#909399" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.cloudModalBody}>
+              {/* 备份通讯录 */}
+              <View style={styles.cloudSection}>
+                <View style={[styles.cloudIconContainer, { backgroundColor: 'rgba(74, 144, 217, 0.12)' }]}>
+                  <Ionicons name="cloud-upload" size={24} color="#4A90D9" />
+                </View>
+                <Text style={styles.cloudSectionTitle}>备份通讯录</Text>
+                <Text style={styles.cloudSectionDesc}>将当前通讯录备份到云端</Text>
+                <TouchableOpacity
+                  style={styles.cloudButton}
+                  onPress={handleBackup}
+                  disabled={backupLoading}
+                >
+                  <Text style={styles.cloudButtonText}>
+                    {backupLoading ? '备份中...' : '立即备份'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* 恢复通讯录 */}
+              <View style={styles.cloudSection}>
+                <View style={[styles.cloudIconContainer, { backgroundColor: 'rgba(103, 194, 58, 0.12)' }]}>
+                  <Ionicons name="cloud-download" size={24} color="#67C23A" />
+                </View>
+                <Text style={styles.cloudSectionTitle}>恢复通讯录</Text>
+                <Text style={styles.cloudSectionDesc}>从云端恢复通讯录数据</Text>
+                <TouchableOpacity
+                  style={styles.cloudButton}
+                  onPress={handleRestore}
+                  disabled={backupLoading}
+                >
+                  <Text style={styles.cloudButtonText}>
+                    {backupLoading ? '恢复中...' : '立即恢复'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* 备份记录 */}
+              <View style={styles.cloudSection}>
+                <View style={[styles.cloudIconContainer, { backgroundColor: 'rgba(230, 162, 60, 0.12)' }]}>
+                  <Ionicons name="time" size={24} color="#E6A23C" />
+                </View>
+                <Text style={styles.cloudSectionTitle}>备份记录</Text>
+                {backupList.length > 0 ? (
+                  backupList.slice(0, 3).map((backup, index) => (
+                    <View key={index} style={styles.backupRecord}>
+                      <Text style={styles.backupRecordText}>
+                        {new Date(backup.created_at).toLocaleString()}
+                      </Text>
+                      <Text style={styles.backupRecordCount}>
+                        {backup.contact_count} 个联系人
+                      </Text>
+                    </View>
+                  ))
+                ) : (
+                  <Text style={styles.noBackupText}>暂无备份记录</Text>
+                )}
+              </View>
+
+              {/* 数据分析 */}
+              <View style={styles.cloudSection}>
+                <View style={[styles.cloudIconContainer, { backgroundColor: 'rgba(144, 105, 217, 0.12)' }]}>
+                  <Ionicons name="analytics" size={24} color="#9069D9" />
+                </View>
+                <Text style={styles.cloudSectionTitle}>数据分析</Text>
+                {backupAnalysis ? (
+                  <View style={styles.analysisResult}>
+                    <View style={styles.analysisRow}>
+                      <Text style={styles.analysisLabel}>新增联系人</Text>
+                      <Text style={[styles.analysisValue, { color: '#67C23A' }]}>
+                        +{backupAnalysis.added}
+                      </Text>
+                    </View>
+                    <View style={styles.analysisRow}>
+                      <Text style={styles.analysisLabel}>删除联系人</Text>
+                      <Text style={[styles.analysisValue, { color: '#F56C6C' }]}>
+                        -{backupAnalysis.deleted}
+                      </Text>
+                    </View>
+                    <View style={styles.analysisRow}>
+                      <Text style={styles.analysisLabel}>修改联系人</Text>
+                      <Text style={[styles.analysisValue, { color: '#E6A23C' }]}>
+                        ~{backupAnalysis.modified}
+                      </Text>
+                    </View>
+                  </View>
+                ) : (
+                  <Text style={styles.noBackupText}>需要至少两次备份才能分析</Text>
+                )}
+                <TouchableOpacity
+                  style={[styles.cloudButton, { backgroundColor: '#9069D9' }]}
+                  onPress={handleAnalysis}
+                >
+                  <Text style={styles.cloudButtonText}>分析数据</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -504,5 +737,139 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  // Cloud Backup Modal Styles
+  cloudModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    maxHeight: '80%',
+  },
+  cloudModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  cloudModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#303133',
+  },
+  cloudTabs: {
+    flexDirection: 'row',
+    marginBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  cloudTab: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  cloudTabActive: {
+    borderBottomWidth: 2,
+    borderBottomColor: '#4A90D9',
+  },
+  cloudTabText: {
+    fontSize: 14,
+    color: '#909399',
+  },
+  cloudTabTextActive: {
+    color: '#4A90D9',
+    fontWeight: '600',
+  },
+  cloudActionCard: {
+    backgroundColor: '#F5F7FA',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+  },
+  cloudActionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#303133',
+    marginBottom: 8,
+  },
+  cloudActionDesc: {
+    fontSize: 13,
+    color: '#909399',
+    marginBottom: 12,
+  },
+  cloudActionButton: {
+    backgroundColor: '#4A90D9',
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  cloudActionButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  backupItem: {
+    backgroundColor: '#F5F7FA',
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  backupInfo: {
+    flex: 1,
+  },
+  backupDate: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#303133',
+  },
+  backupCount: {
+    fontSize: 12,
+    color: '#909399',
+    marginTop: 4,
+  },
+  restoreButton: {
+    backgroundColor: '#67C23A',
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  restoreButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  analysisCard: {
+    backgroundColor: '#F5F7FA',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+  },
+  analysisRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E6E8EB',
+  },
+  analysisLabel: {
+    fontSize: 14,
+    color: '#606266',
+  },
+  analysisValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#303133',
+  },
+  analysisValueGreen: {
+    color: '#67C23A',
+  },
+  analysisValueRed: {
+    color: '#F56C6C',
+  },
+  analysisValueOrange: {
+    color: '#E6A23C',
   },
 });
