@@ -13,7 +13,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import Constants from 'expo-constants';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/storage/supabase';
 import Logo from '@/components/Logo';
@@ -27,48 +26,7 @@ export default function LoginScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { signInWithEmail, signUpWithEmail, setSessionManually } = useAuth();
-
-  // 测试模式：一键登录
-  const handleTestLogin = async () => {
-    // 获取后端服务地址
-    const backendBaseUrl = process.env.EXPO_PUBLIC_BACKEND_BASE_URL || 
-      (Constants.expoConfig && Constants.expoConfig.extra && Constants.expoConfig.extra.backendBaseUrl) || 
-      'http://localhost:9091';
-    
-    setLoading(true);
-    try {
-      // 先调用 init-test-account 接口初始化测试账号
-      await fetch(`${backendBaseUrl}/api/v1/test/init-test-account`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: AbortSignal.timeout(5000),
-      });
-      
-      // 通过后端代理进行登录验证
-      const loginResponse = await fetch(`${backendBaseUrl}/api/v1/test/test-login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: AbortSignal.timeout(10000),
-      });
-      
-      const loginData = await loginResponse.json();
-      
-      if (!loginResponse.ok || !loginData.success) {
-        Alert.alert('测试账号不可用', loginData.message || '登录失败');
-        return;
-      }
-      
-      // 登录成功，保存session到AuthContext
-      setSessionManually(loginData.session);
-      
-    } catch (e: any) {
-      console.log('测试登录异常:', e);
-      Alert.alert('测试账号不可用', e.message || '网络请求失败');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { signInWithEmail, signUpWithEmail } = useAuth();
 
   const handleSubmit = async () => {
     if (!email || !password) {
@@ -207,14 +165,7 @@ export default function LoginScreen() {
               </Text>
             </TouchableOpacity>
 
-            {/* 测试模式：一键体验 */}
-            <TouchableOpacity
-              style={styles.testButton}
-              onPress={handleTestLogin}
-              disabled={loading}
-            >
-              <Text style={styles.testButtonText}>测试模式：一键体验</Text>
-            </TouchableOpacity>
+
           </View>
 
           <View style={styles.privacy}>
@@ -344,18 +295,6 @@ const styles = StyleSheet.create({
     color: '#909399',
     fontSize: 12,
     textDecorationLine: 'underline',
-  },
-  testButton: {
-    backgroundColor: '#67C23A',
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 16,
-  },
-  testButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
   },
   privacy: {
     marginTop: 32,
