@@ -41,6 +41,10 @@ export default function ContactsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [infoModalVisible, setInfoModalVisible] = useState(false);
+  const [tagModalVisible, setTagModalVisible] = useState(false);
+  const [tags, setTags] = useState<any[]>([]);
+  const [newTagName, setNewTagName] = useState('');
+  const [newTagColor, setNewTagColor] = useState('#4A90D9');
 
   const userId = (user as any)?.id;
 
@@ -88,6 +92,69 @@ export default function ContactsScreen() {
     }
   };
 
+  // 加载标签
+  const loadTags = async () => {
+    if (!userId) return;
+    try {
+      const { data, error } = await supabase
+        .from('tags')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      setTags(data || []);
+    } catch (error) {
+      console.error('Failed to load tags:', error);
+    }
+  };
+
+  // 创建标签
+  const handleCreateTag = async () => {
+    if (!newTagName.trim() || !userId) return;
+    try {
+      const { data, error } = await supabase
+        .from('tags')
+        .insert({
+          user_id: userId,
+          name: newTagName.trim(),
+          color: newTagColor,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      setTags([...tags, data]);
+      setNewTagName('');
+      setNewTagColor('#4A90D9');
+    } catch (error) {
+      console.error('Failed to create tag:', error);
+      Alert.alert('错误', '创建标签失败');
+    }
+  };
+
+  // 删除标签
+  const handleDeleteTag = async (tagId: string) => {
+    Alert.alert('确认删除', '确定要删除这个标签吗？', [
+      { text: '取消', style: 'cancel' },
+      {
+        text: '删除',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            const { error } = await supabase
+              .from('tags')
+              .delete()
+              .eq('id', tagId);
+            if (error) throw error;
+            setTags(tags.filter(t => t.id !== tagId));
+          } catch (error) {
+            console.error('Failed to delete tag:', error);
+            Alert.alert('错误', '删除标签失败');
+          }
+        },
+      },
+    ]);
+  };
+
   const filterContacts = (contactList: Contact[], search: string, tab: string) => {
     let filtered = contactList;
 
@@ -108,6 +175,7 @@ export default function ContactsScreen() {
   useFocusEffect(
     useCallback(() => {
       loadContacts();
+      loadTags();
     }, [userId])
   );
 
@@ -159,12 +227,20 @@ export default function ContactsScreen() {
       <View style={styles.header}>
         <View style={styles.titleRow}>
           <Text style={styles.title}>通讯录</Text>
-          <TouchableOpacity
-            style={styles.helpButton}
-            onPress={() => setInfoModalVisible(true)}
-          >
-            <Ionicons name="help-circle-outline" size={24} color="#909399" />
-          </TouchableOpacity>
+          <View style={styles.headerButtons}>
+            <TouchableOpacity
+              style={styles.headerButton}
+              onPress={() => setTagModalVisible(true)}
+            >
+              <Ionicons name="pricetag-outline" size={24} color="#E6A23C" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.headerButton}
+              onPress={() => setInfoModalVisible(true)}
+            >
+              <Ionicons name="help-circle-outline" size={24} color="#909399" />
+            </TouchableOpacity>
+          </View>
         </View>
         <Text style={styles.subtitle}>{contacts.length} 位联系人</Text>
       </View>
@@ -224,6 +300,82 @@ export default function ContactsScreen() {
           </View>
         }
       />
+
+      {/* 标签管理弹窗 */}
+      <Modal
+        visible={tagModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setTagModalVisible(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setTagModalVisible(false)}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.tagModal}>
+                <View style={styles.tagModalHeader}>
+                  <Text style={styles.tagModalTitle}>标签管理</Text>
+                  <TouchableOpacity onPress={() => setTagModalVisible(false)}>
+                    <Ionicons name="close" size={24} color="#909399" />
+                  </TouchableOpacity>
+                </View>
+
+                <ScrollView style={styles.tagList}>
+                  {tags.length === 0 ? (
+                    <Text style={styles.emptyTagText}>暂无标签，请创建</Text>
+                  ) : (
+                    tags.map((tag) => (
+                      <View key={tag.id} style={styles.tagItem}>
+                        <View style={[styles.tagColorDot, { backgroundColor: tag.color }]} />
+                        <Text style={styles.tagName}>{tag.name}</Text>
+                        <TouchableOpacity
+                          style={styles.deleteTagButton}
+                          onPress={() => handleDeleteTag(tag.id)}
+                        >
+                          <Ionicons name="trash-outline" size={18} color="#F56C6C" />
+                        </TouchableOpacity>
+                      </View>
+                    ))
+                  )}
+                </ScrollView>
+
+                <View style={styles.createTagSection}>
+                  <Text style={styles.createTagTitle}>创建新标签</Text>
+                  <TextInput
+                    style={styles.tagInput}
+                    placeholder="标签名称"
+                    placeholderTextColor="#B2BEC3"
+                    value={newTagName}
+                    onChangeText={setNewTagName}
+                  />
+                  <View style={styles.colorPicker}>
+                    {['#4A90D9', '#67C23A', '#E6A23C', '#F56C6C', '#9069D9', '#909399'].map((color) => (
+                      <TouchableOpacity
+                        key={color}
+                        style={[
+                          styles.colorOption,
+                          { backgroundColor: color },
+                          newTagColor === color && styles.colorOptionSelected,
+                        ]}
+                        onPress={() => setNewTagColor(color)}
+                      />
+                    ))}
+                  </View>
+                  <TouchableOpacity
+                    style={[
+                      styles.createTagButton,
+                      (!newTagName.trim() || !newTagColor) && styles.createTagButtonDisabled,
+                    ]}
+                    onPress={handleCreateTag}
+                    disabled={!newTagName.trim() || !newTagColor}
+                  >
+                    <Text style={styles.createTagButtonText}>创建标签</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
 
       {/* 如何判断号码失效弹窗 */}
       <Modal
@@ -445,5 +597,94 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#606266',
     lineHeight: 20,
+  },
+  // 标签管理模态框样式
+  tagModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  tagModalCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    marginHorizontal: 40,
+    width: '85%',
+    maxWidth: 360,
+    maxHeight: '80%',
+  },
+  tagModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#303133',
+    marginBottom: 16,
+  },
+  tagListContainer: {
+    maxHeight: 200,
+    marginBottom: 16,
+  },
+  tagItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  tagColorDot: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    marginRight: 10,
+  },
+  tagName: {
+    flex: 1,
+    fontSize: 15,
+    color: '#303133',
+  },
+  tagDeleteButton: {
+    padding: 8,
+  },
+  createTagContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  tagInput: {
+    flex: 1,
+    backgroundColor: '#F5F7FA',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    marginRight: 10,
+  },
+  createTagButton: {
+    backgroundColor: '#E6A23C',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  createTagButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  colorPickerContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 16,
+  },
+  colorOption: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: 10,
+    marginBottom: 10,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  colorOptionSelected: {
+    borderColor: '#303133',
   },
 });

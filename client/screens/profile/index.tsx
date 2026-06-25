@@ -160,19 +160,6 @@ export default function ProfileScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>标签管理</Text>
-          <View style={styles.menuCard}>
-            <MenuItem
-              name="pricetag"
-              color="#E6A23C"
-              title="管理标签"
-              subtitle="客户、朋友、家人、同事..."
-              onPress={() => Alert.alert('提示', '标签管理开发中')}
-            />
-          </View>
-        </View>
-
-        <View style={styles.section}>
           <Text style={styles.sectionTitle}>设置</Text>
           <View style={styles.menuCard}>
             <MenuItem
