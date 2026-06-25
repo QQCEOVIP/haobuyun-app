@@ -237,6 +237,21 @@ export default function HomeScreen() {
     if (!userId) return;
 
     try {
+      // 1. 获取设备联系人数量（实际手机上的号码数）
+      let deviceContactsCount = 0;
+      const { status } = await Contacts.requestPermissionsAsync();
+      if (status === 'granted') {
+        const { data: deviceContacts } = await Contacts.getContactsAsync({
+          fields: [Contacts.Fields.PhoneNumbers],
+          pageSize: 10000,
+        });
+        // 只统计有手机号的联系人
+        deviceContactsCount = deviceContacts?.filter(
+          c => c.phoneNumbers && c.phoneNumbers.length > 0
+        ).length || 0;
+      }
+
+      // 2. 获取 supabase 中的状态分布数据
       const { data, error } = await supabase
         .from('contacts')
         .select('status')
@@ -244,8 +259,9 @@ export default function HomeScreen() {
 
       if (error) throw error;
 
+      // 3. 计算状态分布
       const contactStats: ContactStats = {
-        total: data?.length || 0,
+        total: deviceContactsCount || data?.length || 0, // 优先使用设备联系人数量
         active: 0,
         maybeInvalid: 0,
         invalid: 0,
@@ -267,6 +283,11 @@ export default function HomeScreen() {
             contactStats.unknown++;
         }
       });
+
+      // 如果没有权限获取设备联系人，使用 supabase 数量
+      if (deviceContactsCount === 0) {
+        contactStats.total = data?.length || 0;
+      }
 
       setStats(contactStats);
     } catch (error) {
