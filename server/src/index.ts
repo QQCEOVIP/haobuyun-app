@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import path from "path";
+import { fileURLToPath } from "url";
 import pointsRouter from "./routes/points";
 import contactsRouter from "./routes/contacts";
 // TODO: 扩展点预留 - 广告和游戏路由
@@ -33,6 +34,8 @@ app.use('/api/v1/contacts', contactsRouter);
 // app.use('/api/v1/games', gameRouter); // 小游戏接口
 
 // === serve client bundle ===
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const clientDistPath = path.resolve(__dirname, "..", "..", "client", "dist");
 app.use(express.static(clientDistPath));
 app.get(/.*/, (req, res) => { res.sendFile(path.join(clientDistPath, "index.html")); });
