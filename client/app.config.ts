@@ -79,9 +79,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     "experiments": {
       "typedRoutes": true
     },
-    "extra": {
-      "supabaseUrl": process.env.COZE_SUPABASE_URL || "",
-      "supabaseAnonKey": process.env.COZE_SUPABASE_ANON_KEY || ""
+    extra: {
+      supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL || process.env.COZE_SUPABASE_URL || 'https://br-jolly-cat-a3661c04.supabase2.aidap-global.cn-beijing.volces.com',
+      supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || process.env.COZE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjMzNjI1NjI0NDIsInJvbGUiOiJhbm9uIn0.dYBem3W0jDfoShmUUqFTy_3Q0o7LehKj5tugGtFrkRU'
     }
   }
 }
