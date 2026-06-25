@@ -24,7 +24,7 @@ interface ContactStats {
 }
 
 export default function HomeScreen() {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const [stats, setStats] = useState<ContactStats>({
     total: 0,
     active: 0,
@@ -157,7 +157,7 @@ export default function HomeScreen() {
       });
       const data = await response.json();
       if (data.success) {
-        setBackupList(data.data || []);
+        setBackups(data.data || []);
       }
     } catch (error) {
       console.error('获取备份列表失败:', error);
@@ -201,12 +201,12 @@ export default function HomeScreen() {
   };
 
   const analyzeBackups = () => {
-    if (backupList.length < 2) {
+    if (backups.length < 2) {
       setAnalysisResult({ error: '至少需要2次备份才能进行对比分析' });
       return;
     }
-    const latest = backupList[0]?.metadata?.contacts || [];
-    const previous = backupList[1]?.metadata?.contacts || [];
+    const latest = backups[0]?.metadata?.contacts || [];
+    const previous = backups[1]?.metadata?.contacts || [];
     
     const latestPhones = new Set(latest.map((c: any) => c.phone));
     const previousPhones = new Set(previous.map((c: any) => c.phone));
@@ -224,8 +224,8 @@ export default function HomeScreen() {
     });
     
     setAnalysisResult({
-      latestDate: backupList[0].created_at,
-      previousDate: backupList[1].created_at,
+      latestDate: backups[0].created_at,
+      previousDate: backups[1].created_at,
       added: added.length,
       deleted: deleted.length,
       modified: modified.length,
@@ -517,8 +517,8 @@ export default function HomeScreen() {
                   <Ionicons name="time" size={24} color="#E6A23C" />
                 </View>
                 <Text style={styles.cloudSectionTitle}>备份记录</Text>
-                {backupList.length > 0 ? (
-                  backupList.slice(0, 3).map((backup, index) => (
+                {backups.length > 0 ? (
+                  backups.slice(0, 3).map((backup, index) => (
                     <View key={index} style={styles.backupRecord}>
                       <Text style={styles.backupRecordText}>
                         {new Date(backup.created_at).toLocaleString()}
