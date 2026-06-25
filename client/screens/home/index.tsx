@@ -3,9 +3,7 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
-  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, router } from 'expo-router';
@@ -13,7 +11,6 @@ import Svg, { Circle } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/storage/supabase';
-import Logo from '@/components/Logo';
 
 interface ContactStats {
   total: number;
@@ -32,7 +29,6 @@ export default function HomeScreen() {
     invalid: 0,
     unknown: 0,
   });
-  const [refreshing, setRefreshing] = useState(false);
 
   const userId = (user as any)?.id;
   const userEmail = (user as any)?.email || '';
@@ -84,56 +80,45 @@ export default function HomeScreen() {
     }, [userId])
   );
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await fetchStats();
-    setRefreshing(false);
-  };
-
   const healthPercentage = stats.total > 0
     ? Math.round((stats.active / stats.total) * 100)
     : 100;
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-      >
-        <View style={styles.header}>
-          <View style={styles.logoContainer}>
-            <Logo size={48} />
-          </View>
-          <Text style={styles.greeting}>你好，{userEmail.split('@')[0] || '用户'}</Text>
-          <Text style={styles.title}>号码健康度</Text>
-        </View>
-
+      <View style={styles.content}>
         {/* 健康度仪表盘 */}
         <View style={styles.dashboardCard}>
+          {/* 用户头像在左上角 */}
+          <View style={styles.avatarContainer}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>
+                {userEmail.split('@')[0]?.[0]?.toUpperCase() || 'U'}
+              </Text>
+            </View>
+          </View>
+
           <View style={styles.gaugeContainer}>
-            <Svg width={160} height={160}>
+            <Svg width={140} height={140}>
               <Circle
-                cx={80}
-                cy={80}
-                r={70}
+                cx={70}
+                cy={70}
+                r={60}
                 stroke="#E6E8EB"
-                strokeWidth={12}
+                strokeWidth={10}
                 fill="none"
               />
               <Circle
-                cx={80}
-                cy={80}
-                r={70}
+                cx={70}
+                cy={70}
+                r={60}
                 stroke={healthPercentage >= 80 ? '#67C23A' : healthPercentage >= 50 ? '#E6A23C' : '#F56C6C'}
-                strokeWidth={12}
+                strokeWidth={10}
                 fill="none"
-                strokeDasharray={`${(healthPercentage / 100) * 440} 440`}
+                strokeDasharray={`${(healthPercentage / 100) * 377} 377`}
                 strokeLinecap="round"
                 rotation="-90"
-                origin="80, 80"
+                origin="70, 70"
               />
             </Svg>
             <View style={styles.gaugeCenter}>
@@ -141,6 +126,7 @@ export default function HomeScreen() {
               <Text style={styles.gaugeLabel}>健康度</Text>
             </View>
           </View>
+
           <Text style={styles.healthDesc}>
             {healthPercentage >= 80 ? '您的通讯录非常健康' :
              healthPercentage >= 50 ? '部分号码可能需要关注' : '建议清理失效号码'}
@@ -148,7 +134,7 @@ export default function HomeScreen() {
         </View>
 
         {/* 统计数据 */}
-        <View style={styles.statsContainer}>
+        <View style={styles.statsRow}>
           <View style={styles.statCard}>
             <Text style={styles.statValue}>{stats.total}</Text>
             <Text style={styles.statLabel}>总号码</Text>
@@ -158,7 +144,7 @@ export default function HomeScreen() {
             <Text style={styles.statLabel}>活跃</Text>
           </View>
         </View>
-        <View style={styles.statsContainer}>
+        <View style={styles.statsRow}>
           <View style={[styles.statCard, { backgroundColor: '#FFF8E6' }]}>
             <Text style={[styles.statValue, { color: '#E6A23C' }]}>{stats.maybeInvalid}</Text>
             <Text style={styles.statLabel}>可能失效</Text>
@@ -169,8 +155,8 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* 快捷操作 */}
-        <Text style={styles.sectionTitle}>快捷操作</Text>
+        {/* 基础功能 */}
+        <Text style={styles.sectionTitle}>基础功能</Text>
         <View style={styles.actionContainer}>
           <TouchableOpacity style={styles.actionCard} onPress={() => router.push('/onboarding')}>
             <View style={[styles.actionIcon, { backgroundColor: 'rgba(74, 144, 217, 0.12)' }]}>
@@ -197,17 +183,7 @@ export default function HomeScreen() {
             <Text style={styles.actionText}>导出通讯录</Text>
           </TouchableOpacity>
         </View>
-
-        {/* 检测说明 */}
-        <View style={styles.infoCard}>
-          <Text style={styles.infoTitle}>如何判断号码失效</Text>
-          <Text style={styles.infoText}>
-            1. 众包标记：其他用户标记该号码可能失效{'\n'}
-            2. 长期未联系：超过设定的月数无互动{'\n'}
-            3. 手动标记：您主动标记为失效号码
-          </Text>
-        </View>
-      </ScrollView>
+      </View>
     </SafeAreaView>
   );
 }
@@ -217,45 +193,46 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F5F7FA',
   },
-  scrollView: {
+  content: {
     flex: 1,
-  },
-  scrollContent: {
     padding: 20,
-    paddingBottom: 120,
-  },
-  header: {
-    marginBottom: 20,
-  },
-  logoContainer: {
-    marginBottom: 8,
-  },
-  greeting: {
-    fontSize: 14,
-    color: '#909399',
-    marginBottom: 4,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#303133',
+    paddingBottom: 100,
   },
   dashboardCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 24,
+    padding: 20,
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
     shadowColor: '#D1D9E6',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
   },
+  avatarContainer: {
+    position: 'absolute',
+    top: 16,
+    left: 16,
+    zIndex: 10,
+  },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#4A90D9',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
   gaugeContainer: {
     position: 'relative',
-    width: 160,
-    height: 160,
+    width: 140,
+    height: 140,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -264,7 +241,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   gaugeValue: {
-    fontSize: 36,
+    fontSize: 32,
     fontWeight: '800',
     color: '#303133',
   },
@@ -275,18 +252,17 @@ const styles = StyleSheet.create({
   healthDesc: {
     fontSize: 14,
     color: '#909399',
-    marginTop: 16,
+    marginTop: 12,
   },
-  statsContainer: {
+  statsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   statCard: {
     flex: 1,
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    padding: 16,
+    padding: 14,
     alignItems: 'center',
     marginHorizontal: 4,
     shadowColor: '#D1D9E6',
@@ -296,7 +272,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   statValue: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '800',
     color: '#303133',
   },
@@ -309,7 +285,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: '#303133',
-    marginTop: 24,
+    marginTop: 16,
     marginBottom: 12,
   },
   actionContainer: {
@@ -321,9 +297,9 @@ const styles = StyleSheet.create({
     width: '48%',
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    padding: 16,
+    padding: 14,
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
     shadowColor: '#D1D9E6',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
@@ -331,9 +307,9 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   actionIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 8,
@@ -342,27 +318,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#303133',
-  },
-  infoCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    marginTop: 12,
-    shadowColor: '#D1D9E6',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  infoTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#303133',
-    marginBottom: 8,
-  },
-  infoText: {
-    fontSize: 13,
-    color: '#909399',
-    lineHeight: 22,
   },
 });

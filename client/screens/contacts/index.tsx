@@ -7,9 +7,12 @@ import {
   TouchableOpacity,
   TextInput,
   RefreshControl,
+  Modal,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/storage/supabase';
 import * as Contacts from 'expo-contacts';
@@ -37,6 +40,7 @@ export default function ContactsScreen() {
   const [activeTab, setActiveTab] = useState('all');
   const [refreshing, setRefreshing] = useState(false);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+  const [infoModalVisible, setInfoModalVisible] = useState(false);
 
   const userId = (user as any)?.id;
 
@@ -44,7 +48,6 @@ export default function ContactsScreen() {
     if (!userId) return;
 
     try {
-      // 先从数据库加载本地标记的状态
       const { data: localContacts, error } = await supabase
         .from('contacts')
         .select('id, phone, status, last_contact_date')
@@ -52,7 +55,6 @@ export default function ContactsScreen() {
 
       if (error) throw error;
 
-      // 请求通讯录权限
       const { status } = await Contacts.requestPermissionsAsync();
       setHasPermission(status === 'granted');
 
@@ -89,7 +91,6 @@ export default function ContactsScreen() {
   const filterContacts = (contactList: Contact[], search: string, tab: string) => {
     let filtered = contactList;
 
-    // 搜索过滤
     if (search) {
       filtered = filtered.filter(
         c => c.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -97,7 +98,6 @@ export default function ContactsScreen() {
       );
     }
 
-    // 状态过滤
     if (tab !== 'all') {
       filtered = filtered.filter(c => c.status === tab);
     }
@@ -157,7 +157,15 @@ export default function ContactsScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>通讯录</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.title}>通讯录</Text>
+          <TouchableOpacity
+            style={styles.helpButton}
+            onPress={() => setInfoModalVisible(true)}
+          >
+            <Ionicons name="help-circle-outline" size={24} color="#909399" />
+          </TouchableOpacity>
+        </View>
         <Text style={styles.subtitle}>{contacts.length} 位联系人</Text>
       </View>
 
@@ -216,6 +224,36 @@ export default function ContactsScreen() {
           </View>
         }
       />
+
+      {/* 如何判断号码失效弹窗 */}
+      <Modal
+        visible={infoModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setInfoModalVisible(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setInfoModalVisible(false)}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.infoCard}>
+                <Text style={styles.infoTitle}>如何判断号码失效</Text>
+                <View style={styles.infoItem}>
+                  <View style={[styles.infoDot, { backgroundColor: '#4A90D9' }]} />
+                  <Text style={styles.infoText}>众包标记：其他用户标记该号码可能失效</Text>
+                </View>
+                <View style={styles.infoItem}>
+                  <View style={[styles.infoDot, { backgroundColor: '#E6A23C' }]} />
+                  <Text style={styles.infoText}>长期未联系：超过设定的月数无互动</Text>
+                </View>
+                <View style={styles.infoItem}>
+                  <View style={[styles.infoDot, { backgroundColor: '#F56C6C' }]} />
+                  <Text style={styles.infoText}>手动标记：您主动标记为失效号码</Text>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -230,10 +268,18 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 16,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   title: {
     fontSize: 28,
     fontWeight: '800',
     color: '#303133',
+  },
+  helpButton: {
+    padding: 4,
   },
   subtitle: {
     fontSize: 14,
@@ -298,20 +344,20 @@ const styles = StyleSheet.create({
   },
   permissionButtonText: {
     color: '#FFFFFF',
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
   },
   listContent: {
     paddingHorizontal: 20,
-    paddingBottom: 120,
+    paddingBottom: 100,
   },
   contactCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    padding: 12,
-    marginBottom: 8,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
     shadowColor: '#D1D9E6',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
@@ -319,12 +365,13 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#4A90D9',
     justifyContent: 'center',
     alignItems: 'center',
+    marginRight: 12,
   },
   avatarText: {
     fontSize: 18,
@@ -333,7 +380,6 @@ const styles = StyleSheet.create({
   },
   contactInfo: {
     flex: 1,
-    marginLeft: 12,
   },
   contactName: {
     fontSize: 16,
@@ -341,25 +387,63 @@ const styles = StyleSheet.create({
     color: '#303133',
   },
   contactPhone: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#909399',
     marginTop: 2,
   },
   statusBadge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 12,
+    borderRadius: 10,
   },
   statusText: {
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   emptyContainer: {
     alignItems: 'center',
-    paddingTop: 60,
+    paddingVertical: 60,
   },
   emptyText: {
     fontSize: 14,
     color: '#909399',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  infoCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    marginHorizontal: 40,
+    width: '80%',
+    maxWidth: 320,
+  },
+  infoTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#303133',
+    marginBottom: 16,
+  },
+  infoItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  infoDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginTop: 5,
+    marginRight: 10,
+  },
+  infoText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#606266',
+    lineHeight: 20,
   },
 });

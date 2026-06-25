@@ -73,35 +73,6 @@ router.get('/', requireAuth, async (req: any, res: any) => {
 });
 
 /**
- * 获取单个联系人详情
- * GET /api/v1/contacts/:id
- */
-router.get('/:id', requireAuth, async (req: any, res: any) => {
-  try {
-    const contact = await db
-      .select()
-      .from(contacts)
-      .where(and(
-        eq(contacts.id, req.params.id),
-        eq(contacts.user_id, (req as any).userId)
-      ))
-      .limit(1);
-
-    if (contact.length === 0) {
-      return res.status(404).json({ error: '联系人不存在' });
-    }
-
-    res.json({
-      success: true,
-      data: contact[0]
-    });
-  } catch (error) {
-    console.error('获取联系人详情失败:', error);
-    res.status(500).json({ error: '获取联系人详情失败' });
-  }
-});
-
-/**
  * 添加联系人
  * POST /api/v1/contacts
  */
@@ -496,6 +467,35 @@ END:VCARD`;
   } catch (error) {
     console.error('导出通讯录失败:', error);
     res.status(500).json({ error: '导出通讯录失败' });
+  }
+});
+
+/**
+ * 获取单个联系人详情
+ * GET /api/v1/contacts/:id
+ */
+router.get('/:id', requireAuth, async (req: any, res: any) => {
+  try {
+    const contact = await db
+      .select()
+      .from(contacts)
+      .where(and(
+        eq(contacts.id, req.params.id),
+        eq(contacts.user_id, (req as any).userId)
+      ))
+      .limit(1);
+
+    if (contact.length === 0) {
+      return res.status(404).json({ error: '联系人不存在' });
+    }
+
+    res.json({
+      success: true,
+      data: contact[0]
+    });
+  } catch (error) {
+    console.error('获取联系人详情失败:', error);
+    res.status(500).json({ error: '获取联系人详情失败' });
   }
 });
 
