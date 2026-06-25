@@ -28,6 +28,15 @@ check_command() {
 # 检查核心命令
 check_command "pnpm"
 check_command "npm"
+check_command "npx"
+
+# 先 build client (因为 client/dist 不在 git 仓库)
+info "开始构建 client..."
+(pushd "$ROOT_DIR/client" > /dev/null && npx expo export --platform web; popd > /dev/null) || error "client build 失败"
+if [ ! -d "$ROOT_DIR/client/dist" ]; then
+  error "client/dist 目录不存在，build 可能失败"
+fi
+info "client build 完成！\n"
 
 info "开始执行：pnpm run start (server)"
 (pushd "$ROOT_DIR/server" > /dev/null && PORT="$PORT" pnpm run start; popd > /dev/null) || error "服务启动失败"
