@@ -159,34 +159,6 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* 数据管理 */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>数据管理</Text>
-          <View style={styles.menuCard}>
-            <MenuItem
-              name="cloud-upload"
-              color="#4A90D9"
-              title="备份通讯录"
-              subtitle="将通讯录备份到云端"
-              onPress={() => Alert.alert('提示', '备份功能开发中')}
-            />
-            <MenuItem
-              name="share-outline"
-              color="#67C23A"
-              title="导出通讯录"
-              subtitle="导出为 vCard/CSV 格式"
-              onPress={() => Alert.alert('提示', '导出功能开发中')}
-            />
-            <MenuItem
-              name="cloud-download"
-              color="#9069D9"
-              title="导入通讯录"
-              subtitle="从其他设备导入"
-              onPress={() => Alert.alert('提示', '导入功能开发中')}
-            />
-          </View>
-        </View>
-
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>标签管理</Text>
           <View style={styles.menuCard}>
