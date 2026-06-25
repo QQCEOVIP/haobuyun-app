@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import path from "path";
 import pointsRouter from "./routes/points";
 import contactsRouter from "./routes/contacts";
 // TODO: 扩展点预留 - 广告和游戏路由
@@ -30,6 +31,12 @@ app.use('/api/v1/contacts', contactsRouter);
 // TODO: 扩展点预留 - 以下路由待接入广告/游戏后启用
 // app.use('/api/v1/ads', adsRouter);    // 广告回调接口
 // app.use('/api/v1/games', gameRouter); // 小游戏接口
+
+// === serve client bundle ===
+const clientDistPath = path.resolve(__dirname, "..", "..", "client", "dist");
+app.use(express.static(clientDistPath));
+app.get(/.*/, (req, res) => { res.sendFile(path.join(clientDistPath, "index.html")); });
+// === end ===
 
 app.listen(port, () => {
   console.log(`Server listening at http://localhost:${port}/`);
