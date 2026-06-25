@@ -4,11 +4,14 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  Alert,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, router } from 'expo-router';
 import Svg, { Circle } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
+import * as Contacts from 'expo-contacts';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/storage/supabase';
 
@@ -29,9 +32,90 @@ export default function HomeScreen() {
     invalid: 0,
     unknown: 0,
   });
+  const [detecting, setDetecting] = useState(false);
+  const [detectionResult, setDetectionResult] = useState<any>(null);
 
   const userId = (user as any)?.id;
   const userEmail = (user as any)?.email || '';
+
+  // 一键检测功能
+  const runDetection = async () => {
+    if (detecting) return;
+    
+    setDetecting(true);
+    try {
+      // 请求通讯录权限
+      const { status } = await Contacts.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('权限不足', '需要通讯录权限才能进行检测');
+        setDetecting(false);
+        return;
+      }
+
+      // 获取设备通讯录
+      const { data: deviceContacts } = await Contacts.getContactsAsync({
+        fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name],
+        pageSize: 1000,
+      });
+
+      if (!deviceContacts || deviceContacts.length === 0) {
+        Alert.alert('提示', '未找到通讯录联系人');
+        setDetecting(false);
+        return;
+      }
+
+      // 获取本地已存储的联系人状态
+      const { data: localContacts } = await supabase
+        .from('contacts')
+        .select('phone, status')
+        .eq('user_id', userId);
+
+      // 统计检测结果
+      const result = {
+        total: deviceContacts.length,
+        active: 0,
+        maybeInvalid: 0,
+        invalid: 0,
+        unknown: 0,
+      };
+
+      deviceContacts.forEach(contact => {
+        const phone = contact.phoneNumbers?.[0]?.number || '';
+        const localData = localContacts?.find((lc: any) => lc.phone === phone);
+        
+        switch (localData?.status) {
+          case 'active':
+            result.active++;
+            break;
+          case 'maybe_invalid':
+            result.maybeInvalid++;
+            break;
+          case 'invalid':
+            result.invalid++;
+            break;
+          default:
+            result.unknown++;
+        }
+      });
+
+      // 更新统计
+      setStats({
+        total: result.total,
+        active: result.active,
+        maybeInvalid: result.maybeInvalid,
+        invalid: result.invalid,
+        unknown: result.unknown,
+      });
+
+      // 保存检测结果
+      setDetectionResult(result);
+    } catch (error) {
+      console.error('检测失败:', error);
+      Alert.alert('错误', '检测过程中发生错误，请重试');
+    } finally {
+      setDetecting(false);
+    }
+  };
 
   const fetchStats = async () => {
     if (!userId) return;
@@ -158,11 +242,19 @@ export default function HomeScreen() {
         {/* 基础功能 */}
         <Text style={styles.sectionTitle}>基础功能</Text>
         <View style={styles.actionContainer}>
-          <TouchableOpacity style={styles.actionCard} onPress={() => router.push('/onboarding')}>
+          <TouchableOpacity 
+            style={[styles.actionCard, detecting && { opacity: 0.6 }]} 
+            onPress={runDetection}
+            disabled={detecting}
+          >
             <View style={[styles.actionIcon, { backgroundColor: 'rgba(74, 144, 217, 0.12)' }]}>
-              <Ionicons name="search" size={24} color="#4A90D9" />
+              {detecting ? (
+                <Ionicons name="hourglass" size={24} color="#4A90D9" />
+              ) : (
+                <Ionicons name="search" size={24} color="#4A90D9" />
+              )}
             </View>
-            <Text style={styles.actionText}>一键检测</Text>
+            <Text style={styles.actionText}>{detecting ? '检测中...' : '一键检测'}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.actionCard} onPress={() => router.push('/profile')}>
             <View style={[styles.actionIcon, { backgroundColor: 'rgba(103, 194, 58, 0.12)' }]}>
@@ -184,6 +276,50 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* 检测结果 Modal */}
+      <Modal
+        visible={detectionResult !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDetectionResult(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>检测结果</Text>
+            {detectionResult && (
+              <>
+                <View style={styles.modalRow}>
+                  <Text style={styles.modalLabel}>检测总数</Text>
+                  <Text style={styles.modalValue}>{detectionResult.total}</Text>
+                </View>
+                <View style={styles.modalRow}>
+                  <Text style={styles.modalLabel}>活跃号码</Text>
+                  <Text style={[styles.modalValue, { color: '#67C23A' }]}>{detectionResult.active}</Text>
+                </View>
+                <View style={styles.modalRow}>
+                  <Text style={styles.modalLabel}>可能失效</Text>
+                  <Text style={[styles.modalValue, { color: '#E6A23C' }]}>{detectionResult.maybeInvalid}</Text>
+                </View>
+                <View style={styles.modalRow}>
+                  <Text style={styles.modalLabel}>确定失效</Text>
+                  <Text style={[styles.modalValue, { color: '#F56C6C' }]}>{detectionResult.invalid}</Text>
+                </View>
+                <View style={styles.modalRow}>
+                  <Text style={styles.modalLabel}>未知状态</Text>
+                  <Text style={[styles.modalValue, { color: '#909399' }]}>{detectionResult.unknown}</Text>
+                </View>
+              </>
+            )}
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() => setDetectionResult(null)}
+            >
+              <Text style={styles.modalButtonText}>知道了</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -318,5 +454,55 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#303133',
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    width: '80%',
+    maxWidth: 320,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#303133',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  modalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F5F7FA',
+  },
+  modalLabel: {
+    fontSize: 14,
+    color: '#606266',
+  },
+  modalValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#303133',
+  },
+  modalButton: {
+    backgroundColor: '#4A90D9',
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  modalButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });
