@@ -1,5 +1,5 @@
 node_modules
-dist
+server/dist
 .DS_Store
 *.swp
 .git/*
@@ -90,7 +90,7 @@ logs/
 # Preview files
 .preview
 node_modules/
-dist/
+server/dist/
 build/
 .expo/
 .expo-shared/
