@@ -33,6 +33,15 @@ const STATUS_TABS = [
   { key: 'suspected_stopped', label: '疑似停机' },
 ];
 
+async function generatePhoneHash(phone: string): Promise<string> {
+  // Simple hash function for phone numbers using SHA-256
+  const encoder = new TextEncoder();
+  const data = encoder.encode(phone);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 export default function ContactsScreen() {
   const { user } = useAuth();
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -141,15 +150,19 @@ export default function ContactsScreen() {
       if (existing) {
         const { error } = await supabase
           .from('contacts')
-          .update({ status: newStatus })
+          .update({ status: newStatus, updated_at: new Date().toISOString() })
           .eq('id', existing.id);
         if (error) throw error;
       } else {
+        // Generate phone_hash using a simple hash function
+        const phoneHash = await generatePhoneHash(contact.phone);
         const { error } = await supabase
           .from('contacts')
           .insert({
             user_id: userId,
+            name: contact.name,
             phone: contact.phone,
+            phone_hash: phoneHash,
             status: newStatus,
           });
         if (error) throw error;
@@ -159,9 +172,9 @@ export default function ContactsScreen() {
       setContacts(prev => prev.map(c =>
         c.phone === contact.phone ? { ...c, status: newStatus } : c
       ));
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to update status:', error);
-      Alert.alert('错误', '更新状态失败');
+      Alert.alert('错误', '更新状态失败: ' + (error?.message || '未知错误'));
     }
     
     setStatusMenuContact(null);
@@ -170,6 +183,11 @@ export default function ContactsScreen() {
   useFocusEffect(
     useCallback(() => {
       loadContacts();
+      return () => {
+        // 清理：关闭所有弹窗，防止切换页面时遮罩闪现
+        setInfoModalVisible(false);
+        setStatusMenuContact(null);
+      };
     }, [userId])
   );
 
