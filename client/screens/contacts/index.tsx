@@ -309,19 +309,23 @@ export default function ContactsScreen() {
         <View style={styles.badgeContainer}>
           {communityStyle ? (
             <>
-              <View style={styles.badgeGroup}>
+              <TouchableOpacity
+                style={styles.badgeGroup}
+                activeOpacity={0.7}
+                onPress={() => setStatusMenuContact(item)}
+              >
                 <Text style={styles.badgeLabel}>我的</Text>
                 <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
                   <Text style={[styles.statusText, { color: statusStyle.text }]}>
                     {statusStyle.label}
                   </Text>
                 </View>
-              </View>
+              </TouchableOpacity>
               <View style={styles.badgeGroup}>
                 <Text style={styles.badgeLabel}>社区</Text>
                 <View style={[styles.statusBadge, { backgroundColor: communityStyle.bg }]}>
                   <Text style={[styles.statusText, { color: communityStyle.text }]}>
-                    {communityStyle.label}
+                    {communityMark!.markCount}人标记{communityStyle.label}
                   </Text>
                 </View>
               </View>
