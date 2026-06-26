@@ -186,20 +186,20 @@ export default function ProfileScreen() {
               name="document-text"
               color="#4A90D9"
               title="用户协议"
-              onPress={() => Alert.alert('用户协议', '号簿云用户服务协议内容...')}
+              onPress={() => router.push('/agreement')}
             />
             <MenuItem
               name="shield-checkmark"
               color="#67C23A"
               title="隐私政策"
-              onPress={() => Alert.alert('隐私政策', '号簿云隐私政策内容...')}
+              onPress={() => router.push('/privacy')}
             />
             <MenuItem
               name="information-circle"
               color="#909399"
               title="关于我们"
               subtitle="版本 1.0.0"
-              onPress={() => Alert.alert('关于', '号簿云 v1.0.0\n帮您管理通讯录健康度')}
+              onPress={() => router.push('/about')}
             />
           </View>
         </View>

@@ -142,12 +142,9 @@ export default function ContactsScreen() {
           .eq('id', existing.id);
         if (error) throw error;
       } else {
-        const encoder = new TextEncoder();
-        const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(contact.phone));
-        const phoneHash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
         const { error } = await supabase
           .from('contacts')
-          .insert({ user_id: userId, name: contact.name, phone: contact.phone, phone_hash: phoneHash, status: newStatus });
+          .insert({ user_id: userId, name: contact.name, phone: contact.phone, status: newStatus });
         if (error) throw error;
       }
       setContacts(prev => prev.map(c => c.phone === contact.phone ? { ...c, status: newStatus } : c));
@@ -278,10 +275,11 @@ export default function ContactsScreen() {
       />
 
       {/* 说明弹窗 */}
+      {infoModalVisible && (
       <Modal
-        visible={infoModalVisible}
+        visible={true}
         transparent
-        animationType="fade"
+        animationType="none"
         onRequestClose={() => setInfoModalVisible(false)}
       >
         <TouchableWithoutFeedback onPress={() => setInfoModalVisible(false)}>
@@ -324,12 +322,14 @@ export default function ContactsScreen() {
           </View>
         </TouchableWithoutFeedback>
       </Modal>
+      )}
 
       {/* 状态选择菜单 */}
+      {statusMenuContact !== null && (
       <Modal
-        visible={statusMenuContact !== null}
+        visible={true}
         transparent
-        animationType="fade"
+        animationType="none"
         onRequestClose={() => setStatusMenuContact(null)}
       >
         <TouchableWithoutFeedback onPress={() => setStatusMenuContact(null)}>
@@ -372,6 +372,7 @@ export default function ContactsScreen() {
           </View>
         </TouchableWithoutFeedback>
       </Modal>
+      )}
     </SafeAreaView>
   );
 }

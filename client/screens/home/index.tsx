@@ -799,10 +799,11 @@ export default function HomeScreen() {
       </View>
 
       {/* 检测结果 Modal */}
+      {detectionResult !== null && (
       <Modal
-        visible={detectionResult !== null}
+        visible={true}
         transparent
-        animationType="fade"
+        animationType="none"
         onRequestClose={() => setDetectionResult(null)}
       >
         <View style={styles.modalOverlay}>
@@ -841,10 +842,12 @@ export default function HomeScreen() {
           </View>
         </View>
       </Modal>
+      )}
 
       {/* 本地备份模态框 */}
+      {cloudBackupVisible && (
       <Modal
-        visible={cloudBackupVisible}
+        visible={true}
         transparent
         animationType="slide"
         onRequestClose={() => setCloudBackupVisible(false)}
@@ -975,12 +978,14 @@ export default function HomeScreen() {
           </View>
         </View>
       </Modal>
+      )}
 
       {/* 文件名输入弹窗 */}
+      {fileNameModalVisible && (
       <Modal
-        visible={fileNameModalVisible}
+        visible={true}
         transparent
-        animationType="fade"
+        animationType="none"
         onRequestClose={() => {
           setFileNameModalVisible(false);
           setBackupLoading(false);
@@ -1017,6 +1022,7 @@ export default function HomeScreen() {
           </View>
         </View>
       </Modal>
+      )}
     </SafeAreaView>
   );
 }

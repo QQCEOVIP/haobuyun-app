@@ -60,6 +60,9 @@ export default function RootLayout() {
             <Stack.Screen name="leaderboard" options={{ title: "排行榜" }} />
             <Stack.Screen name="medals" options={{ title: "勋章墙" }} />
             <Stack.Screen name="promo" options={{ title: "推广中心" }} />
+            <Stack.Screen name="agreement" options={{ title: "用户协议" }} />
+            <Stack.Screen name="privacy" options={{ title: "隐私政策" }} />
+            <Stack.Screen name="about" options={{ title: "关于我们" }} />
           </Stack>
         </AuthGuard>
         <Toast />
