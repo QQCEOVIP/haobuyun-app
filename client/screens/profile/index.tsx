@@ -167,14 +167,14 @@ export default function ProfileScreen() {
               color="#F56C6C"
               title="通知设置"
               subtitle="检测结果通知"
-              onPress={() => Alert.alert('提示', '通知设置开发中')}
+              onPress={() => router.push('/notification')}
             />
             <MenuItem
               name="lock-closed"
               color="#909399"
               title="隐私设置"
               subtitle="数据共享与权限"
-              onPress={() => Alert.alert('提示', '隐私设置开发中')}
+              onPress={() => router.push('/privacy-settings')}
             />
           </View>
         </View>

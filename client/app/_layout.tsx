@@ -44,7 +44,7 @@ export default function RootLayout() {
         <AuthGuard>
           <Stack
             screenOptions={{
-              animation: 'slide_from_right',
+              animation: 'simple_push',
               gestureEnabled: true,
               gestureDirection: 'horizontal',
               headerShown: false
@@ -63,6 +63,8 @@ export default function RootLayout() {
             <Stack.Screen name="agreement" options={{ title: "用户协议" }} />
             <Stack.Screen name="privacy" options={{ title: "隐私政策" }} />
             <Stack.Screen name="about" options={{ title: "关于我们" }} />
+            <Stack.Screen name="notification" options={{ title: "通知设置" }} />
+            <Stack.Screen name="privacy-settings" options={{ title: "隐私设置" }} />
           </Stack>
         </AuthGuard>
         <Toast />

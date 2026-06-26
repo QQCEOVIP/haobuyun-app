@@ -161,23 +161,114 @@ export default function HomeScreen() {
         Alert.alert("权限不足", "需要通讯录权限才能导入");
         return;
       }
-      const dirInfo = await FileSystem.readDirectoryAsync(FileSystem.documentDirectory);
-      const importFiles = dirInfo.filter((f: string) => f.endsWith(".vcf") || f.endsWith(".json"));
-      if (importFiles.length === 0) {
-        Alert.alert("提示", "未找到可导入的通讯录文件（.vcf 或 .json）");
+      
+      // Try to use DocumentPicker if available
+      let DocumentPicker: any = null;
+      try {
+        DocumentPicker = require('expo-document-picker');
+      } catch (e) {
+        // DocumentPicker not available, fall back to directory scan
+      }
+      
+      if (DocumentPicker) {
+        const result = await DocumentPicker.getDocumentAsync({
+          type: ['text/vcard', 'application/json', '*/*'],
+          copyToCacheDirectory: true,
+        });
+        if (result.canceled) return;
+        const file = result.assets[0];
+        if (!file) return;
+        
+        // Determine file type by extension
+        const fileName = file.name || '';
+        const fileUri = file.uri;
+        const content = await FileSystem.readAsStringAsync(fileUri);
+        
+        if (fileName.endsWith('.json') || fileName.endsWith('.vcf')) {
+          await importFromContent(content, fileName);
+        } else {
+          Alert.alert("提示", "请选择 .vcf 或 .json 格式的文件");
+        }
+      } else {
+        // Fallback: scan document directory
+        const dirInfo = await FileSystem.readDirectoryAsync(FileSystem.documentDirectory);
+        const importFiles = dirInfo.filter((f: string) => f.endsWith(".vcf") || f.endsWith(".json"));
+        if (importFiles.length === 0) {
+          Alert.alert("提示", "未找到可导入的通讯录文件（.vcf 或 .json）\n请将文件放入应用文档目录，或升级应用以支持文件选择");
+          return;
+        }
+        Alert.alert(
+          "选择导入文件",
+          "可用文件：\n" + importFiles.map((f: string, i: number) => `${i + 1}. ${f}`).join("\n"),
+          importFiles.map((f: string) => ({
+            text: f.length > 20 ? f.substring(0, 17) + "..." : f,
+            onPress: () => importFromFile(f),
+          })).concat([{ text: "取消", style: "cancel" as const }])
+        );
+      }
+    } catch (error) {
+      console.error("导入失败:", error);
+      Alert.alert("错误", "导入失败: " + ((error as any)?.message || '请重试'));
+    }
+  };
+
+  const importFromContent = async (content: string, fileName: string) => {
+    try {
+      let contacts: Array<{ name: string; phone: string; email?: string; company?: string; jobTitle?: string; note?: string }> = [];
+      if (fileName.endsWith(".json")) {
+        const parsed = JSON.parse(content);
+        contacts = Array.isArray(parsed) ? parsed : [];
+      } else if (fileName.endsWith(".vcf")) {
+        const vcardBlocks = content.split("BEGIN:VCARD");
+        for (const block of vcardBlocks) {
+          if (!block.includes("END:VCARD")) continue;
+          const fnMatch = block.match(/FN:(.*)/);
+          const telMatches = [...block.matchAll(/TEL[^:]*:(.*)/g)];
+          const emailMatches = [...block.matchAll(/EMAIL[^:]*:(.*)/g)];
+          const orgMatch = block.match(/ORG:(.*)/);
+          const titleMatch = block.match(/TITLE:(.*)/);
+          const noteMatch = block.match(/NOTE:(.*)/);
+          if (telMatches.length > 0) {
+            contacts.push({
+              name: fnMatch ? fnMatch[1].trim() : "",
+              phone: telMatches[0][1].trim(),
+              email: emailMatches.length > 0 ? emailMatches[0][1].trim() : undefined,
+              company: orgMatch ? orgMatch[1].trim() : undefined,
+              jobTitle: titleMatch ? titleMatch[1].trim() : undefined,
+              note: noteMatch ? noteMatch[1].trim() : undefined,
+            });
+          }
+        }
+      }
+      if (contacts.length === 0) {
+        Alert.alert("提示", "文件中没有找到有效的联系人数据");
         return;
       }
+      let successCount = 0;
+      let failCount = 0;
+      for (const contact of contacts) {
+        try {
+          const contactData: any = {
+            name: contact.name,
+            phoneNumbers: [{ number: contact.phone }],
+          };
+          if (contact.email) contactData.emails = [{ email: contact.email }];
+          if (contact.company) contactData.company = contact.company;
+          if (contact.jobTitle) contactData.jobTitle = contact.jobTitle;
+          if (contact.note) contactData.note = contact.note;
+          await Contacts.addContactAsync(contactData);
+          successCount++;
+        } catch (e) {
+          failCount++;
+        }
+      }
       Alert.alert(
-        "选择导入文件",
-        "可用文件：\n" + importFiles.map((f: string, i: number) => `${i + 1}. ${f}`).join("\n"),
-        importFiles.map((f: string) => ({
-          text: f.length > 20 ? f.substring(0, 17) + "..." : f,
-          onPress: () => importFromFile(f),
-        })).concat([{ text: "取消", style: "cancel" as const }])
+        "导入完成",
+        `成功导入 ${successCount} 个联系人${failCount > 0 ? `，${failCount} 个失败` : ''}`
       );
     } catch (error) {
       console.error("导入失败:", error);
-      Alert.alert("错误", "导入失败，请重试");
+      Alert.alert("错误", "导入失败: " + ((error as any)?.message || '请重试'));
     }
   };
 
@@ -300,16 +391,38 @@ export default function HomeScreen() {
         (now.getMonth() + 1).toString().padStart(2, '0') +
         now.getDate().toString().padStart(2, '0');
       const defaultFileName = `通讯录备份_${dateStr}.vcf`;
-      setCustomFileName(defaultFileName);
-      setFileNameModalVisible(true);
+      const vcfContent = vcardLines.join('\n');
+      const contactCount = vcardLines.filter(l => l === 'BEGIN:VCARD').length;
 
-      // 保存vcard内容到临时变量供确认后使用
-      (global as any).__pendingVcard = vcardLines.join('\n');
-      (global as any).__pendingVcardCount = vcardLines.filter(l => l === 'BEGIN:VCARD').length;
-      (global as any).__pendingVcardDefaultName = defaultFileName;
+      // Write to cache and share
+      const fileUri = FileSystem.cacheDirectory + defaultFileName;
+      await FileSystem.writeAsStringAsync(fileUri, vcfContent, { encoding: FileSystem.EncodingType.UTF8 });
+
+      // Try Sharing API
+      let Sharing: any = null;
+      try {
+        Sharing = require('expo-sharing');
+      } catch (e) {
+        // Sharing not available
+      }
+
+      if (Sharing && await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: 'text/vcard',
+          dialogTitle: '导出通讯录',
+        });
+        Alert.alert('导出成功', `已导出 ${contactCount} 个联系人`);
+      } else {
+        // Fallback: save to document directory and show filename modal
+        setCustomFileName(defaultFileName);
+        setFileNameModalVisible(true);
+        (global as any).__pendingVcard = vcfContent;
+        (global as any).__pendingVcardCount = contactCount;
+        (global as any).__pendingVcardDefaultName = defaultFileName;
+      }
     } catch (error) {
       console.error("导出失败:", error);
-      Alert.alert("错误", "导出失败，请重试");
+      Alert.alert("错误", "导出失败: " + ((error as any)?.message || '请重试'));
     }
   };
 
