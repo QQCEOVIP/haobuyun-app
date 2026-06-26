@@ -123,6 +123,122 @@ export default function HomeScreen() {
     }
   };
 
+  const handleImport = async () => {
+    try {
+      const { status } = await Contacts.requestPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("权限不足", "需要通讯录权限才能导入");
+        return;
+      }
+      const dirInfo = await FileSystem.readDirectoryAsync(FileSystem.documentDirectory);
+      const importFiles = dirInfo.filter((f: string) => f.endsWith(".vcf") || f.endsWith(".json"));
+      if (importFiles.length === 0) {
+        Alert.alert("提示", "未找到可导入的通讯录文件（.vcf 或 .json）");
+        return;
+      }
+      Alert.alert(
+        "选择导入文件",
+        "可用文件：\n" + importFiles.map((f: string, i: number) => `${i + 1}. ${f}`).join("\n"),
+        importFiles.map((f: string) => ({
+          text: f.length > 20 ? f.substring(0, 17) + "..." : f,
+          onPress: () => importFromFile(f),
+        })).concat([{ text: "取消", style: "cancel" as const }])
+      );
+    } catch (error) {
+      console.error("导入失败:", error);
+      Alert.alert("错误", "导入失败，请重试");
+    }
+  };
+
+  const importFromFile = async (fileName: string) => {
+    try {
+      const filePath = FileSystem.documentDirectory + fileName;
+      const content = await FileSystem.readAsStringAsync(filePath);
+      let contacts: Array<{ name: string; phone: string; email?: string }> = [];
+      if (fileName.endsWith(".json")) {
+        const parsed = JSON.parse(content);
+        contacts = Array.isArray(parsed) ? parsed : [];
+      } else if (fileName.endsWith(".vcf")) {
+        const vcardBlocks = content.split("BEGIN:VCARD");
+        for (const block of vcardBlocks) {
+          if (!block.includes("END:VCARD")) continue;
+          const nameMatch = block.match(/FN:(.*)/);
+          const phoneMatch = block.match(/TEL[^:]*:(.*)/);
+          const emailMatch = block.match(/EMAIL[^:]*:(.*)/);
+          if (phoneMatch) {
+            contacts.push({
+              name: nameMatch ? nameMatch[1].trim() : "",
+              phone: phoneMatch[1].trim(),
+              email: emailMatch ? emailMatch[1].trim() : undefined,
+            });
+          }
+        }
+      }
+      if (contacts.length === 0) {
+        Alert.alert("提示", "文件中没有找到有效的联系人数据");
+        return;
+      }
+      let successCount = 0;
+      let failCount = 0;
+      for (const contact of contacts) {
+        try {
+          await Contacts.addContactAsync({
+            name: contact.name,
+            phoneNumbers: [{ number: contact.phone }],
+            emails: contact.email ? [{ email: contact.email }] : [],
+          });
+          successCount++;
+        } catch (e) {
+          failCount++;
+        }
+      }
+      Alert.alert("导入完成", `成功导入 ${successCount} 个联系人${failCount > 0 ? "，失败 " + failCount + " 个" : ""}`);
+      fetchStats();
+    } catch (error) {
+      console.error("导入文件失败:", error);
+      Alert.alert("错误", "导入文件失败，请重试");
+    }
+  };
+
+  const handleExport = async () => {
+    try {
+      const { status } = await Contacts.requestPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("权限不足", "需要通讯录权限才能导出");
+        return;
+      }
+      const { data: contacts } = await Contacts.getContactsAsync({
+        fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name, Contacts.Fields.Emails],
+        pageSize: 10000,
+      });
+      if (!contacts || contacts.length === 0) {
+        Alert.alert("提示", "通讯录中没有联系人可导出");
+        return;
+      }
+      const contactData = contacts
+        .filter((c: any) => c.phoneNumbers && c.phoneNumbers.length > 0)
+        .map((c: any) => ({
+          name: c.name || "",
+          phone: c.phoneNumbers[0]?.number || "",
+          email: c.emails?.[0]?.email || "",
+        }));
+      const now = new Date();
+      const timestamp = now.getFullYear().toString() +
+        (now.getMonth() + 1).toString().padStart(2, "0") +
+        now.getDate().toString().padStart(2, "0") + "_" +
+        now.getHours().toString().padStart(2, "0") +
+        now.getMinutes().toString().padStart(2, "0") +
+        now.getSeconds().toString().padStart(2, "0");
+      const fileName = `contacts_export_${timestamp}.json`;
+      const filePath = `${FileSystem.documentDirectory}${fileName}`;
+      await FileSystem.writeAsStringAsync(filePath, JSON.stringify(contactData, null, 2));
+      Alert.alert("导出成功", `已导出 ${contactData.length} 个联系人\n文件：${fileName}`);
+    } catch (error) {
+      console.error("导出失败:", error);
+      Alert.alert("错误", "导出失败，请重试");
+    }
+  };
+
   // 本地备份相关函数
   const handleBackup = async () => {
     try {
@@ -467,13 +583,13 @@ export default function HomeScreen() {
             </View>
             <Text style={styles.actionText}>云端备份</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionCard} onPress={() => router.push('/cleanup')}>
+          <TouchableOpacity style={styles.actionCard} onPress={handleImport}>
             <View style={[styles.actionIcon, { backgroundColor: 'rgba(144, 105, 217, 0.12)' }]}>
               <Ionicons name="download" size={24} color="#9069D9" />
             </View>
             <Text style={styles.actionText}>导入通讯录</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionCard}>
+          <TouchableOpacity style={styles.actionCard} onPress={handleExport}>
             <View style={[styles.actionIcon, { backgroundColor: 'rgba(245, 108, 108, 0.12)' }]}>
               <Ionicons name="share-outline" size={24} color="#F56C6C" />
             </View>
