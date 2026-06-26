@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   Alert,
   Modal,
-  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, router } from 'expo-router';
@@ -537,13 +536,13 @@ export default function HomeScreen() {
         <View style={styles.cloudModalOverlay}>
           <View style={styles.cloudModalContent}>
             <View style={styles.cloudModalHeader}>
-              <Text style={styles.cloudModalTitle}>通讯录备份</Text>
+              <Text style={styles.cloudModalTitle}>云端备份</Text>
               <TouchableOpacity onPress={() => setCloudBackupVisible(false)}>
                 <Ionicons name="close" size={24} color="#909399" />
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.cloudModalBody}>
+            <View style={styles.cloudModalBody}>
               {/* 备份通讯录 */}
               <TouchableOpacity
                 style={styles.simpleButton}
@@ -646,7 +645,7 @@ export default function HomeScreen() {
                   )}
                 </View>
               )}
-            </ScrollView>
+            </View>
           </View>
         </View>
       </Modal>
@@ -836,12 +835,21 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   // Cloud Backup Modal Styles
+  cloudModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cloudModalBody: {
+    marginTop: 4,
+  },
   cloudModalContent: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 20,
-    maxHeight: '80%',
-    width: '85%',
+    minHeight: 380,
+    width: '90%',
     maxWidth: 360,
   },
   cloudModalHeader: {
