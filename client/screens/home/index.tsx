@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Alert,
   Modal,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, router } from 'expo-router';
@@ -40,9 +41,30 @@ export default function HomeScreen() {
   const [backups, setBackups] = useState<any[]>([]);
   const [backupLoading, setBackupLoading] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<any>(null);
+  const [customFileName, setCustomFileName] = useState('');
+  const [fileNameModalVisible, setFileNameModalVisible] = useState(false);
 
   const userId = (user as any)?.id;
   const userEmail = (user as any)?.email || '';
+
+  // 分页获取所有设备联系人的辅助函数
+  const getAllDeviceContacts = async (fields: any[]) => {
+    let allContacts: Contacts.Contact[] = [];
+    let offset = 0;
+    const pageSize = 1000;
+    while (true) {
+      const { data: dc } = await Contacts.getContactsAsync({
+        fields,
+        pageSize,
+        pageOffset: offset,
+      });
+      if (!dc || dc.length === 0) break;
+      allContacts = allContacts.concat(dc);
+      offset += dc.length;
+      if (dc.length < pageSize) break;
+    }
+    return allContacts;
+  };
 
   // 一键检测功能
   const runDetection = async () => {
@@ -50,7 +72,6 @@ export default function HomeScreen() {
     
     setDetecting(true);
     try {
-      // 请求通讯录权限
       const { status } = await Contacts.requestPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert('权限不足', '需要通讯录权限才能进行检测');
@@ -58,11 +79,11 @@ export default function HomeScreen() {
         return;
       }
 
-      // 获取设备通讯录
-      const { data: deviceContacts } = await Contacts.getContactsAsync({
-        fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name],
-        pageSize: 1000,
-      });
+      // 分页获取所有设备通讯录
+      const deviceContacts = await getAllDeviceContacts([
+        Contacts.Fields.PhoneNumbers,
+        Contacts.Fields.Name,
+      ]);
 
       if (!deviceContacts || deviceContacts.length === 0) {
         Alert.alert('提示', '未找到通讯录联系人');
@@ -70,11 +91,21 @@ export default function HomeScreen() {
         return;
       }
 
-      // 获取本地已存储的联系人状态
-      const { data: localContacts } = await supabase
-        .from('contacts')
-        .select('phone, status')
-        .eq('user_id', userId);
+      // 分页获取所有supabase中的联系人状态
+      let allLocalContacts: any[] = [];
+      let page = 0;
+      const dbPageSize = 1000;
+      while (true) {
+        const { data } = await supabase
+          .from('contacts')
+          .select('phone, status')
+          .eq('user_id', userId)
+          .range(page * dbPageSize, (page + 1) * dbPageSize - 1);
+        if (!data || data.length === 0) break;
+        allLocalContacts = allLocalContacts.concat(data);
+        if (data.length < dbPageSize) break;
+        page++;
+      }
 
       // 统计检测结果
       const result = {
@@ -87,16 +118,16 @@ export default function HomeScreen() {
 
       deviceContacts.forEach(contact => {
         const phone = contact.phoneNumbers?.[0]?.number || '';
-        const localData = localContacts?.find((lc: any) => lc.phone === phone);
+        const localData = allLocalContacts?.find((lc: any) => lc.phone === phone);
         
         switch (localData?.status) {
-          case 'active':
+          case 'normal':
             result.active++;
             break;
-          case 'maybe_invalid':
+          case 'suspected_stopped':
             result.maybeInvalid++;
             break;
-          case 'invalid':
+          case 'stopped':
             result.invalid++;
             break;
           default:
@@ -154,7 +185,7 @@ export default function HomeScreen() {
     try {
       const filePath = FileSystem.documentDirectory + fileName;
       const content = await FileSystem.readAsStringAsync(filePath);
-      let contacts: Array<{ name: string; phone: string; email?: string }> = [];
+      let contacts: Array<{ name: string; phone: string; email?: string; company?: string; jobTitle?: string; note?: string }> = [];
       if (fileName.endsWith(".json")) {
         const parsed = JSON.parse(content);
         contacts = Array.isArray(parsed) ? parsed : [];
@@ -162,14 +193,20 @@ export default function HomeScreen() {
         const vcardBlocks = content.split("BEGIN:VCARD");
         for (const block of vcardBlocks) {
           if (!block.includes("END:VCARD")) continue;
-          const nameMatch = block.match(/FN:(.*)/);
-          const phoneMatch = block.match(/TEL[^:]*:(.*)/);
-          const emailMatch = block.match(/EMAIL[^:]*:(.*)/);
-          if (phoneMatch) {
+          const fnMatch = block.match(/FN:(.*)/);
+          const telMatches = [...block.matchAll(/TEL[^:]*:(.*)/g)];
+          const emailMatches = [...block.matchAll(/EMAIL[^:]*:(.*)/g)];
+          const orgMatch = block.match(/ORG:(.*)/);
+          const titleMatch = block.match(/TITLE:(.*)/);
+          const noteMatch = block.match(/NOTE:(.*)/);
+          if (telMatches.length > 0) {
             contacts.push({
-              name: nameMatch ? nameMatch[1].trim() : "",
-              phone: phoneMatch[1].trim(),
-              email: emailMatch ? emailMatch[1].trim() : undefined,
+              name: fnMatch ? fnMatch[1].trim() : "",
+              phone: telMatches[0][1].trim(),
+              email: emailMatches.length > 0 ? emailMatches[0][1].trim() : undefined,
+              company: orgMatch ? orgMatch[1].trim() : undefined,
+              jobTitle: titleMatch ? titleMatch[1].trim() : undefined,
+              note: noteMatch ? noteMatch[1].trim() : undefined,
             });
           }
         }
@@ -182,11 +219,15 @@ export default function HomeScreen() {
       let failCount = 0;
       for (const contact of contacts) {
         try {
-          await Contacts.addContactAsync({
+          const contactData: any = {
             name: contact.name,
             phoneNumbers: [{ number: contact.phone }],
-            emails: contact.email ? [{ email: contact.email }] : [],
-          });
+          };
+          if (contact.email) contactData.emails = [{ email: contact.email }];
+          if (contact.company) contactData.company = contact.company;
+          if (contact.jobTitle) contactData.jobTitle = contact.jobTitle;
+          if (contact.note) contactData.note = contact.note;
+          await Contacts.addContactAsync(contactData);
           successCount++;
         } catch (e) {
           failCount++;
@@ -207,42 +248,96 @@ export default function HomeScreen() {
         Alert.alert("权限不足", "需要通讯录权限才能导出");
         return;
       }
-      const { data: contacts } = await Contacts.getContactsAsync({
-        fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name, Contacts.Fields.Emails],
-        pageSize: 10000,
-      });
-      if (!contacts || contacts.length === 0) {
+      const allContacts = await getAllDeviceContacts([
+        Contacts.Fields.PhoneNumbers,
+        Contacts.Fields.Name,
+        Contacts.Fields.Emails,
+        Contacts.Fields.PostalAddresses,
+        Contacts.Fields.JobTitle,
+        Contacts.Fields.Company,
+        Contacts.Fields.Note,
+      ]);
+      if (!allContacts || allContacts.length === 0) {
         Alert.alert("提示", "通讯录中没有联系人可导出");
         return;
       }
-      const contactData = contacts
-        .filter((c: any) => c.phoneNumbers && c.phoneNumbers.length > 0)
-        .map((c: any) => ({
-          name: c.name || "",
-          phone: c.phoneNumbers[0]?.number || "",
-          email: c.emails?.[0]?.email || "",
-        }));
+
+      // 生成 vCard 3.0 格式
+      const vcardLines: string[] = [];
+      for (const c of allContacts) {
+        if (!c.phoneNumbers || c.phoneNumbers.length === 0) continue;
+        vcardLines.push('BEGIN:VCARD');
+        vcardLines.push('VERSION:3.0');
+        vcardLines.push(`FN:${c.name || ''}`);
+        const nameParts = (c.name || '').split('');
+        const lastName = nameParts.length > 1 ? nameParts[0] : '';
+        const firstName = nameParts.length > 1 ? nameParts.slice(1).join('') : (c.name || '');
+        vcardLines.push(`N:${lastName};${firstName};;;`);
+        for (const phone of c.phoneNumbers) {
+          const label = phone.label || 'CELL';
+          const typeMap: Record<string, string> = { 'mobile': 'CELL', 'home': 'HOME', 'work': 'WORK', 'iPhone': 'CELL' };
+          const telType = typeMap[label] || 'CELL';
+          vcardLines.push(`TEL;TYPE=${telType}:${phone.number || ''}`);
+        }
+        if (c.emails) {
+          for (const email of c.emails) {
+            vcardLines.push(`EMAIL;TYPE=INTERNET:${email.email || ''}`);
+          }
+        }
+        if (c.postalAddresses && c.postalAddresses.length > 0) {
+          for (const addr of c.postalAddresses) {
+            vcardLines.push(`ADR;TYPE=HOME:;;${addr.street || ''};${addr.city || ''};${addr.region || ''};${addr.postalCode || ''};${addr.country || ''}`);
+          }
+        }
+        if (c.company) vcardLines.push(`ORG:${c.company}`);
+        if (c.jobTitle) vcardLines.push(`TITLE:${c.jobTitle}`);
+        if (c.note) vcardLines.push(`NOTE:${c.note}`);
+        vcardLines.push('END:VCARD');
+      }
+
       const now = new Date();
-      const timestamp = now.getFullYear().toString() +
-        (now.getMonth() + 1).toString().padStart(2, "0") +
-        now.getDate().toString().padStart(2, "0") + "_" +
-        now.getHours().toString().padStart(2, "0") +
-        now.getMinutes().toString().padStart(2, "0") +
-        now.getSeconds().toString().padStart(2, "0");
-      const fileName = `contacts_export_${timestamp}.json`;
-      const filePath = `${FileSystem.documentDirectory}${fileName}`;
-      await FileSystem.writeAsStringAsync(filePath, JSON.stringify(contactData, null, 2));
-      Alert.alert("导出成功", `已导出 ${contactData.length} 个联系人\n文件：${fileName}`);
+      const dateStr = now.getFullYear().toString() +
+        (now.getMonth() + 1).toString().padStart(2, '0') +
+        now.getDate().toString().padStart(2, '0');
+      const defaultFileName = `通讯录备份_${dateStr}.vcf`;
+      setCustomFileName(defaultFileName);
+      setFileNameModalVisible(true);
+
+      // 保存vcard内容到临时变量供确认后使用
+      (global as any).__pendingVcard = vcardLines.join('\n');
+      (global as any).__pendingVcardCount = vcardLines.filter(l => l === 'BEGIN:VCARD').length;
+      (global as any).__pendingVcardDefaultName = defaultFileName;
     } catch (error) {
       console.error("导出失败:", error);
       Alert.alert("错误", "导出失败，请重试");
     }
   };
 
+  // 确认导出文件名并保存
+  const confirmExport = async () => {
+    const vcardContent = (global as any).__pendingVcard;
+    const contactCount = (global as any).__pendingVcardCount || 0;
+    const safeFileName = customFileName.trim().endsWith('.vcf') 
+      ? customFileName.trim() 
+      : `${customFileName.trim()}.vcf`;
+    const filePath = `${FileSystem.documentDirectory}${safeFileName}`;
+    
+    try {
+      await FileSystem.writeAsStringAsync(filePath, vcardContent);
+      Alert.alert('导出成功', `已导出 ${contactCount} 个联系人\n文件：${safeFileName}`);
+    } catch (error) {
+      console.error('导出失败:', error);
+      Alert.alert('错误', '导出失败，请重试');
+    }
+    
+    setFileNameModalVisible(false);
+    (global as any).__pendingVcard = null;
+    (global as any).__pendingVcardCount = null;
+  };
+
   // 本地备份相关函数
   const handleBackup = async () => {
     try {
-      // 请求通讯录权限
       const { status } = await Contacts.requestPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert('权限不足', '需要通讯录权限才能备份');
@@ -251,56 +346,123 @@ export default function HomeScreen() {
 
       setBackupLoading(true);
 
-      // 获取通讯录数据
-      const { data: contacts } = await Contacts.getContactsAsync({
-        fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name, Contacts.Fields.Emails],
-        pageSize: 10000,
-      });
+      const allContacts = await getAllDeviceContacts([
+        Contacts.Fields.PhoneNumbers,
+        Contacts.Fields.Name,
+        Contacts.Fields.Emails,
+        Contacts.Fields.PostalAddresses,
+        Contacts.Fields.JobTitle,
+        Contacts.Fields.Company,
+        Contacts.Fields.Note,
+      ]);
 
-      if (!contacts || contacts.length === 0) {
+      if (!allContacts || allContacts.length === 0) {
         Alert.alert('提示', '未找到通讯录联系人');
         setBackupLoading(false);
         return;
       }
 
-      // 格式化联系人数据
-      const contactData = contacts
-        .filter(c => c.phoneNumbers && c.phoneNumbers.length > 0)
-        .map(c => ({
-          name: c.name || '',
-          phone: c.phoneNumbers[0]?.number || '',
-          email: c.emails?.[0]?.email || '',
-        }));
+      // 生成 vCard 3.0 格式内容
+      const vcardLines: string[] = [];
+      for (const c of allContacts) {
+        if (!c.phoneNumbers || c.phoneNumbers.length === 0) continue;
+        
+        vcardLines.push('BEGIN:VCARD');
+        vcardLines.push('VERSION:3.0');
+        vcardLines.push(`FN:${c.name || ''}`);
+        
+        const nameParts = (c.name || '').split('');
+        const lastName = nameParts.length > 1 ? nameParts[0] : '';
+        const firstName = nameParts.length > 1 ? nameParts.slice(1).join('') : (c.name || '');
+        vcardLines.push(`N:${lastName};${firstName};;;`);
+        
+        for (const phone of c.phoneNumbers) {
+          const label = phone.label || 'CELL';
+          const typeMap: Record<string, string> = {
+            'mobile': 'CELL',
+            'home': 'HOME',
+            'work': 'WORK',
+            'iPhone': 'CELL',
+          };
+          const telType = typeMap[label] || 'CELL';
+          vcardLines.push(`TEL;TYPE=${telType}:${phone.number || ''}`);
+        }
+        
+        if (c.emails) {
+          for (const email of c.emails) {
+            vcardLines.push(`EMAIL;TYPE=INTERNET:${email.email || ''}`);
+          }
+        }
+        
+        if (c.postalAddresses && c.postalAddresses.length > 0) {
+          for (const addr of c.postalAddresses) {
+            vcardLines.push(`ADR;TYPE=HOME:;;${addr.street || ''};${addr.city || ''};${addr.region || ''};${addr.postalCode || ''};${addr.country || ''}`);
+          }
+        }
+        
+        if (c.company) vcardLines.push(`ORG:${c.company}`);
+        if (c.jobTitle) vcardLines.push(`TITLE:${c.jobTitle}`);
+        if (c.note) vcardLines.push(`NOTE:${c.note}`);
+        
+        vcardLines.push('END:VCARD');
+      }
 
-      // 生成文件名
       const now = new Date();
-      const timestamp = now.getFullYear().toString() +
+      const dateStr = now.getFullYear().toString() +
         (now.getMonth() + 1).toString().padStart(2, '0') +
-        now.getDate().toString().padStart(2, '0') + '_' +
-        now.getHours().toString().padStart(2, '0') +
-        now.getMinutes().toString().padStart(2, '0') +
-        now.getSeconds().toString().padStart(2, '0');
-      const fileName = `contacts_backup_${timestamp}.json`;
-      const filePath = `${FileSystem.documentDirectory}${fileName}`;
+        now.getDate().toString().padStart(2, '0');
+      const defaultFileName = `通讯录备份_${dateStr}.vcf`;
 
-      // 写入文件
-      await FileSystem.writeAsStringAsync(filePath, JSON.stringify(contactData, null, 2));
+      // 保存待写入的内容
+      (global as any).__pendingBackupVcard = vcardLines.join('\n');
+      (global as any).__pendingBackupCount = vcardLines.filter(l => l === 'BEGIN:VCARD').length;
 
-      Alert.alert('备份成功', `已备份 ${contactData.length} 个联系人到本地`);
-      fetchBackupList();
+      // 弹出文件名输入框
+      setCustomFileName(defaultFileName);
+      setFileNameModalVisible(true);
+      
+      // 标记为备份模式
+      (global as any).__pendingBackupMode = true;
     } catch (error) {
       console.error('备份失败:', error);
       Alert.alert('错误', '备份失败，请重试');
-    } finally {
       setBackupLoading(false);
     }
+  };
+
+  // 确认备份/导出文件名并保存
+  const confirmFileSave = async () => {
+    const isBackupMode = (global as any).__pendingBackupMode;
+    const vcardContent = isBackupMode ? (global as any).__pendingBackupVcard : (global as any).__pendingVcard;
+    const contactCount = isBackupMode ? (global as any).__pendingBackupCount : (global as any).__pendingVcardCount || 0;
+    const safeFileName = customFileName.trim().endsWith('.vcf') 
+      ? customFileName.trim() 
+      : `${customFileName.trim()}.vcf`;
+    const filePath = `${FileSystem.documentDirectory}${safeFileName}`;
+    
+    try {
+      await FileSystem.writeAsStringAsync(filePath, vcardContent);
+      Alert.alert(isBackupMode ? '备份成功' : '导出成功', `已${isBackupMode ? '备份' : '导出'} ${contactCount} 个联系人\n文件：${safeFileName}`);
+      if (isBackupMode) fetchBackupList();
+    } catch (error) {
+      console.error('写入文件失败:', error);
+      Alert.alert('错误', `${isBackupMode ? '备份' : '导出'}失败，请重试`);
+    }
+    
+    setFileNameModalVisible(false);
+    setBackupLoading(false);
+    (global as any).__pendingVcard = null;
+    (global as any).__pendingVcardCount = null;
+    (global as any).__pendingBackupVcard = null;
+    (global as any).__pendingBackupCount = null;
+    (global as any).__pendingBackupMode = null;
   };
 
   const fetchBackupList = async () => {
     try {
       const files = await FileSystem.readDirectoryAsync(FileSystem.documentDirectory || '');
       const backupFiles = files
-        .filter(f => f.startsWith('contacts_backup_') && f.endsWith('.json'))
+        .filter(f => (f.startsWith('contacts_backup_') && f.endsWith('.json')) || (f.startsWith('通讯录备份_') && f.endsWith('.vcf')))
         .sort()
         .reverse();
 
@@ -308,24 +470,56 @@ export default function HomeScreen() {
         backupFiles.map(async (fileName) => {
           const filePath = `${FileSystem.documentDirectory}${fileName}`;
           const content = await FileSystem.readAsStringAsync(filePath);
-          const contacts = JSON.parse(content);
-          // 从文件名提取时间戳
-          const timestamp = fileName.replace('contacts_backup_', '').replace('.json', '');
-          const date = new Date(
-            parseInt(timestamp.substring(0, 4)),
-            parseInt(timestamp.substring(4, 6)) - 1,
-            parseInt(timestamp.substring(6, 8)),
-            parseInt(timestamp.substring(9, 11)),
-            parseInt(timestamp.substring(11, 13)),
-            parseInt(timestamp.substring(13, 15))
-          );
-          return {
-            fileName,
-            filePath,
-            created_at: date.toISOString(),
-            contact_count: contacts.length,
-            contacts,
-          };
+          
+          let contactCount = 0;
+          let contacts: any[] = [];
+          
+          if (fileName.endsWith('.json')) {
+            contacts = JSON.parse(content);
+            contactCount = contacts.length;
+            const timestamp = fileName.replace('contacts_backup_', '').replace('.json', '');
+            const date = new Date(
+              parseInt(timestamp.substring(0, 4)),
+              parseInt(timestamp.substring(4, 6)) - 1,
+              parseInt(timestamp.substring(6, 8)),
+              parseInt(timestamp.substring(9, 11)),
+              parseInt(timestamp.substring(11, 13)),
+              parseInt(timestamp.substring(13, 15))
+            );
+            return { fileName, filePath, created_at: date.toISOString(), contact_count: contactCount, contacts };
+          } else {
+            // vcf file
+            contactCount = (content.match(/BEGIN:VCARD/g) || []).length;
+            const vcardBlocks = content.split('BEGIN:VCARD');
+            for (const block of vcardBlocks) {
+              if (!block.includes('END:VCARD')) continue;
+              const fnMatch = block.match(/FN:(.*)/);
+              const telMatches = [...block.matchAll(/TEL[^:]*:(.*)/g)];
+              const emailMatches = [...block.matchAll(/EMAIL[^:]*:(.*)/g)];
+              const orgMatch = block.match(/ORG:(.*)/);
+              const titleMatch = block.match(/TITLE:(.*)/);
+              const noteMatch = block.match(/NOTE:(.*)/);
+              
+              if (telMatches.length > 0) {
+                contacts.push({
+                  name: fnMatch ? fnMatch[1].trim() : '',
+                  phone: telMatches[0][1].trim(),
+                  email: emailMatches.length > 0 ? emailMatches[0][1].trim() : '',
+                  company: orgMatch ? orgMatch[1].trim() : '',
+                  jobTitle: titleMatch ? titleMatch[1].trim() : '',
+                  note: noteMatch ? noteMatch[1].trim() : '',
+                });
+              }
+            }
+            
+            const dateStr = fileName.replace('通讯录备份_', '').replace('.vcf', '');
+            const date = new Date(
+              parseInt(dateStr.substring(0, 4)),
+              parseInt(dateStr.substring(4, 6)) - 1,
+              parseInt(dateStr.substring(6, 8))
+            );
+            return { fileName, filePath, created_at: date.toISOString(), contact_count: contactCount, contacts };
+          }
         })
       );
 
@@ -337,7 +531,6 @@ export default function HomeScreen() {
 
   const handleRestore = async (backup?: any) => {
     try {
-      // 请求通讯录权限
       const { status } = await Contacts.requestPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert('权限不足', '需要通讯录权限才能恢复');
@@ -346,7 +539,6 @@ export default function HomeScreen() {
 
       setBackupLoading(true);
 
-      // 如果没有指定备份，使用最近的备份
       let backupData = backup?.contacts;
       if (!backupData) {
         if (backups.length === 0) {
@@ -360,14 +552,17 @@ export default function HomeScreen() {
       let successCount = 0;
       let failCount = 0;
 
-      // 逐个导入联系人
       for (const contact of backupData) {
         try {
-          await Contacts.addContactAsync({
+          const contactData: any = {
             name: contact.name,
             phoneNumbers: [{ number: contact.phone }],
-            emails: contact.email ? [{ email: contact.email }] : [],
-          });
+          };
+          if (contact.email) contactData.emails = [{ email: contact.email }];
+          if (contact.company) contactData.company = contact.company;
+          if (contact.jobTitle) contactData.jobTitle = contact.jobTitle;
+          if (contact.note) contactData.note = contact.note;
+          await Contacts.addContactAsync(contactData);
           successCount++;
         } catch (e) {
           failCount++;
@@ -398,7 +593,6 @@ export default function HomeScreen() {
     const added = latest.filter((c: any) => !previousPhones.has(c.phone));
     const deleted = previous.filter((c: any) => !latestPhones.has(c.phone));
     
-    // 找出修改的联系人（相同号码但其他信息变化）
     const modified: any[] = [];
     latest.forEach((c: any) => {
       const prev = previous.find((p: any) => p.phone === c.phone);
@@ -421,46 +615,51 @@ export default function HomeScreen() {
     if (!userId) return;
 
     try {
-      // 1. 获取设备联系人数量（实际手机上的号码数）
+      // 1. 分页获取设备联系人数量
       let deviceContactsCount = 0;
       const { status } = await Contacts.requestPermissionsAsync();
       if (status === 'granted') {
-        const { data: deviceContacts } = await Contacts.getContactsAsync({
-          fields: [Contacts.Fields.PhoneNumbers],
-          pageSize: 10000,
-        });
-        // 只统计有手机号的联系人
-        deviceContactsCount = deviceContacts?.filter(
+        const allDevice = await getAllDeviceContacts([Contacts.Fields.PhoneNumbers]);
+        deviceContactsCount = allDevice.filter(
           c => c.phoneNumbers && c.phoneNumbers.length > 0
-        ).length || 0;
+        ).length;
       }
 
-      // 2. 获取 supabase 中的状态分布数据
-      const { data, error } = await supabase
-        .from('contacts')
-        .select('status')
-        .eq('user_id', userId);
-
-      if (error) throw error;
+      // 2. 分页获取 supabase 中的状态分布数据
+      let allData: any[] = [];
+      let page = 0;
+      const dbPageSize = 1000;
+      while (true) {
+        const { data, error } = await supabase
+          .from('contacts')
+          .select('status')
+          .eq('user_id', userId)
+          .range(page * dbPageSize, (page + 1) * dbPageSize - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        allData = allData.concat(data);
+        if (data.length < dbPageSize) break;
+        page++;
+      }
 
       // 3. 计算状态分布
       const contactStats: ContactStats = {
-        total: deviceContactsCount || data?.length || 0, // 优先使用设备联系人数量
+        total: deviceContactsCount || allData?.length || 0,
         active: 0,
         maybeInvalid: 0,
         invalid: 0,
         unknown: 0,
       };
 
-      data?.forEach((contact: any) => {
+      allData?.forEach((contact: any) => {
         switch (contact.status) {
-          case 'active':
+          case 'normal':
             contactStats.active++;
             break;
-          case 'maybe_invalid':
+          case 'suspected_stopped':
             contactStats.maybeInvalid++;
             break;
-          case 'invalid':
+          case 'stopped':
             contactStats.invalid++;
             break;
           default:
@@ -468,9 +667,8 @@ export default function HomeScreen() {
         }
       });
 
-      // 如果没有权限获取设备联系人，使用 supabase 数量
       if (deviceContactsCount === 0) {
-        contactStats.total = data?.length || 0;
+        contactStats.total = allData?.length || 0;
       }
 
       setStats(contactStats);
@@ -549,6 +747,7 @@ export default function HomeScreen() {
             <Text style={styles.statLabel}>活跃</Text>
           </View>
         </View>
+        
         <View style={styles.statsRow}>
           <View style={[styles.statCard, { backgroundColor: '#FFF8E6' }]}>
             <Text style={[styles.statValue, { color: '#E6A23C' }]}>{stats.maybeInvalid}</Text>
@@ -562,6 +761,7 @@ export default function HomeScreen() {
 
         {/* 基础功能 */}
         <Text style={styles.sectionTitle}>基础功能</Text>
+        
         <View style={styles.actionContainer}>
           <TouchableOpacity 
             style={[styles.actionCard, detecting && { opacity: 0.6 }]} 
@@ -659,50 +859,60 @@ export default function HomeScreen() {
             </View>
 
             <View style={styles.cloudModalBody}>
-              {/* 备份通讯录 */}
-              <TouchableOpacity
-                style={styles.simpleButton}
-                onPress={handleBackup}
-                disabled={backupLoading}
-              >
-                <Ionicons name="cloud-upload" size={20} color="#4A90D9" />
-                <Text style={styles.simpleButtonText}>
-                  {backupLoading ? '备份中...' : '备份通讯录'}
-                </Text>
-              </TouchableOpacity>
+              <View style={styles.cloudButtonGrid}>
+                {/* 备份通讯录 */}
+                <TouchableOpacity
+                  style={styles.cloudButtonItem}
+                  onPress={handleBackup}
+                  disabled={backupLoading}
+                >
+                  <View style={[styles.cloudButtonIcon, { backgroundColor: 'rgba(74, 144, 217, 0.12)' }]}>
+                    <Ionicons name="cloud-upload" size={24} color="#4A90D9" />
+                  </View>
+                  <Text style={styles.cloudButtonText}>
+                    {backupLoading ? '备份中...' : '备份通讯录'}
+                  </Text>
+                </TouchableOpacity>
 
-              {/* 恢复通讯录 */}
-              <TouchableOpacity
-                style={styles.simpleButton}
-                onPress={() => handleRestore()}
-                disabled={backupLoading}
-              >
-                <Ionicons name="cloud-download" size={20} color="#67C23A" />
-                <Text style={styles.simpleButtonText}>
-                  {backupLoading ? '恢复中...' : '恢复通讯录'}
-                </Text>
-              </TouchableOpacity>
+                {/* 恢复通讯录 */}
+                <TouchableOpacity
+                  style={styles.cloudButtonItem}
+                  onPress={() => handleRestore()}
+                  disabled={backupLoading}
+                >
+                  <View style={[styles.cloudButtonIcon, { backgroundColor: 'rgba(103, 194, 58, 0.12)' }]}>
+                    <Ionicons name="cloud-download" size={24} color="#67C23A" />
+                  </View>
+                  <Text style={styles.cloudButtonText}>
+                    {backupLoading ? '恢复中...' : '恢复通讯录'}
+                  </Text>
+                </TouchableOpacity>
 
-              {/* 备份记录 */}
-              <TouchableOpacity
-                style={styles.simpleButton}
-                onPress={() => setCloudBackupTab('records')}
-              >
-                <Ionicons name="time" size={20} color="#E6A23C" />
-                <Text style={styles.simpleButtonText}>备份记录</Text>
-              </TouchableOpacity>
+                {/* 备份记录 */}
+                <TouchableOpacity
+                  style={styles.cloudButtonItem}
+                  onPress={() => setCloudBackupTab('records')}
+                >
+                  <View style={[styles.cloudButtonIcon, { backgroundColor: 'rgba(230, 162, 60, 0.12)' }]}>
+                    <Ionicons name="time" size={24} color="#E6A23C" />
+                  </View>
+                  <Text style={styles.cloudButtonText}>备份记录</Text>
+                </TouchableOpacity>
 
-              {/* 数据分析 */}
-              <TouchableOpacity
-                style={styles.simpleButton}
-                onPress={() => {
-                  analyzeBackups();
-                  setCloudBackupTab('analysis');
-                }}
-              >
-                <Ionicons name="analytics" size={20} color="#9069D9" />
-                <Text style={styles.simpleButtonText}>数据分析</Text>
-              </TouchableOpacity>
+                {/* 数据分析 */}
+                <TouchableOpacity
+                  style={styles.cloudButtonItem}
+                  onPress={() => {
+                    analyzeBackups();
+                    setCloudBackupTab('analysis');
+                  }}
+                >
+                  <View style={[styles.cloudButtonIcon, { backgroundColor: 'rgba(144, 105, 217, 0.12)' }]}>
+                    <Ionicons name="analytics" size={24} color="#9069D9" />
+                  </View>
+                  <Text style={styles.cloudButtonText}>数据分析</Text>
+                </TouchableOpacity>
+              </View>
 
               {/* 备份记录详情 */}
               {cloudBackupTab === 'records' && (
@@ -761,6 +971,48 @@ export default function HomeScreen() {
                   )}
                 </View>
               )}
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 文件名输入弹窗 */}
+      <Modal
+        visible={fileNameModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setFileNameModalVisible(false);
+          setBackupLoading(false);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.fileNameModalContent}>
+            <Text style={styles.modalTitle}>自定义文件名</Text>
+            <TextInput
+              style={styles.fileNameInput}
+              value={customFileName}
+              onChangeText={setCustomFileName}
+              placeholder="输入文件名"
+              placeholderTextColor="#909399"
+              autoFocus
+            />
+            <View style={styles.fileNameButtons}>
+              <TouchableOpacity
+                style={[styles.fileNameButton, { backgroundColor: '#909399' }]}
+                onPress={() => {
+                  setFileNameModalVisible(false);
+                  setBackupLoading(false);
+                }}
+              >
+                <Text style={styles.fileNameButtonText}>取消</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.fileNameButton, { backgroundColor: '#4A90D9' }]}
+                onPress={confirmFileSave}
+              >
+                <Text style={styles.fileNameButtonText}>确定</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </View>
@@ -979,19 +1231,38 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#303133',
   },
-  simpleButton: {
+  cloudButtonGrid: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F5F7FA',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
+  cloudButtonItem: {
+    width: '48%',
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 16,
+    alignItems: 'center',
     marginBottom: 12,
+    shadowColor: '#D1D9E6',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  simpleButtonText: {
-    fontSize: 15,
+  cloudButtonIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  cloudButtonText: {
+    fontSize: 13,
     fontWeight: '600',
     color: '#303133',
-    marginLeft: 12,
+    textAlign: 'center',
   },
   recordsContainer: {
     marginTop: 8,
@@ -1039,113 +1310,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
-  },
-  analysisLabel: {
-    fontSize: 14,
-    color: '#606266',
-  },
-  analysisValue: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#303133',
-  },
-  cloudTabs: {
-    flexDirection: 'row',
-    marginBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
-  },
-  cloudTab: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  cloudTabActive: {
-    borderBottomWidth: 2,
-    borderBottomColor: '#4A90D9',
-  },
-  cloudTabText: {
-    fontSize: 14,
-    color: '#909399',
-  },
-  cloudTabTextActive: {
-    color: '#4A90D9',
-    fontWeight: '600',
-  },
-  cloudActionCard: {
-    backgroundColor: '#F5F7FA',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-  },
-  cloudActionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#303133',
-    marginBottom: 8,
-  },
-  cloudActionDesc: {
-    fontSize: 13,
-    color: '#909399',
-    marginBottom: 12,
-  },
-  cloudActionButton: {
-    backgroundColor: '#4A90D9',
-    borderRadius: 8,
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  cloudActionButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  backupItem: {
-    backgroundColor: '#F5F7FA',
-    borderRadius: 10,
-    padding: 14,
-    marginBottom: 10,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  backupInfo: {
-    flex: 1,
-  },
-  backupDate: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#303133',
-  },
-  backupCount: {
-    fontSize: 12,
-    color: '#909399',
-    marginTop: 4,
-  },
-  restoreButton: {
-    backgroundColor: '#67C23A',
-    borderRadius: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  restoreButtonText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  analysisCard: {
-    backgroundColor: '#F5F7FA',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-  },
-  analysisRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#E6E8EB',
@@ -1159,13 +1323,37 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#303133',
   },
-  analysisValueGreen: {
-    color: '#67C23A',
+  // File name modal styles
+  fileNameModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    width: '80%',
+    maxWidth: 360,
   },
-  analysisValueRed: {
-    color: '#F56C6C',
+  fileNameInput: {
+    backgroundColor: '#F5F7FA',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: '#303133',
+    marginBottom: 20,
   },
-  analysisValueOrange: {
-    color: '#E6A23C',
+  fileNameButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  fileNameButton: {
+    flex: 1,
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginHorizontal: 6,
+  },
+  fileNameButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });
