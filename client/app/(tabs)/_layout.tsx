@@ -7,7 +7,7 @@ export default function TabLayout() {
   const insets = useSafeAreaInsets();
 
   let tabBarStyle: any = {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F5F7FA',
     borderTopWidth: 1,
     borderTopColor: '#E6E8EB',
     paddingTop: 8,
