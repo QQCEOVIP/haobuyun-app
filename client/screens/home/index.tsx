@@ -13,6 +13,7 @@ import { useFocusEffect, router } from 'expo-router';
 import Svg, { Circle } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import * as Contacts from 'expo-contacts';
+import * as FileSystem from 'expo-file-system/legacy';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/storage/supabase';
 
@@ -123,82 +124,149 @@ export default function HomeScreen() {
     }
   };
 
-  // 云端备份相关函数
+  // 本地备份相关函数
   const handleBackup = async () => {
-    if (!session?.access_token) {
-      Alert.alert('提示', '请先登录');
-      return;
-    }
     try {
-      const response = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/contacts/backup`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-session': session.access_token,
-        },
-      });
-      const data = await response.json();
-      if (data.success) {
-        Alert.alert('成功', `已备份 ${data.data.contact_count} 个联系人到云端`);
-        fetchBackupList();
-      } else {
-        Alert.alert('错误', data.error || '备份失败');
+      // 请求通讯录权限
+      const { status } = await Contacts.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('权限不足', '需要通讯录权限才能备份');
+        return;
       }
+
+      setBackupLoading(true);
+
+      // 获取通讯录数据
+      const { data: contacts } = await Contacts.getContactsAsync({
+        fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name, Contacts.Fields.Emails],
+        pageSize: 10000,
+      });
+
+      if (!contacts || contacts.length === 0) {
+        Alert.alert('提示', '未找到通讯录联系人');
+        setBackupLoading(false);
+        return;
+      }
+
+      // 格式化联系人数据
+      const contactData = contacts
+        .filter(c => c.phoneNumbers && c.phoneNumbers.length > 0)
+        .map(c => ({
+          name: c.name || '',
+          phone: c.phoneNumbers[0]?.number || '',
+          email: c.emails?.[0]?.email || '',
+        }));
+
+      // 生成文件名
+      const now = new Date();
+      const timestamp = now.getFullYear().toString() +
+        (now.getMonth() + 1).toString().padStart(2, '0') +
+        now.getDate().toString().padStart(2, '0') + '_' +
+        now.getHours().toString().padStart(2, '0') +
+        now.getMinutes().toString().padStart(2, '0') +
+        now.getSeconds().toString().padStart(2, '0');
+      const fileName = `contacts_backup_${timestamp}.json`;
+      const filePath = `${FileSystem.documentDirectory}${fileName}`;
+
+      // 写入文件
+      await FileSystem.writeAsStringAsync(filePath, JSON.stringify(contactData, null, 2));
+
+      Alert.alert('备份成功', `已备份 ${contactData.length} 个联系人到本地`);
+      fetchBackupList();
     } catch (error) {
       console.error('备份失败:', error);
       Alert.alert('错误', '备份失败，请重试');
+    } finally {
+      setBackupLoading(false);
     }
   };
 
   const fetchBackupList = async () => {
-    if (!session?.access_token) return;
     try {
-      const response = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/contacts/backups/list`, {
-        headers: { 'x-session': session.access_token },
-      });
-      const data = await response.json();
-      if (data.success) {
-        setBackups(data.data || []);
-      }
+      const files = await FileSystem.readDirectoryAsync(FileSystem.documentDirectory || '');
+      const backupFiles = files
+        .filter(f => f.startsWith('contacts_backup_') && f.endsWith('.json'))
+        .sort()
+        .reverse();
+
+      const backupList = await Promise.all(
+        backupFiles.map(async (fileName) => {
+          const filePath = `${FileSystem.documentDirectory}${fileName}`;
+          const content = await FileSystem.readAsStringAsync(filePath);
+          const contacts = JSON.parse(content);
+          // 从文件名提取时间戳
+          const timestamp = fileName.replace('contacts_backup_', '').replace('.json', '');
+          const date = new Date(
+            parseInt(timestamp.substring(0, 4)),
+            parseInt(timestamp.substring(4, 6)) - 1,
+            parseInt(timestamp.substring(6, 8)),
+            parseInt(timestamp.substring(9, 11)),
+            parseInt(timestamp.substring(11, 13)),
+            parseInt(timestamp.substring(13, 15))
+          );
+          return {
+            fileName,
+            filePath,
+            created_at: date.toISOString(),
+            contact_count: contacts.length,
+            contacts,
+          };
+        })
+      );
+
+      setBackups(backupList);
     } catch (error) {
       console.error('获取备份列表失败:', error);
     }
   };
 
-  const handleRestore = async (backupId: string) => {
-    if (!session?.access_token) return;
-    Alert.alert(
-      '确认恢复',
-      '恢复通讯录将合并云端数据到本地，是否继续？',
-      [
-        { text: '取消', style: 'cancel' },
-        {
-          text: '恢复',
-          onPress: async () => {
-            try {
-              const response = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/contacts/restore`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'x-session': session.access_token,
-                },
-                body: JSON.stringify({ backup_id: backupId, mode: 'merge' }),
-              });
-              const data = await response.json();
-              if (data.success) {
-                Alert.alert('成功', data.message || '恢复成功');
-                fetchStats();
-              } else {
-                Alert.alert('错误', data.error || '恢复失败');
-              }
-            } catch (error) {
-              console.error('恢复失败:', error);
-              Alert.alert('错误', '恢复失败，请重试');
-            }
-          },
-        },
-      ]
-    );
+  const handleRestore = async (backup?: any) => {
+    try {
+      // 请求通讯录权限
+      const { status } = await Contacts.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('权限不足', '需要通讯录权限才能恢复');
+        return;
+      }
+
+      setBackupLoading(true);
+
+      // 如果没有指定备份，使用最近的备份
+      let backupData = backup?.contacts;
+      if (!backupData) {
+        if (backups.length === 0) {
+          Alert.alert('提示', '没有找到备份文件');
+          setBackupLoading(false);
+          return;
+        }
+        backupData = backups[0].contacts;
+      }
+
+      let successCount = 0;
+      let failCount = 0;
+
+      // 逐个导入联系人
+      for (const contact of backupData) {
+        try {
+          await Contacts.addContactAsync({
+            name: contact.name,
+            phoneNumbers: [{ number: contact.phone }],
+            emails: contact.email ? [{ email: contact.email }] : [],
+          });
+          successCount++;
+        } catch (e) {
+          failCount++;
+        }
+      }
+
+      Alert.alert('恢复完成', `成功导入 ${successCount} 个联系人${failCount > 0 ? `，失败 ${failCount} 个` : ''}`);
+      fetchStats();
+    } catch (error) {
+      console.error('恢复失败:', error);
+      Alert.alert('错误', '恢复失败，请重试');
+    } finally {
+      setBackupLoading(false);
+    }
   };
 
   const analyzeBackups = () => {
@@ -206,8 +274,8 @@ export default function HomeScreen() {
       setAnalysisResult({ error: '至少需要2次备份才能进行对比分析' });
       return;
     }
-    const latest = backups[0]?.metadata?.contacts || [];
-    const previous = backups[1]?.metadata?.contacts || [];
+    const latest = backups[0]?.contacts || [];
+    const previous = backups[1]?.contacts || [];
     
     const latestPhones = new Set(latest.map((c: any) => c.phone));
     const previousPhones = new Set(previous.map((c: any) => c.phone));
@@ -219,8 +287,8 @@ export default function HomeScreen() {
     const modified: any[] = [];
     latest.forEach((c: any) => {
       const prev = previous.find((p: any) => p.phone === c.phone);
-      if (prev && (prev.name !== c.name || prev.status !== c.status)) {
-        modified.push({ phone: c.phone, oldName: prev.name, newName: c.name, oldStatus: prev.status, newStatus: c.status });
+      if (prev && (prev.name !== c.name || prev.email !== c.email)) {
+        modified.push({ phone: c.phone, oldName: prev.name, newName: c.name, oldEmail: prev.email, newEmail: c.email });
       }
     });
     
@@ -459,7 +527,7 @@ export default function HomeScreen() {
         </View>
       </Modal>
 
-      {/* 云端备份模态框 */}
+      {/* 本地备份模态框 */}
       <Modal
         visible={cloudBackupVisible}
         transparent
@@ -469,7 +537,7 @@ export default function HomeScreen() {
         <View style={styles.cloudModalOverlay}>
           <View style={styles.cloudModalContent}>
             <View style={styles.cloudModalHeader}>
-              <Text style={styles.cloudModalTitle}>云端备份</Text>
+              <Text style={styles.cloudModalTitle}>通讯录备份</Text>
               <TouchableOpacity onPress={() => setCloudBackupVisible(false)}>
                 <Ionicons name="close" size={24} color="#909399" />
               </TouchableOpacity>
@@ -477,100 +545,107 @@ export default function HomeScreen() {
 
             <ScrollView style={styles.cloudModalBody}>
               {/* 备份通讯录 */}
-              <View style={styles.cloudSection}>
-                <View style={[styles.cloudIconContainer, { backgroundColor: 'rgba(74, 144, 217, 0.12)' }]}>
-                  <Ionicons name="cloud-upload" size={24} color="#4A90D9" />
-                </View>
-                <Text style={styles.cloudSectionTitle}>备份通讯录</Text>
-                <Text style={styles.cloudSectionDesc}>将当前通讯录备份到云端</Text>
-                <TouchableOpacity
-                  style={styles.cloudButton}
-                  onPress={handleBackup}
-                  disabled={backupLoading}
-                >
-                  <Text style={styles.cloudButtonText}>
-                    {backupLoading ? '备份中...' : '立即备份'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity
+                style={styles.simpleButton}
+                onPress={handleBackup}
+                disabled={backupLoading}
+              >
+                <Ionicons name="cloud-upload" size={20} color="#4A90D9" />
+                <Text style={styles.simpleButtonText}>
+                  {backupLoading ? '备份中...' : '备份通讯录'}
+                </Text>
+              </TouchableOpacity>
 
               {/* 恢复通讯录 */}
-              <View style={styles.cloudSection}>
-                <View style={[styles.cloudIconContainer, { backgroundColor: 'rgba(103, 194, 58, 0.12)' }]}>
-                  <Ionicons name="cloud-download" size={24} color="#67C23A" />
-                </View>
-                <Text style={styles.cloudSectionTitle}>恢复通讯录</Text>
-                <Text style={styles.cloudSectionDesc}>从云端恢复通讯录数据</Text>
-                <TouchableOpacity
-                  style={styles.cloudButton}
-                  onPress={handleRestore}
-                  disabled={backupLoading}
-                >
-                  <Text style={styles.cloudButtonText}>
-                    {backupLoading ? '恢复中...' : '立即恢复'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity
+                style={styles.simpleButton}
+                onPress={() => handleRestore()}
+                disabled={backupLoading}
+              >
+                <Ionicons name="cloud-download" size={20} color="#67C23A" />
+                <Text style={styles.simpleButtonText}>
+                  {backupLoading ? '恢复中...' : '恢复通讯录'}
+                </Text>
+              </TouchableOpacity>
 
               {/* 备份记录 */}
-              <View style={styles.cloudSection}>
-                <View style={[styles.cloudIconContainer, { backgroundColor: 'rgba(230, 162, 60, 0.12)' }]}>
-                  <Ionicons name="time" size={24} color="#E6A23C" />
-                </View>
-                <Text style={styles.cloudSectionTitle}>备份记录</Text>
-                {backups.length > 0 ? (
-                  backups.slice(0, 3).map((backup, index) => (
-                    <View key={index} style={styles.backupRecord}>
-                      <Text style={styles.backupRecordText}>
-                        {new Date(backup.created_at).toLocaleString()}
-                      </Text>
-                      <Text style={styles.backupRecordCount}>
-                        {backup.contact_count} 个联系人
-                      </Text>
-                    </View>
-                  ))
-                ) : (
-                  <Text style={styles.noBackupText}>暂无备份记录</Text>
-                )}
-              </View>
+              <TouchableOpacity
+                style={styles.simpleButton}
+                onPress={() => setCloudBackupTab('records')}
+              >
+                <Ionicons name="time" size={20} color="#E6A23C" />
+                <Text style={styles.simpleButtonText}>备份记录</Text>
+              </TouchableOpacity>
 
               {/* 数据分析 */}
-              <View style={styles.cloudSection}>
-                <View style={[styles.cloudIconContainer, { backgroundColor: 'rgba(144, 105, 217, 0.12)' }]}>
-                  <Ionicons name="analytics" size={24} color="#9069D9" />
+              <TouchableOpacity
+                style={styles.simpleButton}
+                onPress={() => {
+                  analyzeBackups();
+                  setCloudBackupTab('analysis');
+                }}
+              >
+                <Ionicons name="analytics" size={20} color="#9069D9" />
+                <Text style={styles.simpleButtonText}>数据分析</Text>
+              </TouchableOpacity>
+
+              {/* 备份记录详情 */}
+              {cloudBackupTab === 'records' && (
+                <View style={styles.recordsContainer}>
+                  {backups.length > 0 ? (
+                    backups.map((backup, index) => (
+                      <View key={index} style={styles.backupRecord}>
+                        <View>
+                          <Text style={styles.backupRecordText}>
+                            {new Date(backup.created_at).toLocaleString()}
+                          </Text>
+                          <Text style={styles.backupRecordCount}>
+                            {backup.contact_count} 个联系人
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          style={styles.restoreButton}
+                          onPress={() => handleRestore(backup)}
+                        >
+                          <Text style={styles.restoreButtonText}>恢复</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ))
+                  ) : (
+                    <Text style={styles.noBackupText}>暂无备份记录</Text>
+                  )}
                 </View>
-                <Text style={styles.cloudSectionTitle}>数据分析</Text>
-                {analysisResult ? (
-                  <View style={styles.analysisResult}>
-                    <View style={styles.analysisRow}>
-                      <Text style={styles.analysisLabel}>新增联系人</Text>
-                      <Text style={[styles.analysisValue, { color: '#67C23A' }]}>
-                        +{analysisResult.added}
-                      </Text>
-                    </View>
-                    <View style={styles.analysisRow}>
-                      <Text style={styles.analysisLabel}>删除联系人</Text>
-                      <Text style={[styles.analysisValue, { color: '#F56C6C' }]}>
-                        -{analysisResult.deleted}
-                      </Text>
-                    </View>
-                    <View style={styles.analysisRow}>
-                      <Text style={styles.analysisLabel}>修改联系人</Text>
-                      <Text style={[styles.analysisValue, { color: '#E6A23C' }]}>
-                        ~{analysisResult.modified}
-                      </Text>
-                    </View>
-                  </View>
-                ) : (
-                  <Text style={styles.noBackupText}>需要至少两次备份才能分析</Text>
-                )}
-                <TouchableOpacity
-                  style={[styles.cloudButton, { backgroundColor: '#9069D9' }]}
-                  onPress={analyzeBackups}
-                >
-                  <Text style={styles.cloudButtonText}>分析数据</Text>
-                </TouchableOpacity>
-              </View>
+              )}
+
+              {/* 数据分析详情 */}
+              {cloudBackupTab === 'analysis' && analysisResult && (
+                <View style={styles.recordsContainer}>
+                  {analysisResult.error ? (
+                    <Text style={styles.noBackupText}>{analysisResult.error}</Text>
+                  ) : (
+                    <>
+                      <View style={styles.analysisRow}>
+                        <Text style={styles.analysisLabel}>新增联系人</Text>
+                        <Text style={[styles.analysisValue, { color: '#67C23A' }]}>
+                          +{analysisResult.added}
+                        </Text>
+                      </View>
+                      <View style={styles.analysisRow}>
+                        <Text style={styles.analysisLabel}>删除联系人</Text>
+                        <Text style={[styles.analysisValue, { color: '#F56C6C' }]}>
+                          -{analysisResult.deleted}
+                        </Text>
+                      </View>
+                      <View style={styles.analysisRow}>
+                        <Text style={styles.analysisLabel}>修改联系人</Text>
+                        <Text style={[styles.analysisValue, { color: '#E6A23C' }]}>
+                          ~{analysisResult.modified}
+                        </Text>
+                      </View>
+                    </>
+                  )}
+                </View>
+              )}
             </ScrollView>
           </View>
         </View>
@@ -766,16 +841,91 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 20,
     maxHeight: '80%',
+    width: '85%',
+    maxWidth: 360,
   },
   cloudModalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 20,
   },
   cloudModalTitle: {
     fontSize: 18,
     fontWeight: '700',
+    color: '#303133',
+  },
+  simpleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F5F7FA',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+  },
+  simpleButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#303133',
+    marginLeft: 12,
+  },
+  recordsContainer: {
+    marginTop: 8,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F0F0F0',
+  },
+  restoreButton: {
+    backgroundColor: '#67C23A',
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  restoreButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  backupRecord: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#F5F7FA',
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 10,
+  },
+  backupRecordText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#303133',
+  },
+  backupRecordCount: {
+    fontSize: 12,
+    color: '#909399',
+    marginTop: 4,
+  },
+  noBackupText: {
+    fontSize: 14,
+    color: '#909399',
+    textAlign: 'center',
+    paddingVertical: 20,
+  },
+  analysisRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  analysisLabel: {
+    fontSize: 14,
+    color: '#606266',
+  },
+  analysisValue: {
+    fontSize: 14,
+    fontWeight: '600',
     color: '#303133',
   },
   cloudTabs: {
