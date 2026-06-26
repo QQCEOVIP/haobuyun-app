@@ -17,6 +17,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/storage/supabase';
 import * as Contacts from 'expo-contacts';
+import { Crypto } from 'expo-crypto';
+import { CONSENSUS, type NumberStatus } from '@/constants/numberStatus';
 
 interface Contact {
   id: string;
@@ -45,6 +47,7 @@ export default function ContactsScreen() {
   const [infoModalVisible, setInfoModalVisible] = useState(false);
   const [statusMenuContact, setStatusMenuContact] = useState<Contact | null>(null);
   const [cleanupStats, setCleanupStats] = useState({ duplicate: 0, stopped: 0, suspected: 0 });
+  const [communityMarks, setCommunityMarks] = useState<Map<string, { status: NumberStatus; markCount: number }>>(new Map());
 
   const userId = (user as any)?.id;
 
@@ -105,6 +108,8 @@ export default function ContactsScreen() {
 
         setContacts(mappedContacts);
         filterContacts(mappedContacts, searchText, activeTab);
+        // Fetch community marks after contacts are loaded
+        fetchCommunityMarks();
       }
     } catch (error) {
       console.error('Failed to load contacts:', error);
@@ -154,6 +159,53 @@ export default function ContactsScreen() {
       setCleanupStats({ duplicate, stopped, suspected });
     } catch (error) {
       console.error('Failed to fetch cleanup stats:', error);
+    }
+  };
+
+  const fetchCommunityMarks = async () => {
+    try {
+      const { data, error } = await supabase.rpc('get_all_community_statuses');
+      if (error) {
+        console.warn('Failed to fetch community statuses:', error.message);
+        return;
+      }
+      if (!data) return;
+
+      // Build a map: phone_hash -> { status, markCount }
+      const markMap = new Map<string, { status: NumberStatus; markCount: number }>();
+      for (const row of data) {
+        if (row.mark_count >= CONSENSUS.MIN_MARKS) {
+          markMap.set(row.phone_hash, {
+            status: row.status as NumberStatus,
+            markCount: row.mark_count,
+          });
+        }
+      }
+
+      // Pre-compute phone hashes for all current contacts
+      const phoneHashMaps = new Map<string, string>();
+      for (const contact of contacts) {
+        if (contact.phone) {
+          const hash = await Crypto.digestStringAsync(
+            Crypto.CryptoDigestAlgorithm.SHA256,
+            contact.phone,
+          );
+          phoneHashMaps.set(contact.phone, hash);
+        }
+      }
+
+      // Build a phone -> community mark map for easy lookup in render
+      const phoneCommunityMap = new Map<string, { status: NumberStatus; markCount: number }>();
+      for (const [phone, hash] of phoneHashMaps) {
+        const communityMark = markMap.get(hash);
+        if (communityMark) {
+          phoneCommunityMap.set(phone, communityMark);
+        }
+      }
+
+      setCommunityMarks(phoneCommunityMap);
+    } catch (error) {
+      console.error('Failed to fetch community marks:', error);
     }
   };
 
@@ -242,6 +294,9 @@ export default function ContactsScreen() {
 
   const renderContact = ({ item }: { item: Contact }) => {
     const statusStyle = getStatusStyle(item.status);
+    const communityMark = communityMarks.get(item.phone);
+    const communityStyle = communityMark ? getStatusStyle(communityMark.status) : null;
+
     return (
       <TouchableOpacity style={styles.contactCard}>
         <View style={styles.avatar}>
@@ -251,14 +306,37 @@ export default function ContactsScreen() {
           <Text style={styles.contactName}>{item.name}</Text>
           <Text style={styles.contactPhone}>{item.phone}</Text>
         </View>
-        <TouchableOpacity
-          style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}
-          onPress={() => setStatusMenuContact(item)}
-        >
-          <Text style={[styles.statusText, { color: statusStyle.text }]}>
-            {statusStyle.label}
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.badgeContainer}>
+          {communityStyle ? (
+            <>
+              <View style={styles.badgeGroup}>
+                <Text style={styles.badgeLabel}>我的</Text>
+                <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
+                  <Text style={[styles.statusText, { color: statusStyle.text }]}>
+                    {statusStyle.label}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.badgeGroup}>
+                <Text style={styles.badgeLabel}>社区</Text>
+                <View style={[styles.statusBadge, { backgroundColor: communityStyle.bg }]}>
+                  <Text style={[styles.statusText, { color: communityStyle.text }]}>
+                    {communityStyle.label}
+                  </Text>
+                </View>
+              </View>
+            </>
+          ) : (
+            <TouchableOpacity
+              style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}
+              onPress={() => setStatusMenuContact(item)}
+            >
+              <Text style={[styles.statusText, { color: statusStyle.text }]}>
+                {statusStyle.label}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </TouchableOpacity>
     );
   };
@@ -580,6 +658,21 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 12,
     fontWeight: '600',
+  },
+  badgeContainer: {
+    alignItems: 'flex-end',
+  },
+  badgeGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  badgeLabel: {
+    fontSize: 10,
+    color: '#909399',
+    marginRight: 4,
+    minWidth: 24,
+    textAlign: 'right',
   },
   emptyContainer: {
     alignItems: 'center',

@@ -102,5 +102,22 @@ CREATE TRIGGER trigger_number_status_updated_at
   FOR EACH ROW
   EXECUTE FUNCTION update_number_status_updated_at();
 
--- 8. 清理过期数据 (可选，定期执行)
+-- 8. 批量获取所有社区共识标记 (高效，一次调用获取全部)
+CREATE OR REPLACE FUNCTION get_all_community_statuses()
+RETURNS TABLE (
+  phone_hash TEXT,
+  status TEXT,
+  mark_count INTEGER
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT ns.phone_hash, ns.status, COUNT(*)::INTEGER as mark_count
+  FROM number_status ns
+  GROUP BY ns.phone_hash, ns.status
+  HAVING COUNT(*) >= 2 -- 共识阈值：至少 2 人
+  ORDER BY COUNT(*) DESC;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 9. 清理过期数据 (可选，定期执行)
 -- DELETE FROM number_status WHERE updated_at < NOW() - INTERVAL '90 days';
