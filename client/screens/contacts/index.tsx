@@ -33,15 +33,6 @@ const STATUS_TABS = [
   { key: 'suspected_stopped', label: '疑似停机' },
 ];
 
-async function generatePhoneHash(phone: string): Promise<string> {
-  // Simple hash function for phone numbers using SHA-256
-  const encoder = new TextEncoder();
-  const data = encoder.encode(phone);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
 export default function ContactsScreen() {
   const { user } = useAuth();
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -137,16 +128,13 @@ export default function ContactsScreen() {
 
   const updateContactStatus = async (contact: Contact | null, newStatus: string) => {
     if (!contact || !userId) return;
-    
     try {
-      // 先尝试更新已有记录
       const { data: existing } = await supabase
         .from('contacts')
         .select('id')
         .eq('user_id', userId)
         .eq('phone', contact.phone)
         .single();
-
       if (existing) {
         const { error } = await supabase
           .from('contacts')
@@ -154,29 +142,19 @@ export default function ContactsScreen() {
           .eq('id', existing.id);
         if (error) throw error;
       } else {
-        // Generate phone_hash using a simple hash function
-        const phoneHash = await generatePhoneHash(contact.phone);
+        const encoder = new TextEncoder();
+        const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(contact.phone));
+        const phoneHash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
         const { error } = await supabase
           .from('contacts')
-          .insert({
-            user_id: userId,
-            name: contact.name,
-            phone: contact.phone,
-            phone_hash: phoneHash,
-            status: newStatus,
-          });
+          .insert({ user_id: userId, name: contact.name, phone: contact.phone, phone_hash: phoneHash, status: newStatus });
         if (error) throw error;
       }
-
-      // 更新本地状态
-      setContacts(prev => prev.map(c =>
-        c.phone === contact.phone ? { ...c, status: newStatus } : c
-      ));
+      setContacts(prev => prev.map(c => c.phone === contact.phone ? { ...c, status: newStatus } : c));
     } catch (error: any) {
       console.error('Failed to update status:', error);
       Alert.alert('错误', '更新状态失败: ' + (error?.message || '未知错误'));
     }
-    
     setStatusMenuContact(null);
   };
 
