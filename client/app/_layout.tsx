@@ -65,6 +65,7 @@ export default function RootLayout() {
             <Stack.Screen name="about" options={{ title: "关于我们" }} />
             <Stack.Screen name="notification" options={{ title: "通知设置" }} />
             <Stack.Screen name="privacy-settings" options={{ title: "隐私设置" }} />
+            <Stack.Screen name="duplicates" options={{ title: "疑似重复" }} />
           </Stack>
         </AuthGuard>
         <Toast />

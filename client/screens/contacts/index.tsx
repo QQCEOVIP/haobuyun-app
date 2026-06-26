@@ -19,6 +19,7 @@ import { supabase } from '@/storage/supabase';
 import * as Contacts from 'expo-contacts';
 import { Crypto } from 'expo-crypto';
 import { CONSENSUS, type NumberStatus } from '@/constants/numberStatus';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface Contact {
   id: string;
@@ -106,8 +107,28 @@ export default function ContactsScreen() {
             };
           });
 
-        setContacts(mappedContacts);
-        filterContacts(mappedContacts, searchText, activeTab);
+        // Load locally persisted status overrides from AsyncStorage
+        const allKeys = await AsyncStorage.getAllKeys();
+        const statusKeys = allKeys.filter(k => k.startsWith('@contact_status_'));
+        const statusEntries = statusKeys.length > 0
+          ? await AsyncStorage.multiGet(statusKeys)
+          : [];
+        const localStatusMap = new Map<string, string>();
+        for (const [key, value] of statusEntries) {
+          if (value) {
+            const phone = key.replace('@contact_status_', '');
+            localStatusMap.set(phone, value);
+          }
+        }
+
+        // Apply AsyncStorage status as fallback when Supabase has no status
+        const finalContacts = mappedContacts.map(c => ({
+          ...c,
+          status: c.status || localStatusMap.get(c.phone) || null,
+        }));
+
+        setContacts(finalContacts);
+        filterContacts(finalContacts, searchText, activeTab);
         // Fetch community marks after contacts are loaded
         fetchCommunityMarks();
       }
@@ -244,6 +265,8 @@ export default function ContactsScreen() {
       
       // Always update local state regardless of Supabase result
       setContacts(prev => prev.map(c => c.phone === contact.phone ? { ...c, status: newStatus } : c));
+      // Persist to AsyncStorage for cross-session durability
+      await AsyncStorage.setItem(`@contact_status_${contact.phone}`, newStatus);
     } catch (error: any) {
       console.error('Failed to update status:', error);
       // Still update local state even on error
@@ -407,10 +430,14 @@ export default function ContactsScreen() {
               </TouchableOpacity>
             </View>
             <View style={styles.cleanupStats}>
-              <View style={styles.cleanupStatItem}>
+              <TouchableOpacity
+                style={styles.cleanupStatItem}
+                activeOpacity={0.7}
+                onPress={() => router.push('/duplicates')}
+              >
                 <Text style={[styles.cleanupStatValue, { color: '#E6A23C' }]}>{cleanupStats.duplicate}</Text>
                 <Text style={styles.cleanupStatLabel}>疑似重复</Text>
-              </View>
+              </TouchableOpacity>
               <View style={styles.cleanupStatDivider} />
               <View style={styles.cleanupStatItem}>
                 <Text style={[styles.cleanupStatValue, { color: '#F56C6C' }]}>{cleanupStats.stopped}</Text>
