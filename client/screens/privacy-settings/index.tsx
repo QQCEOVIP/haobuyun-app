@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,17 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import Toast from 'react-native-toast-message';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
+import { router } from 'expo-router';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/storage/supabase';
+
+const KEYS = {
+  shareStatus: '@privacy_share_status',
+  hideStats: '@privacy_hide_stats',
+};
 
 interface ToggleItemProps {
   icon: string;
@@ -18,7 +28,7 @@ interface ToggleItemProps {
   title: string;
   subtitle: string;
   value: boolean;
-  onToggle: () => void;
+  onToggle: (val: boolean) => void;
 }
 
 function ToggleItem({ icon, color, title, subtitle, value, onToggle }: ToggleItemProps) {
@@ -36,7 +46,6 @@ function ToggleItem({ icon, color, title, subtitle, value, onToggle }: ToggleIte
         onValueChange={onToggle}
         trackColor={{ false: '#E6E8EB', true: '#4A90D9' }}
         thumbColor="#FFFFFF"
-        disabled={true}
       />
     </View>
   );
@@ -66,23 +75,76 @@ function ArrowItem({ icon, color, title, subtitle, onPress }: ArrowItemProps) {
 }
 
 export default function PrivacySettingsScreen() {
-  const [autoBackup, setAutoBackup] = useState(false);
-  const [numberMasking, setNumberMasking] = useState(false);
+  const { user, signOut } = useAuth();
+  const [shareStatus, setShareStatus] = useState(true);
+  const [hideStats, setHideStats] = useState(false);
 
-  const handleToggle = (setter: React.Dispatch<React.SetStateAction<boolean>>) => {
-    Toast.show({
-      type: 'info',
-      text1: '功能开发中，敬请期待',
-      visibilityTime: 1500,
-    });
+  const userId = (user as any)?.id;
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const vals = await AsyncStorage.multiGet([KEYS.shareStatus, KEYS.hideStats]);
+        setShareStatus(vals[0][1] === null ? true : vals[0][1] === 'true');
+        setHideStats(vals[1][1] === 'true');
+      } catch {}
+    })();
+  }, []);
+
+  const toggle = async (key: string, setter: React.Dispatch<React.SetStateAction<boolean>>, val: boolean) => {
+    setter(val);
+    await AsyncStorage.setItem(key, val.toString());
   };
 
-  const handleComingSoon = () => {
-    Toast.show({
-      type: 'info',
-      text1: '功能开发中，敬请期待',
-      visibilityTime: 1500,
-    });
+  const handleExportData = async () => {
+    if (!userId) return;
+    try {
+      const { data, error } = await supabase
+        .from('contacts')
+        .select('phone, status, created_at, updated_at')
+        .eq('user_id', userId);
+      if (error) throw error;
+
+      const json = JSON.stringify(data || [], null, 2);
+      const fileUri = `${FileSystem.cacheDirectory}my_marks_export.json`;
+      await FileSystem.writeAsStringAsync(fileUri, json, { encoding: FileSystem.EncodingType.UTF8 });
+
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: 'application/json',
+          dialogTitle: '导出标记记录',
+        });
+      } else {
+        Alert.alert('提示', '当前设备不支持文件分享');
+      }
+    } catch (error: any) {
+      Alert.alert('导出失败', error?.message || '请重试');
+    }
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      '注销账号',
+      '确定要注销账号吗？所有数据将被清除且不可恢复。',
+      [
+        { text: '取消', style: 'cancel' },
+        {
+          text: '确定注销',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              if (userId) {
+                await supabase.from('contacts').delete().eq('user_id', userId);
+              }
+              await AsyncStorage.clear();
+              await signOut();
+            } catch (error: any) {
+              Alert.alert('注销失败', error?.message || '请重试');
+            }
+          },
+        },
+      ]
+    );
   };
 
   return (
@@ -93,44 +155,43 @@ export default function PrivacySettingsScreen() {
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.card}>
           <ToggleItem
-            icon="cloud-upload"
+            icon="share-social"
             color="#4A90D9"
-            title="自动备份"
-            subtitle="自动同步通讯录到云端"
-            value={autoBackup}
-            onToggle={() => handleToggle(setAutoBackup)}
-          />
-          <ArrowItem
-            icon="timer"
-            color="#E6A23C"
-            title="检测数据保留"
-            subtitle="7天"
-            onPress={handleComingSoon}
-          />
-          <ArrowItem
-            icon="key"
-            color="#67C23A"
-            title="权限管理"
-            subtitle="管理APP已申请的权限"
-            onPress={handleComingSoon}
-          />
-          <ArrowItem
-            icon="trash"
-            color="#F56C6C"
-            title="数据清除"
-            subtitle="清除本地缓存和云端数据"
-            onPress={handleComingSoon}
+            title="号码状态参与共享"
+            subtitle="是否将标记上传到社区共享池"
+            value={shareStatus}
+            onToggle={(v) => toggle(KEYS.shareStatus, setShareStatus, v)}
           />
           <ToggleItem
             icon="eye-off"
             color="#909399"
-            title="号码脱敏显示"
-            subtitle="隐藏部分号码数字"
-            value={numberMasking}
-            onToggle={() => handleToggle(setNumberMasking)}
+            title="隐藏我的标记统计"
+            subtitle="在个人页隐藏标记次数"
+            value={hideStats}
+            onToggle={(v) => toggle(KEYS.hideStats, setHideStats, v)}
+          />
+          <ArrowItem
+            icon="download"
+            color="#67C23A"
+            title="数据导出"
+            subtitle="导出本人所有标记记录(JSON)"
+            onPress={handleExportData}
+          />
+          <ArrowItem
+            icon="trash"
+            color="#F56C6C"
+            title="注销账号"
+            subtitle="清除所有云端数据并解绑账号"
+            onPress={handleDeleteAccount}
+          />
+          <ArrowItem
+            icon="shield-checkmark"
+            color="#4A90D9"
+            title="查看隐私政策"
+            subtitle="了解我们如何保护您的数据"
+            onPress={() => router.push('/privacy')}
           />
         </View>
-        <Text style={styles.hint}>以上功能即将上线，敬请期待</Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -193,11 +254,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#909399',
     marginTop: 2,
-  },
-  hint: {
-    fontSize: 13,
-    color: '#C0C4CC',
-    textAlign: 'center',
-    marginTop: 24,
   },
 });

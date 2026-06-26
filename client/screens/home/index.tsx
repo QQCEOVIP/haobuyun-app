@@ -908,6 +908,12 @@ export default function HomeScreen() {
             </View>
             <Text style={styles.actionText}>导出通讯录</Text>
           </TouchableOpacity>
+          <TouchableOpacity style={styles.actionCard} onPress={() => router.push('/points')}>
+            <View style={[styles.actionIcon, { backgroundColor: 'rgba(156, 39, 176, 0.12)' }]}>
+              <Ionicons name="game-controller" size={24} color="#9C27B0" />
+            </View>
+            <Text style={styles.actionText}>新玩法</Text>
+          </TouchableOpacity>
         </View>
       </View>
 

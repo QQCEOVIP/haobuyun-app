@@ -126,40 +126,6 @@ export default function ProfileScreen() {
 
         {/* 功能菜单 */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>积分激励</Text>
-          <View style={styles.menuCard}>
-            <MenuItem
-              name="gift"
-              color="#FA8C16"
-              title="积分商城"
-              subtitle="积分兑换好礼"
-              onPress={() => Alert.alert('提示', '积分商城开发中')}
-            />
-            <MenuItem
-              name="podium"
-              color="#4A90D9"
-              title="排行榜"
-              subtitle="周榜/月榜Top10奖励"
-              onPress={() => Alert.alert('提示', '排行榜开发中')}
-            />
-            <MenuItem
-              name="ribbon"
-              color="#F56C6C"
-              title="勋章墙"
-              subtitle="查看已获得勋章"
-              onPress={() => Alert.alert('提示', '勋章墙开发中')}
-            />
-            <MenuItem
-              name="game-controller"
-              color="#9C27B0"
-              title="推广中心"
-              subtitle="看广告/玩游戏赚积分"
-              onPress={() => router.push('/promo')}
-            />
-          </View>
-        </View>
-
-        <View style={styles.section}>
           <Text style={styles.sectionTitle}>设置</Text>
           <View style={styles.menuCard}>
             <MenuItem

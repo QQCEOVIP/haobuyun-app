@@ -40,6 +40,13 @@ export default function AgreementScreen() {
 
         <Text style={styles.sectionTitle}>七、联系方式</Text>
         <Text style={styles.paragraph}>如您对本协议有任何疑问，可通过应用内反馈功能与我们联系。</Text>
+
+        <Text style={styles.sectionTitle}>补充免责条款</Text>
+        <Text style={styles.paragraph}>1. 号码状态标记：号码状态由用户自主标记，平台不保证准确性，仅供参考。所有号码通过SHA-256哈希加密存储，不可逆还原。用户不得恶意标记他人号码，违者将被禁用账号。</Text>
+        <Text style={styles.paragraph}>2. 通讯录备份与恢复：平台尽力保障数据完整性，但不保证100%无丢失，建议用户自行保留原始备份。</Text>
+        <Text style={styles.paragraph}>3. 一键检测：检测结果基于用户标记数据汇总，不代表运营商官方判定，仅供参考。</Text>
+        <Text style={styles.paragraph}>4. 第三方服务：本应用依赖Supabase云端服务，因第三方服务中断导致的数据异常，平台不承担责任。</Text>
+        <Text style={styles.paragraph}>5. 责任限制：在法律允许范围内，平台不对因使用本服务产生的间接、附带或后果性损害承担责任。</Text>
       </ScrollView>
     </SafeAreaView>
   );

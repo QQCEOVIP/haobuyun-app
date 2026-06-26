@@ -1,15 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   Switch,
-  TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import Toast from 'react-native-toast-message';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const KEYS = {
+  backup: '@notification_backup',
+  statusUpdate: '@notification_status_update',
+  detectComplete: '@notification_detect_complete',
+  systemAnnounce: '@notification_system_announce',
+};
 
 interface ToggleItemProps {
   icon: string;
@@ -17,7 +23,7 @@ interface ToggleItemProps {
   title: string;
   subtitle: string;
   value: boolean;
-  onToggle: () => void;
+  onToggle: (val: boolean) => void;
 }
 
 function ToggleItem({ icon, color, title, subtitle, value, onToggle }: ToggleItemProps) {
@@ -35,24 +41,38 @@ function ToggleItem({ icon, color, title, subtitle, value, onToggle }: ToggleIte
         onValueChange={onToggle}
         trackColor={{ false: '#E6E8EB', true: '#4A90D9' }}
         thumbColor="#FFFFFF"
-        disabled={true}
       />
     </View>
   );
 }
 
 export default function NotificationScreen() {
-  const [detectComplete, setDetectComplete] = useState(false);
-  const [periodicDetect, setPeriodicDetect] = useState(false);
-  const [backupReminder, setBackupReminder] = useState(false);
-  const [labelChange, setLabelChange] = useState(false);
+  const [backup, setBackup] = useState(true);
+  const [statusUpdate, setStatusUpdate] = useState(true);
+  const [detectComplete, setDetectComplete] = useState(true);
+  const [systemAnnounce, setSystemAnnounce] = useState(true);
 
-  const handleToggle = (setter: React.Dispatch<React.SetStateAction<boolean>>) => {
-    Toast.show({
-      type: 'info',
-      text1: '功能开发中，敬请期待',
-      visibilityTime: 1500,
-    });
+  useEffect(() => {
+    (async () => {
+      try {
+        const vals = await AsyncStorage.multiGet([
+          KEYS.backup,
+          KEYS.statusUpdate,
+          KEYS.detectComplete,
+          KEYS.systemAnnounce,
+        ]);
+        const get = (v: (typeof vals)[0]) => (v[1] === null ? true : v[1] === 'true');
+        setBackup(get(vals[0]));
+        setStatusUpdate(get(vals[1]));
+        setDetectComplete(get(vals[2]));
+        setSystemAnnounce(get(vals[3]));
+      } catch {}
+    })();
+  }, []);
+
+  const toggle = async (key: string, setter: React.Dispatch<React.SetStateAction<boolean>>, val: boolean) => {
+    setter(val);
+    await AsyncStorage.setItem(key, val.toString());
   };
 
   return (
@@ -63,39 +83,38 @@ export default function NotificationScreen() {
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.card}>
           <ToggleItem
-            icon="checkmark-circle"
-            color="#67C23A"
-            title="检测完成通知"
-            subtitle="检测完成后推送结果摘要"
-            value={detectComplete}
-            onToggle={() => handleToggle(setDetectComplete)}
-          />
-          <ToggleItem
-            icon="time"
-            color="#4A90D9"
-            title="定期检测提醒"
-            subtitle="自动检测号码状态变化"
-            value={periodicDetect}
-            onToggle={() => handleToggle(setPeriodicDetect)}
-          />
-          <ToggleItem
             icon="cloud-upload"
-            color="#E6A23C"
+            color="#4A90D9"
             title="备份提醒"
-            subtitle="定期提醒备份通讯录"
-            value={backupReminder}
-            onToggle={() => handleToggle(setBackupReminder)}
+            subtitle="定期提醒用户备份通讯录"
+            value={backup}
+            onToggle={(v) => toggle(KEYS.backup, setBackup, v)}
           />
           <ToggleItem
-            icon="pricetag"
+            icon="refresh"
+            color="#67C23A"
+            title="状态更新通知"
+            subtitle="关注的号码状态变更时推送通知"
+            value={statusUpdate}
+            onToggle={(v) => toggle(KEYS.statusUpdate, setStatusUpdate, v)}
+          />
+          <ToggleItem
+            icon="checkmark-circle"
+            color="#E6A23C"
+            title="检测完成通知"
+            subtitle="一键检测完成后推送结果"
+            value={detectComplete}
+            onToggle={(v) => toggle(KEYS.detectComplete, setDetectComplete, v)}
+          />
+          <ToggleItem
+            icon="megaphone"
             color="#F56C6C"
-            title="标签变更通知"
-            subtitle="号码状态变化时提醒"
-            value={labelChange}
-            onToggle={() => handleToggle(setLabelChange)}
+            title="系统公告"
+            subtitle="版本更新、功能上线通知"
+            value={systemAnnounce}
+            onToggle={(v) => toggle(KEYS.systemAnnounce, setSystemAnnounce, v)}
           />
         </View>
-        <Text style={styles.hint}>以上功能即将上线，敬请期待</Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -158,11 +177,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#909399',
     marginTop: 2,
-  },
-  hint: {
-    fontSize: 13,
-    color: '#C0C4CC',
-    textAlign: 'center',
-    marginTop: 24,
   },
 });

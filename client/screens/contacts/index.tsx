@@ -12,7 +12,7 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/storage/supabase';
@@ -34,6 +34,7 @@ const STATUS_TABS = [
 ];
 
 export default function ContactsScreen() {
+  const router = useRouter();
   const { user } = useAuth();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [filteredContacts, setFilteredContacts] = useState<Contact[]>([]);
@@ -43,6 +44,7 @@ export default function ContactsScreen() {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [infoModalVisible, setInfoModalVisible] = useState(false);
   const [statusMenuContact, setStatusMenuContact] = useState<Contact | null>(null);
+  const [cleanupStats, setCleanupStats] = useState({ duplicate: 0, stopped: 0, suspected: 0 });
 
   const userId = (user as any)?.id;
 
@@ -126,6 +128,35 @@ export default function ContactsScreen() {
     setFilteredContacts(filtered);
   };
 
+  const fetchCleanupStats = async () => {
+    if (!userId) return;
+    try {
+      // Count stopped and suspected_stopped from supabase
+      const { data: statusCounts } = await supabase
+        .from('contacts')
+        .select('status')
+        .eq('user_id', userId)
+        .in('status', ['stopped', 'suspected_stopped']);
+
+      const stopped = statusCounts?.filter(c => c.status === 'stopped').length || 0;
+      const suspected = statusCounts?.filter(c => c.status === 'suspected_stopped').length || 0;
+
+      // Count potential duplicates by phone number
+      const phoneMap = new Map<string, number>();
+      contacts.forEach(c => {
+        const normalized = c.phone.replace(/\D/g, '');
+        if (normalized.length >= 7) {
+          phoneMap.set(normalized, (phoneMap.get(normalized) || 0) + 1);
+        }
+      });
+      const duplicate = Array.from(phoneMap.values()).filter(count => count > 1).reduce((sum, count) => sum + count - 1, 0);
+
+      setCleanupStats({ duplicate, stopped, suspected });
+    } catch (error) {
+      console.error('Failed to fetch cleanup stats:', error);
+    }
+  };
+
   const updateContactStatus = async (contact: Contact | null, newStatus: string) => {
     if (!contact || !userId) return;
     try {
@@ -183,6 +214,12 @@ export default function ContactsScreen() {
   useEffect(() => {
     filterContacts(contacts, searchText, activeTab);
   }, [searchText, activeTab, contacts]);
+
+  useEffect(() => {
+    if (contacts.length > 0) {
+      fetchCleanupStats();
+    }
+  }, [contacts]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -272,6 +309,38 @@ export default function ContactsScreen() {
         contentContainerStyle={styles.listContainer}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+        ListHeaderComponent={
+          <View style={styles.cleanupCard}>
+            <View style={styles.cleanupHeader}>
+              <View style={styles.cleanupTitleRow}>
+                <Ionicons name="trash" size={16} color="#4A90D9" style={{ marginRight: 4 }} />
+                <Text style={styles.cleanupTitle}>清理助手</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.cleanupButton}
+                onPress={() => router.push('/(tabs)/cleanup')}
+              >
+                <Text style={styles.cleanupButtonText}>立即清理 →</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.cleanupStats}>
+              <View style={styles.cleanupStatItem}>
+                <Text style={[styles.cleanupStatValue, { color: '#E6A23C' }]}>{cleanupStats.duplicate}</Text>
+                <Text style={styles.cleanupStatLabel}>疑似重复</Text>
+              </View>
+              <View style={styles.cleanupStatDivider} />
+              <View style={styles.cleanupStatItem}>
+                <Text style={[styles.cleanupStatValue, { color: '#F56C6C' }]}>{cleanupStats.stopped}</Text>
+                <Text style={styles.cleanupStatLabel}>确认失效</Text>
+              </View>
+              <View style={styles.cleanupStatDivider} />
+              <View style={styles.cleanupStatItem}>
+                <Text style={[styles.cleanupStatValue, { color: '#FA8C16' }]}>{cleanupStats.suspected}</Text>
+                <Text style={styles.cleanupStatLabel}>可能失效</Text>
+              </View>
+            </View>
+          </View>
         }
         ListEmptyComponent={
           hasPermission === false ? (
@@ -600,5 +669,66 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#909399',
     fontWeight: '600',
+  },
+  cleanupCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#4A90D9',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(74, 144, 217, 0.1)',
+  },
+  cleanupHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  cleanupTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#303133',
+  },
+  cleanupTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  cleanupButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(74, 144, 217, 0.1)',
+    borderRadius: 12,
+  },
+  cleanupButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#4A90D9',
+  },
+  cleanupStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  cleanupStatItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  cleanupStatValue: {
+    fontSize: 22,
+    fontWeight: '800',
+  },
+  cleanupStatLabel: {
+    fontSize: 12,
+    color: '#909399',
+    marginTop: 2,
+  },
+  cleanupStatDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: '#F0F0F0',
   },
 });
