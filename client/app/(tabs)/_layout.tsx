@@ -57,9 +57,9 @@ export default function TabLayout() {
       <Tabs.Screen
         name="cleanup"
         options={{
-          title: '清理',
+          title: '新玩法',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="trash" size={size} color={color} />
+            <Ionicons name="game-controller" size={size} color={color} />
           ),
         }}
       />
