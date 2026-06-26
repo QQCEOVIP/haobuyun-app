@@ -10,6 +10,7 @@ import {
   Modal,
   TouchableWithoutFeedback,
   Alert,
+  InteractionManager,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -277,12 +278,11 @@ export default function ContactsScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      loadContacts();
-      return () => {
-        // 清理：关闭所有弹窗，防止切换页面时遮罩闪现
-        setInfoModalVisible(false);
-        setStatusMenuContact(null);
-      };
+      // 延迟到过渡动画完成后再执行重度异步操作，防止切换闪屏
+      const handle = InteractionManager.runAfterInteractions(() => {
+        loadContacts();
+      });
+      return () => handle.cancel();
     }, [userId])
   );
 
