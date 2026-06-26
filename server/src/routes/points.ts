@@ -303,6 +303,101 @@ router.post("/report", async (req: any, res: any) => {
   }
 });
 
+// 每日签到
+router.post("/checkin", async (req: any, res: any) => {
+  try {
+    const userId = req.user?.id || req.auth?.userId;
+    if (!userId) return res.status(401).json({ error: "未登录" });
+
+    const today = new Date().toISOString().split("T")[0];
+
+    // 检查今天是否已签到
+    let streak = await db.query.checkinStreaks.findFirst({
+      where: eq(checkinStreaks.user_id, userId)
+    });
+
+    if (streak?.last_checkin_date === today) {
+      return res.json({
+        success: false,
+        message: "今天已签到",
+        streak: streak.current_streak,
+        longest_streak: streak.longest_streak
+      });
+    }
+
+    // 执行签到：更新连续签到记录
+    await checkStreakReward(userId);
+
+    // 重新获取签到记录
+    streak = await db.query.checkinStreaks.findFirst({
+      where: eq(checkinStreaks.user_id, userId)
+    });
+
+    // 发放每日签到积分
+    const dailyPoints = 5;
+    let userPointRecord = await db.query.userPoints.findFirst({
+      where: eq(userPoints.user_id, userId)
+    });
+
+    if (userPointRecord) {
+      const newBalance = userPointRecord.balance + dailyPoints;
+      await db.update(userPoints)
+        .set({
+          balance: newBalance,
+          total_earned: userPointRecord.total_earned + dailyPoints,
+          updated_at: new Date()
+        })
+        .where(eq(userPoints.user_id, userId));
+
+      await db.insert(pointRecords).values({
+        user_id: userId,
+        type: "earn",
+        action: "daily_bonus",
+        points: dailyPoints,
+        balance_after: newBalance,
+        description: `每日签到 +${dailyPoints}积分`
+      });
+    }
+
+    // 检查勋章
+    await checkMedals(userId);
+
+    res.json({
+      success: true,
+      message: "签到成功",
+      points_earned: dailyPoints,
+      streak: streak?.current_streak || 1,
+      longest_streak: streak?.longest_streak || 0
+    });
+  } catch (error) {
+    console.error("签到失败:", error);
+    res.status(500).json({ error: "签到失败" });
+  }
+});
+
+// 获取签到信息
+router.get("/checkin", async (req: any, res: any) => {
+  try {
+    const userId = req.user?.id || req.auth?.userId;
+    if (!userId) return res.status(401).json({ error: "未登录" });
+
+    const today = new Date().toISOString().split("T")[0];
+
+    const streak = await db.query.checkinStreaks.findFirst({
+      where: eq(checkinStreaks.user_id, userId)
+    });
+
+    res.json({
+      checked_in_today: streak?.last_checkin_date === today,
+      current_streak: streak?.current_streak || 0,
+      longest_streak: streak?.longest_streak || 0
+    });
+  } catch (error) {
+    console.error("获取签到信息失败:", error);
+    res.status(500).json({ error: "获取签到信息失败" });
+  }
+});
+
 // 检查连续标注奖励
 async function checkStreakReward(userId: string) {
   const today = new Date().toISOString().split("T")[0];

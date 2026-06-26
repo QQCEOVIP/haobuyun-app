@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useFocusEffect } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface MenuItemProps {
@@ -40,36 +39,7 @@ function MenuItem({ name, color, title, subtitle, badge, onPress }: MenuItemProp
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { user, signOut, session } = useAuth();
-  const [points, setPoints] = useState(0);
-  const [medalCount, setMedalCount] = useState(0);
-
-  // 获取积分和勋章数量
-  const fetchStats = useCallback(async () => {
-    if (!session?.access_token) return;
-    try {
-      const [pointsRes, medalsRes] = await Promise.all([
-        fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/points/balance`, {
-          headers: { "x-session": session.access_token }
-        }),
-        fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/points/medals/mine`, {
-          headers: { "x-session": session.access_token }
-        })
-      ]);
-      const pointsData = await pointsRes.json();
-      const medalsData = await medalsRes.json();
-      setPoints(pointsData.balance || 0);
-      setMedalCount(medalsData.medals?.length || 0);
-    } catch (error) {
-      console.error('获取数据失败:', error);
-    }
-  }, [session]);
-
-  useFocusEffect(
-    useCallback(() => {
-      fetchStats();
-    }, [fetchStats])
-  );
+  const { user, signOut } = useAuth();
 
   const handleLogout = () => {
     Alert.alert(
@@ -109,19 +79,6 @@ export default function ProfileScreen() {
             <Text style={styles.userName}>{userName}</Text>
             <Text style={styles.userEmail}>{userEmail}</Text>
           </View>
-        </View>
-
-        {/* 积分卡片 */}
-        <View style={styles.pointsCard}>
-          <TouchableOpacity style={styles.pointsItem} onPress={() => Alert.alert('提示', '积分商城开发中')}>
-            <Text style={styles.pointsValue}>{points}</Text>
-            <Text style={styles.pointsLabel}>我的积分</Text>
-          </TouchableOpacity>
-          <View style={styles.pointsDivider} />
-          <TouchableOpacity style={styles.pointsItem} onPress={() => Alert.alert('提示', '勋章墙开发中')}>
-            <Text style={styles.pointsValue}>{medalCount}</Text>
-            <Text style={styles.pointsLabel}>已获勋章</Text>
-          </TouchableOpacity>
         </View>
 
         {/* 功能菜单 */}
@@ -299,38 +256,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#FFF',
     fontWeight: '600',
-  },
-  pointsCard: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 20,
-    padding: 20,
-    borderRadius: 16,
-    marginBottom: 24,
-    shadowColor: '#D1D9E6',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  pointsItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  pointsValue: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#FA8C16',
-  },
-  pointsLabel: {
-    fontSize: 13,
-    color: '#909399',
-    marginTop: 4,
-  },
-  pointsDivider: {
-    width: 1,
-    backgroundColor: '#F0F0F0',
-    marginHorizontal: 16,
   },
   logoutButton: {
     backgroundColor: '#FFFFFF',
