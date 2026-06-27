@@ -3,230 +3,225 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   FlatList,
+  TouchableOpacity,
   Alert,
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from 'expo-router';
+import { useSafeRouter } from '@/hooks/useSafeRouter';
 import { Ionicons } from '@expo/vector-icons';
-import { router, useFocusEffect } from 'expo-router';
-import { useAuth } from '@/contexts/AuthContext';
 
-const EXPO_PUBLIC_BACKEND_BASE_URL = process.env.EXPO_PUBLIC_BACKEND_BASE_URL;
-
-interface DeletedContact {
-  id: string;
+interface TrashContact {
+  id: number;
   name: string;
-  phone: string;
-  status: string;
+  phone_numbers: string;
   deleted_at: string;
 }
 
 export default function RecycleBinScreen() {
-  const { session } = useAuth();
-  const [deletedContacts, setDeletedContacts] = useState<DeletedContact[]>([]);
+  const router = useSafeRouter();
+  const [trashContacts, setTrashContacts] = useState<TrashContact[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [actionLoading, setActionLoading] = useState(false);
 
-  const fetchDeletedContacts = useCallback(async () => {
-    if (!session?.access_token) return;
+  const loadTrash = useCallback(async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/contacts/trash`, {
-        headers: { 'x-session': session.access_token },
-      });
+      const response = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/contacts/trash`);
+      if (!response.ok) throw new Error('Failed to load trash');
       const data = await response.json();
-      if (response.ok) {
-        setDeletedContacts(data);
-      }
+      setTrashContacts(data);
     } catch (error) {
-      console.error('Failed to fetch deleted contacts:', error);
+      console.error('Failed to load trash:', error);
+      Alert.alert('错误', '加载回收站失败');
     } finally {
       setLoading(false);
     }
-  }, [session]);
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
-      fetchDeletedContacts();
-    }, [fetchDeletedContacts])
+      loadTrash();
+    }, [loadTrash])
   );
 
-  const handleRestore = async (id: string) => {
-    if (!session?.access_token) return;
-    try {
-      const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/contacts/${id}/restore`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-session': session.access_token,
-        },
-      });
-      if (response.ok) {
-        setDeletedContacts(prev => prev.filter(c => c.id !== id));
-        setSelectedIds(prev => {
-          const next = new Set(prev);
-          next.delete(id);
-          return next;
-        });
-        Alert.alert('成功', '联系人已恢复');
-      } else {
-        Alert.alert('恢复失败', '请稍后重试');
-      }
-    } catch (error) {
-      Alert.alert('错误', '恢复失败，请重试');
-    }
-  };
-
-  const handleBatchRestore = async () => {
-    if (selectedIds.size === 0) {
-      Alert.alert('提示', '请先选择要恢复的联系人');
-      return;
-    }
-    if (!session?.access_token) return;
-    try {
-      const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/contacts/trash/restore-batch`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-session': session.access_token,
-        },
-        body: JSON.stringify({ ids: Array.from(selectedIds) }),
-      });
-      const data = await response.json();
-      if (response.ok) {
-        Alert.alert('成功', data.message || `已恢复 ${selectedIds.size} 个联系人`);
-        setSelectedIds(new Set());
-        fetchDeletedContacts();
-      } else {
-        Alert.alert('恢复失败', data.error || '请稍后重试');
-      }
-    } catch (error) {
-      Alert.alert('错误', '恢复失败，请重试');
-    }
-  };
-
-  const handlePermanentDelete = (id: string) => {
-    Alert.alert('永久删除', '确定要永久删除此联系人吗？此操作不可撤销。', [
-      { text: '取消', style: 'cancel' },
-      {
-        text: '永久删除',
-        style: 'destructive',
-        onPress: async () => {
-          if (!session?.access_token) return;
-          try {
-            const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/contacts/${id}/permanent`, {
-              method: 'DELETE',
-              headers: { 'x-session': session.access_token },
-            });
-            if (response.ok) {
-              setDeletedContacts(prev => prev.filter(c => c.id !== id));
-              setSelectedIds(prev => {
-                const next = new Set(prev);
-                next.delete(id);
-                return next;
-              });
-              Alert.alert('成功', '已永久删除');
-            }
-          } catch (error) {
-            Alert.alert('错误', '删除失败，请重试');
-          }
-        },
-      },
-    ]);
-  };
-
-  const toggleSelect = (id: string) => {
+  const toggleSelect = (id: number) => {
     setSelectedIds(prev => {
       const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   };
 
-  const getDaysRemaining = (deletedAt: string): number => {
-    const deletedDate = new Date(deletedAt);
-    const expiryDate = new Date(deletedDate.getTime() + 60 * 24 * 60 * 60 * 1000);
-    const now = new Date();
-    const diff = expiryDate.getTime() - now.getTime();
-    return Math.max(0, Math.ceil(diff / (24 * 60 * 60 * 1000)));
+  const selectAll = () => {
+    if (selectedIds.size === trashContacts.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(trashContacts.map(c => c.id)));
+    }
   };
 
-  const renderContact = ({ item }: { item: DeletedContact }) => {
-    const daysRemaining = getDaysRemaining(item.deleted_at);
-    const isSelected = selectedIds.has(item.id);
+  const handleRestore = async () => {
+    if (selectedIds.size === 0) {
+      Alert.alert('提示', '请先选择要恢复的号码');
+      return;
+    }
 
+    setActionLoading(true);
+    try {
+      // 批量恢复：逐个调用恢复接口
+      for (const id of selectedIds) {
+        const response = await fetch(
+          `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/contacts/${id}/restore`,
+          { method: 'POST' }
+        );
+        if (!response.ok) throw new Error(`Failed to restore ${id}`);
+      }
+      Alert.alert('完成', `已恢复 ${selectedIds.size} 个号码`);
+      setSelectedIds(new Set());
+      loadTrash();
+    } catch (error) {
+      console.error('Failed to restore:', error);
+      Alert.alert('错误', '恢复失败，请重试');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handlePermanentDelete = () => {
+    if (selectedIds.size === 0) {
+      Alert.alert('提示', '请先选择要永久删除的号码');
+      return;
+    }
+
+    Alert.alert(
+      '永久删除',
+      `将永久删除 ${selectedIds.size} 个号码？此操作不可撤销！`,
+      [
+        { text: '取消', style: 'cancel' },
+        {
+          text: '确认永久删除',
+          style: 'destructive',
+          onPress: async () => {
+            setActionLoading(true);
+            try {
+              for (const id of selectedIds) {
+                await fetch(
+                  `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/contacts/${id}/permanent`,
+                  { method: 'DELETE' }
+                );
+              }
+              Alert.alert('完成', `已永久删除 ${selectedIds.size} 个号码`);
+              setSelectedIds(new Set());
+              loadTrash();
+            } catch (error) {
+              console.error('Failed to delete:', error);
+              Alert.alert('错误', '删除失败');
+            } finally {
+              setActionLoading(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const formatDate = (dateStr: string) => {
+    try {
+      const d = new Date(dateStr);
+      return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+    } catch {
+      return '';
+    }
+  };
+
+  const renderItem = ({ item }: { item: TrashContact }) => {
+    const isSelected = selectedIds.has(item.id);
     return (
-      <View style={[styles.contactCard, isSelected && styles.contactCardSelected]}>
-        <TouchableOpacity style={styles.checkbox} onPress={() => toggleSelect(item.id)}>
-          <View style={[styles.checkboxBox, isSelected && styles.checkboxBoxSelected]}>
-            {isSelected && <Ionicons name="checkmark" size={14} color="#fff" />}
-          </View>
-        </TouchableOpacity>
-        <View style={styles.contactInfo}>
-          <Text style={styles.contactName}>{item.name}</Text>
-          <Text style={styles.contactPhone}>{item.phone}</Text>
-          <Text style={styles.deleteTime}>
-            删除于 {new Date(item.deleted_at).toLocaleDateString()} · 剩余 {daysRemaining} 天
-          </Text>
+      <TouchableOpacity
+        style={[styles.card, isSelected && { backgroundColor: '#EFF6FF' }]}
+        onPress={() => toggleSelect(item.id)}
+        activeOpacity={0.7}
+      >
+        <View style={[styles.checkbox, isSelected && { backgroundColor: '#3B82F6', borderColor: '#3B82F6' }]}>
+          {isSelected && <Ionicons name="checkmark" size={14} color="#fff" />}
         </View>
-        <View style={styles.actions}>
-          <TouchableOpacity style={styles.restoreBtn} onPress={() => handleRestore(item.id)}>
-            <Ionicons name="refresh" size={16} color="#4A90D9" />
-            <Text style={styles.restoreText}>恢复</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.deleteBtn} onPress={() => handlePermanentDelete(item.id)}>
-            <Ionicons name="trash" size={16} color="#F56C6C" />
-          </TouchableOpacity>
+        <View style={styles.cardContent}>
+          <Text style={styles.cardName} numberOfLines={1}>{item.name || '未知'}</Text>
+          <Text style={styles.cardPhone}>{item.phone_numbers}</Text>
+          <Text style={styles.cardDate}>删除于 {formatDate(item.deleted_at)}</Text>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#303133" />
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <Ionicons name="chevron-back" size={24} color="#111827" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>回收站</Text>
-        <View style={{ width: 24 }} />
+        <TouchableOpacity onPress={selectAll} style={styles.selectAllBtn}>
+          <Text style={styles.selectAllText}>
+            {selectedIds.size === trashContacts.length && trashContacts.length > 0 ? '取消全选' : '全选'}
+          </Text>
+        </TouchableOpacity>
       </View>
 
-      <View style={styles.infoBar}>
-        <Ionicons name="information-circle" size={16} color="#909399" />
-        <Text style={styles.infoText}>已删除的联系人将保留 60 天，之后自动永久删除</Text>
+      <View style={styles.summaryBar}>
+        <Ionicons name="information-circle" size={16} color="#6B7280" />
+        <Text style={styles.summaryText}>
+          共 {trashContacts.length} 个已删除号码
+          {selectedIds.size > 0 ? `，已选 ${selectedIds.size} 个` : ''}
+          {' · 60天后自动清理'}
+        </Text>
       </View>
 
       {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#4A90D9" />
+        <View style={styles.centerState}>
+          <ActivityIndicator size="large" color="#3B82F6" />
+          <Text style={styles.centerText}>正在加载回收站...</Text>
         </View>
-      ) : deletedContacts.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Ionicons name="trash-outline" size={48} color="#C0C4CC" />
-          <Text style={styles.emptyText}>回收站为空</Text>
+      ) : trashContacts.length === 0 ? (
+        <View style={styles.centerState}>
+          <Ionicons name="trash-outline" size={48} color="#D1D5DB" />
+          <Text style={styles.centerText}>回收站为空</Text>
+          <Text style={styles.centerSubText}>删除的号码会在这里保留60天</Text>
         </View>
       ) : (
         <FlatList
-          data={deletedContacts}
-          keyExtractor={item => item.id}
-          renderItem={renderContact}
-          contentContainerStyle={styles.list}
+          data={trashContacts}
+          renderItem={renderItem}
+          keyExtractor={item => String(item.id)}
+          contentContainerStyle={{ padding: 16, paddingBottom: 120 }}
         />
       )}
 
       {selectedIds.size > 0 && (
         <View style={styles.bottomBar}>
-          <Text style={styles.selectedCount}>已选择 {selectedIds.size} 项</Text>
-          <TouchableOpacity style={styles.batchRestoreBtn} onPress={handleBatchRestore}>
-            <Text style={styles.batchRestoreText}>批量恢复</Text>
-          </TouchableOpacity>
+          <View style={styles.bottomActions}>
+            <TouchableOpacity
+              style={[styles.actionBtn, { backgroundColor: '#3B82F6', flex: 1, marginRight: 8 }]}
+              onPress={handleRestore}
+              disabled={actionLoading}
+            >
+              <Ionicons name="refresh-outline" size={18} color="#fff" />
+              <Text style={styles.actionBtnText}>恢复 ({selectedIds.size})</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionBtn, { backgroundColor: '#EF4444', flex: 1, marginLeft: 8 }]}
+              onPress={handlePermanentDelete}
+              disabled={actionLoading}
+            >
+              <Ionicons name="trash-outline" size={18} color="#fff" />
+              <Text style={styles.actionBtnText}>永久删除</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       )}
     </SafeAreaView>
@@ -235,57 +230,24 @@ export default function RecycleBinScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F5F7FA' },
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 20, paddingVertical: 16,
-  },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: '#303133' },
-  infoBar: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    marginHorizontal: 20, marginBottom: 12, padding: 10,
-    backgroundColor: '#F0F5FF', borderRadius: 8,
-  },
-  infoText: { fontSize: 12, color: '#909399', flex: 1 },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  emptyText: { fontSize: 14, color: '#C0C4CC', marginTop: 8 },
-  list: { paddingHorizontal: 20, paddingBottom: 100 },
-  contactCard: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff',
-    borderRadius: 12, padding: 14, marginBottom: 10,
-    shadowColor: '#D1D9E6', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1, shadowRadius: 4, elevation: 2,
-  },
-  contactCardSelected: { borderWidth: 1.5, borderColor: '#4A90D9' },
-  checkbox: { marginRight: 12 },
-  checkboxBox: {
-    width: 22, height: 22, borderRadius: 4, borderWidth: 1.5,
-    borderColor: '#DCDFE6', justifyContent: 'center', alignItems: 'center',
-  },
-  checkboxBoxSelected: { backgroundColor: '#4A90D9', borderColor: '#4A90D9' },
-  contactInfo: { flex: 1 },
-  contactName: { fontSize: 15, fontWeight: '600', color: '#303133' },
-  contactPhone: { fontSize: 13, color: '#606266', marginTop: 2 },
-  deleteTime: { fontSize: 11, color: '#909399', marginTop: 4 },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  restoreBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 10, paddingVertical: 6,
-    backgroundColor: 'rgba(74, 144, 217, 0.1)', borderRadius: 6,
-  },
-  restoreText: { fontSize: 12, color: '#4A90D9', fontWeight: '600' },
-  deleteBtn: {
-    padding: 6, backgroundColor: 'rgba(245, 108, 108, 0.1)', borderRadius: 6,
-  },
-  bottomBar: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 20, paddingVertical: 12,
-    backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#F0F0F0',
-  },
-  selectedCount: { fontSize: 14, color: '#606266' },
-  batchRestoreBtn: {
-    backgroundColor: '#4A90D9', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8,
-  },
-  batchRestoreText: { fontSize: 14, fontWeight: '600', color: '#fff' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#fff' },
+  backBtn: { padding: 4 },
+  headerTitle: { fontSize: 17, fontWeight: '700', color: '#111827' },
+  selectAllBtn: { padding: 4 },
+  selectAllText: { fontSize: 14, color: '#6B7280', fontWeight: '500' },
+  summaryBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, margin: 16, backgroundColor: '#F3F4F6', borderRadius: 12 },
+  summaryText: { fontSize: 13, color: '#6B7280', marginLeft: 6, flex: 1 },
+  centerState: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  centerText: { fontSize: 14, color: '#6B7280', marginTop: 12 },
+  centerSubText: { fontSize: 12, color: '#9CA3AF', marginTop: 4 },
+  card: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 14, padding: 14, marginBottom: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 1 },
+  checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: '#D1D5DB', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  cardContent: { flex: 1 },
+  cardName: { fontSize: 15, fontWeight: '600', color: '#111827', marginBottom: 2 },
+  cardPhone: { fontSize: 13, color: '#6B7280', marginBottom: 2 },
+  cardDate: { fontSize: 11, color: '#9CA3AF' },
+  bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#E5E7EB', padding: 16, paddingBottom: 32 },
+  bottomActions: { flexDirection: 'row' },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 14 },
+  actionBtnText: { color: '#fff', fontSize: 15, fontWeight: '700', marginLeft: 6 },
 });

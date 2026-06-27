@@ -35,7 +35,6 @@ export default function TabLayout() {
           marginTop: 2,
         },
         animation: 'none',
-        freezeOnBlur: true,
       }}
     >
       <Tabs.Screen

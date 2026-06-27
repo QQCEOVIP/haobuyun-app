@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -7,14 +7,14 @@ import {
   Alert,
   Modal,
   TextInput,
-  InteractionManager,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, useFocusEffect } from 'expo-router';
 import Svg, { Circle } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import * as Contacts from 'expo-contacts';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as DocumentPicker from 'expo-document-picker';
+import * as Sharing from 'expo-sharing';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/storage/supabase';
 
@@ -164,15 +164,8 @@ export default function HomeScreen() {
       }
       
       // Try to use DocumentPicker if available
-      let DocumentPicker: any = null;
-      try {
-        DocumentPicker = require('expo-document-picker');
-      } catch (e) {
-        // DocumentPicker not available, fall back to directory scan
-      }
-      
       if (DocumentPicker) {
-        const result = await DocumentPicker.getDocumentAsync({
+        const result = await (DocumentPicker as any).getDocumentAsync({
           type: ['text/vcard', 'application/json', '*/*'],
           copyToCacheDirectory: true,
         });
@@ -354,70 +347,79 @@ export default function HomeScreen() {
         return;
       }
 
-      // 生成 vCard 3.0 格式
-      const vcardLines: string[] = [];
-      for (const c of allContacts) {
-        if (!c.phoneNumbers || c.phoneNumbers.length === 0) continue;
-        vcardLines.push('BEGIN:VCARD');
-        vcardLines.push('VERSION:3.0');
-        vcardLines.push(`FN:${c.name || ''}`);
-        const nameParts = (c.name || '').split('');
-        const lastName = nameParts.length > 1 ? nameParts[0] : '';
-        const firstName = nameParts.length > 1 ? nameParts.slice(1).join('') : (c.name || '');
-        vcardLines.push(`N:${lastName};${firstName};;;`);
-        for (const phone of c.phoneNumbers) {
-          const label = phone.label || 'CELL';
-          const typeMap: Record<string, string> = { 'mobile': 'CELL', 'home': 'HOME', 'work': 'WORK', 'iPhone': 'CELL' };
-          const telType = typeMap[label] || 'CELL';
-          vcardLines.push(`TEL;TYPE=${telType}:${phone.number || ''}`);
+      // 从 AsyncStorage 读取所有标签状态
+      const phoneKeys = allContacts
+        .filter(c => c.phoneNumbers && c.phoneNumbers.length > 0)
+        .map(c => `@contact_status_${c.phoneNumbers[0].number}`);
+      const statusEntries = phoneKeys.length > 0
+        ? await AsyncStorage.multiGet(phoneKeys)
+        : [];
+      const statusMap = new Map<string, string>();
+      statusEntries.forEach(([key, value]) => {
+        if (value) {
+          const phone = key.replace('@contact_status_', '');
+          statusMap.set(phone, value);
         }
-        if (c.emails) {
-          for (const email of c.emails) {
-            vcardLines.push(`EMAIL;TYPE=INTERNET:${email.email || ''}`);
-          }
-        }
-        if (c.postalAddresses && c.postalAddresses.length > 0) {
-          for (const addr of c.postalAddresses) {
-            vcardLines.push(`ADR;TYPE=HOME:;;${addr.street || ''};${addr.city || ''};${addr.region || ''};${addr.postalCode || ''};${addr.country || ''}`);
-          }
-        }
-        if (c.company) vcardLines.push(`ORG:${c.company}`);
-        if (c.jobTitle) vcardLines.push(`TITLE:${c.jobTitle}`);
-        if (c.note) vcardLines.push(`NOTE:${c.note}`);
-        vcardLines.push('END:VCARD');
-      }
+      });
+
+      // 状态标签映射
+      const statusLabelMap: Record<string, string> = {
+        normal: '正常',
+        stopped: '确认失效',
+        suspected_stopped: '可能失效',
+      };
+
+      // 生成号簿云专有备份格式（JSON，仅号簿云可恢复）
+      const backupData = {
+        format: 'HAOBUYUN_BACKUP',
+        version: '1.0',
+        exportedAt: new Date().toISOString(),
+        device: 'mobile',
+        contacts: allContacts
+          .filter(c => c.phoneNumbers && c.phoneNumbers.length > 0)
+          .map(c => ({
+            name: c.name || '',
+            phones: (c.phoneNumbers || []).map(p => ({
+              number: p.number || '',
+              label: p.label || 'mobile',
+              status: statusMap.get(p.number || '') || null,
+              statusLabel: statusLabelMap[statusMap.get(p.number || '') || ''] || null,
+            })),
+            emails: (c.emails || []).map(e => ({ email: e.email || '', label: e.label || '' })),
+            addresses: (c.postalAddresses || []).map(a => ({
+              street: a.street || '', city: a.city || '', region: a.region || '',
+              postalCode: a.postalCode || '', country: a.country || '',
+            })),
+            company: c.company || '',
+            jobTitle: c.jobTitle || '',
+            note: c.note || '',
+          })),
+      };
 
       const now = new Date();
       const dateStr = now.getFullYear().toString() +
         (now.getMonth() + 1).toString().padStart(2, '0') +
         now.getDate().toString().padStart(2, '0');
-      const defaultFileName = `通讯录备份_${dateStr}.vcf`;
-      const vcfContent = vcardLines.join('\n');
-      const contactCount = vcardLines.filter(l => l === 'BEGIN:VCARD').length;
+      const defaultFileName = `号簿云备份_${dateStr}.hbyun`;
+      const backupContent = JSON.stringify(backupData, null, 2);
+      const contactCount = backupData.contacts.length;
 
       // Write to cache and share
       const fileUri = FileSystem.cacheDirectory + defaultFileName;
-      await FileSystem.writeAsStringAsync(fileUri, vcfContent, { encoding: FileSystem.EncodingType.UTF8 });
+      await FileSystem.writeAsStringAsync(fileUri, backupContent, { encoding: FileSystem.EncodingType.UTF8 });
 
       // Try Sharing API
-      let Sharing: any = null;
-      try {
-        Sharing = require('expo-sharing');
-      } catch (e) {
-        // Sharing not available
-      }
-
-      if (Sharing && await Sharing.isAvailableAsync()) {
+      if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(fileUri, {
-          mimeType: 'text/vcard',
-          dialogTitle: '导出通讯录',
+          mimeType: 'application/json',
+          dialogTitle: '号簿云备份',
         });
-        Alert.alert('导出成功', `已导出 ${contactCount} 个联系人`);
+        Alert.alert('导出成功', `已备份 ${contactCount} 个联系人（含标签状态）\n仅号簿云可恢复此格式`);
       } else {
         // Fallback: save to document directory and show filename modal
         setCustomFileName(defaultFileName);
         setFileNameModalVisible(true);
-        (global as any).__pendingVcard = vcfContent;
+        (global as any).__pendingVcard = backupContent;
         (global as any).__pendingVcardCount = contactCount;
         (global as any).__pendingVcardDefaultName = defaultFileName;
       }
@@ -431,14 +433,14 @@ export default function HomeScreen() {
   const confirmExport = async () => {
     const vcardContent = (global as any).__pendingVcard;
     const contactCount = (global as any).__pendingVcardCount || 0;
-    const safeFileName = customFileName.trim().endsWith('.vcf') 
+    const safeFileName = customFileName.trim().endsWith('.hbyun') 
       ? customFileName.trim() 
-      : `${customFileName.trim()}.vcf`;
+      : `${customFileName.trim()}.hbyun`;
     const filePath = `${FileSystem.documentDirectory}${safeFileName}`;
     
     try {
       await FileSystem.writeAsStringAsync(filePath, vcardContent);
-      Alert.alert('导出成功', `已导出 ${contactCount} 个联系人\n文件：${safeFileName}`);
+      Alert.alert('备份成功', `已备份 ${contactCount} 个联系人\n文件：${safeFileName}\n仅号簿云可恢复此格式`);
     } catch (error) {
       console.error('导出失败:', error);
       Alert.alert('错误', '导出失败，请重试');
@@ -791,16 +793,10 @@ export default function HomeScreen() {
     }
   };
 
-  // 使用 useFocusEffect 在每次获得焦点时刷新数据（如从其他页面返回）
-  // 使用 InteractionManager 延迟执行，避免在 Tab 切换动画期间阻塞 UI
-  useFocusEffect(
-    useCallback(() => {
-      const handle = InteractionManager.runAfterInteractions(() => {
-        fetchStats();
-      });
-      return () => handle.cancel();
-    }, [userId])
-  );
+  // 仅首次加载时获取统计数据，避免Tab切换时重复执行重度异步操作导致黑屏
+  useEffect(() => {
+    fetchStats();
+  }, [userId]);
 
   const healthPercentage = stats.total > 0
     ? Math.round((stats.active / stats.total) * 100)

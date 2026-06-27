@@ -8,7 +8,8 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
+import { useSafeRouter } from '@/hooks/useSafeRouter';
 import { Ionicons } from '@expo/vector-icons';
 import * as Contacts from 'expo-contacts';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -16,12 +17,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 interface DuplicateGroup {
   phone: string;
   entries: { id: string; name: string; phone: string }[];
+  recommendedIndex: number;
 }
 
 const DISMISS_KEY_PREFIX = '@duplicate_dismissed_';
 
 export default function DuplicatesScreen() {
-  const router = useRouter();
+  const router = useSafeRouter();
   const [duplicateGroups, setDuplicateGroups] = useState<DuplicateGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set());
@@ -77,11 +79,21 @@ export default function DuplicatesScreen() {
         phoneMap.set(normalized, existing);
       }
 
-      // Filter to only groups with 2+ entries
+      // Filter to only groups with 2+ entries, auto-recommend best entry to keep
       const groups: DuplicateGroup[] = [];
       for (const [phone, entries] of phoneMap) {
         if (entries.length >= 2) {
-          groups.push({ phone, entries });
+          // Auto-recommend: pick the entry with the longest name (most complete info)
+          let bestIdx = 0;
+          let bestScore = 0;
+          entries.forEach((e, i) => {
+            const score = (e.name || '').length + (e.name && e.name !== '未知联系人' ? 10 : 0);
+            if (score > bestScore) {
+              bestScore = score;
+              bestIdx = i;
+            }
+          });
+          groups.push({ phone, entries, recommendedIndex: bestIdx });
         }
       }
 
@@ -181,7 +193,7 @@ export default function DuplicatesScreen() {
         </TouchableOpacity>
 
         {item.entries.map((entry, index) => (
-          <View key={entry.id} style={styles.entryRow}>
+          <View key={entry.id} style={[styles.entryRow, index === item.recommendedIndex && { backgroundColor: '#F0FDF4' }]}>
             <View style={styles.entryAvatar}>
               <Text style={styles.entryAvatarText}>
                 {entry.name[0]?.toUpperCase() || '?'}
@@ -191,9 +203,10 @@ export default function DuplicatesScreen() {
               <Text style={styles.entryName}>{entry.name}</Text>
               <Text style={styles.entryPhone}>{entry.phone}</Text>
             </View>
-            {index === 0 && (
+            {index === item.recommendedIndex && (
               <View style={styles.keepBadge}>
-                <Text style={styles.keepBadgeText}>保留</Text>
+                <Ionicons name="star" size={10} color="#67C23A" />
+                <Text style={styles.keepBadgeText}>推荐保留</Text>
               </View>
             )}
           </View>
