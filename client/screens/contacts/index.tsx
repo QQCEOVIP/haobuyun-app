@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,7 +12,8 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useSafeRouter } from '@/hooks/useSafeRouter';
+import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/storage/supabase';
@@ -37,7 +38,7 @@ const STATUS_TABS = [
 ];
 
 export default function ContactsScreen() {
-  const router = useRouter();
+  const router = useSafeRouter();
   const { user } = useAuth();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [filteredContacts, setFilteredContacts] = useState<Contact[]>([]);
@@ -83,7 +84,9 @@ export default function ContactsScreen() {
         const devicePageSize = 1000;
         while (true) {
           const { data: deviceContacts } = await Contacts.getContactsAsync({
-            fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name],
+            fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name].filter(
+              (f): f is Contacts.Field => f != null && f !== undefined
+            ),
             pageSize: devicePageSize,
             pageOffset: offset,
           });
@@ -157,15 +160,18 @@ export default function ContactsScreen() {
   const fetchCleanupStats = async () => {
     if (!userId) return;
     try {
-      // Count stopped and suspected_stopped from supabase
-      const { data: statusCounts } = await supabase
-        .from('contacts')
-        .select('status')
-        .eq('user_id', userId)
-        .in('status', ['stopped', 'suspected_stopped']);
-
-      const stopped = statusCounts?.filter(c => c.status === 'stopped').length || 0;
-      const suspected = statusCounts?.filter(c => c.status === 'suspected_stopped').length || 0;
+      // Count stopped and suspected_stopped from AsyncStorage (source of truth for labels)
+      const allKeys = await AsyncStorage.getAllKeys();
+      const statusKeys = allKeys.filter(k => k.startsWith('@contact_status_'));
+      let stopped = 0;
+      let suspected = 0;
+      if (statusKeys.length > 0) {
+        const statusEntries = await AsyncStorage.multiGet(statusKeys);
+        for (const [, value] of statusEntries) {
+          if (value === 'stopped') stopped++;
+          else if (value === 'suspected_stopped') suspected++;
+        }
+      }
 
       // Count potential duplicates by phone number
       const phoneMap = new Map<string, number>();
@@ -288,6 +294,15 @@ export default function ContactsScreen() {
       fetchCleanupStats();
     }
   }, [contacts]);
+
+  // Tab切换/返回时刷新清理统计
+  useFocusEffect(
+    useCallback(() => {
+      if (contacts.length > 0) {
+        fetchCleanupStats();
+      }
+    }, [contacts.length])
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -412,14 +427,15 @@ export default function ContactsScreen() {
           <View style={styles.cleanupCard}>
             <View style={styles.cleanupHeader}>
               <View style={styles.cleanupTitleRow}>
-                <Ionicons name="refresh-circle" size={16} color="#4A90D9" style={{ marginRight: 4 }} />
-                <Text style={styles.cleanupTitle}>后悔药</Text>
+                <Ionicons name="options" size={16} color="#4A90D9" style={{ marginRight: 4 }} />
+                <Text style={styles.cleanupTitle}>管理助手</Text>
               </View>
               <TouchableOpacity
                 style={styles.cleanupButton}
                 onPress={() => router.push('/recycle-bin')}
               >
-                <Text style={styles.cleanupButtonText}>回收站 →</Text>
+                <Ionicons name="medical" size={16} color="#FA8C16" style={{ marginRight: 4 }} />
+                <Text style={styles.cleanupButtonText}>后悔药</Text>
               </TouchableOpacity>
             </View>
             <View style={styles.cleanupStats}>

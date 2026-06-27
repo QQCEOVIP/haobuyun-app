@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,12 +9,14 @@ import {
   TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from 'expo-router';
 import Svg, { Circle } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import * as Contacts from 'expo-contacts';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Sharing from 'expo-sharing';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/storage/supabase';
 
@@ -50,19 +52,28 @@ export default function HomeScreen() {
 
   // 分页获取所有设备联系人的辅助函数
   const getAllDeviceContacts = async (fields: Contacts.Field[]) => {
+    // 过滤掉 null/undefined 的字段值，防止原生模块崩溃
+    const safeFields = fields.filter((f): f is Contacts.Field => f != null && f !== undefined);
+    if (safeFields.length === 0) return [];
+
     let allContacts: Contacts.Contact[] = [];
     let offset = 0;
     const pageSize = 1000;
     while (true) {
-      const { data: dc } = await Contacts.getContactsAsync({
-        fields: fields as Contacts.Field[],
-        pageSize,
-        pageOffset: offset,
-      });
-      if (!dc || dc.length === 0) break;
-      allContacts = allContacts.concat(dc);
-      offset += dc.length;
-      if (dc.length < pageSize) break;
+      try {
+        const { data: dc } = await Contacts.getContactsAsync({
+          fields: safeFields,
+          pageSize,
+          pageOffset: offset,
+        });
+        if (!dc || dc.length === 0) break;
+        allContacts = allContacts.concat(dc);
+        offset += dc.length;
+        if (dc.length < pageSize) break;
+      } catch (pageError) {
+        console.error('Failed to fetch contacts page:', pageError);
+        break;
+      }
     }
     return allContacts;
   };
@@ -92,7 +103,7 @@ export default function HomeScreen() {
         return;
       }
 
-      // 分页获取所有supabase中的联系人状态
+      // 从 Supabase 和 AsyncStorage 读取联系人状态（AsyncStorage 为手动标签的 source of truth）
       let allLocalContacts: any[] = [];
       let page = 0;
       const dbPageSize = 1000;
@@ -108,6 +119,17 @@ export default function HomeScreen() {
         page++;
       }
 
+      // 读取 AsyncStorage 中的手动标签（覆盖 Supabase 状态）
+      const allKeys = await AsyncStorage.getAllKeys();
+      const statusKeys = allKeys.filter(k => k.startsWith('@contact_status_'));
+      const localStatusMap = new Map<string, string>();
+      if (statusKeys.length > 0) {
+        const entries = await AsyncStorage.multiGet(statusKeys);
+        for (const [key, value] of entries) {
+          if (value) localStatusMap.set(key.replace('@contact_status_', ''), value);
+        }
+      }
+
       // 统计检测结果
       const result = {
         total: deviceContacts.length,
@@ -120,8 +142,10 @@ export default function HomeScreen() {
       deviceContacts.forEach(contact => {
         const phone = contact.phoneNumbers?.[0]?.number || '';
         const localData = allLocalContacts?.find((lc: any) => lc.phone === phone);
+        // AsyncStorage 手动标签优先，其次 Supabase 检测结果
+        const status = localStatusMap.get(phone) || localData?.status;
         
-        switch (localData?.status) {
+        switch (status) {
           case 'normal':
             result.active++;
             break;
@@ -731,7 +755,7 @@ export default function HomeScreen() {
     if (!userId) return;
 
     try {
-      // 1. 分页获取设备联系人数量
+      // 1. 分页获取设备联系人数量（轻量：仅 PhoneNumbers）
       let deviceContactsCount = 0;
       const { status } = await Contacts.requestPermissionsAsync();
       if (status === 'granted') {
@@ -741,50 +765,37 @@ export default function HomeScreen() {
         ).length;
       }
 
-      // 2. 分页获取 supabase 中的状态分布数据
-      let allData: any[] = [];
-      let page = 0;
-      const dbPageSize = 1000;
-      while (true) {
-        const { data, error } = await supabase
-          .from('contacts')
-          .select('status')
-          .eq('user_id', userId)
-          .range(page * dbPageSize, (page + 1) * dbPageSize - 1);
-        if (error) throw error;
-        if (!data || data.length === 0) break;
-        allData = allData.concat(data);
-        if (data.length < dbPageSize) break;
-        page++;
-      }
-
-      // 3. 计算状态分布
+      // 2. 从 AsyncStorage 读取状态分布（真正的标签数据源）
+      const allKeys = await AsyncStorage.getAllKeys();
+      const statusKeys = allKeys.filter(k => k.startsWith('@contact_status_'));
       const contactStats: ContactStats = {
-        total: deviceContactsCount || allData?.length || 0,
+        total: deviceContactsCount,
         active: 0,
         maybeInvalid: 0,
         invalid: 0,
-        unknown: 0,
+        unknown: Math.max(0, deviceContactsCount - statusKeys.length),
       };
 
-      allData?.forEach((contact: any) => {
-        switch (contact.status) {
-          case 'normal':
-            contactStats.active++;
-            break;
-          case 'suspected_stopped':
-            contactStats.maybeInvalid++;
-            break;
-          case 'stopped':
-            contactStats.invalid++;
-            break;
-          default:
-            contactStats.unknown++;
+      if (statusKeys.length > 0) {
+        const statusEntries = await AsyncStorage.multiGet(statusKeys);
+        for (const [, value] of statusEntries) {
+          switch (value) {
+            case 'normal':
+              contactStats.active++;
+              contactStats.unknown = Math.max(0, contactStats.unknown - 1);
+              break;
+            case 'suspected_stopped':
+              contactStats.maybeInvalid++;
+              contactStats.unknown = Math.max(0, contactStats.unknown - 1);
+              break;
+            case 'stopped':
+              contactStats.invalid++;
+              contactStats.unknown = Math.max(0, contactStats.unknown - 1);
+              break;
+            default:
+              break;
+          }
         }
-      });
-
-      if (deviceContactsCount === 0) {
-        contactStats.total = allData?.length || 0;
       }
 
       setStats(contactStats);
@@ -793,10 +804,12 @@ export default function HomeScreen() {
     }
   };
 
-  // 仅首次加载时获取统计数据，避免Tab切换时重复执行重度异步操作导致黑屏
-  useEffect(() => {
-    fetchStats();
-  }, [userId]);
+  // 使用 useFocusEffect 确保Tab切换/返回时刷新统计数据
+  useFocusEffect(
+    useCallback(() => {
+      fetchStats();
+    }, [userId])
+  );
 
   const healthPercentage = stats.total > 0
     ? Math.round((stats.active / stats.total) * 100)
