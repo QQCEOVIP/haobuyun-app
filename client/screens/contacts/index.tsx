@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,10 +10,9 @@ import {
   Modal,
   TouchableWithoutFeedback,
   Alert,
-  InteractionManager,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/storage/supabase';
@@ -276,15 +275,9 @@ export default function ContactsScreen() {
     setStatusMenuContact(null);
   };
 
-  useFocusEffect(
-    useCallback(() => {
-      // 延迟到过渡动画完成后再执行重度异步操作，防止切换闪屏
-      const handle = InteractionManager.runAfterInteractions(() => {
-        loadContacts();
-      });
-      return () => handle.cancel();
-    }, [userId])
-  );
+  useEffect(() => {
+    loadContacts();
+  }, [userId]);
 
   useEffect(() => {
     filterContacts(contacts, searchText, activeTab);
@@ -419,14 +412,14 @@ export default function ContactsScreen() {
           <View style={styles.cleanupCard}>
             <View style={styles.cleanupHeader}>
               <View style={styles.cleanupTitleRow}>
-                <Ionicons name="trash" size={16} color="#4A90D9" style={{ marginRight: 4 }} />
-                <Text style={styles.cleanupTitle}>清理助手</Text>
+                <Ionicons name="refresh-circle" size={16} color="#4A90D9" style={{ marginRight: 4 }} />
+                <Text style={styles.cleanupTitle}>后悔药</Text>
               </View>
               <TouchableOpacity
                 style={styles.cleanupButton}
-                onPress={() => router.push('/(tabs)/cleanup')}
+                onPress={() => router.push('/recycle-bin')}
               >
-                <Text style={styles.cleanupButtonText}>立即清理 →</Text>
+                <Text style={styles.cleanupButtonText}>回收站 →</Text>
               </TouchableOpacity>
             </View>
             <View style={styles.cleanupStats}>
@@ -439,15 +432,23 @@ export default function ContactsScreen() {
                 <Text style={styles.cleanupStatLabel}>疑似重复</Text>
               </TouchableOpacity>
               <View style={styles.cleanupStatDivider} />
-              <View style={styles.cleanupStatItem}>
+              <TouchableOpacity
+                style={styles.cleanupStatItem}
+                activeOpacity={0.7}
+                onPress={() => router.push({ pathname: '/stopped-contacts', params: { status: 'stopped' } })}
+              >
                 <Text style={[styles.cleanupStatValue, { color: '#F56C6C' }]}>{cleanupStats.stopped}</Text>
                 <Text style={styles.cleanupStatLabel}>确认失效</Text>
-              </View>
+              </TouchableOpacity>
               <View style={styles.cleanupStatDivider} />
-              <View style={styles.cleanupStatItem}>
+              <TouchableOpacity
+                style={styles.cleanupStatItem}
+                activeOpacity={0.7}
+                onPress={() => router.push({ pathname: '/stopped-contacts', params: { status: 'suspected_stopped' } })}
+              >
                 <Text style={[styles.cleanupStatValue, { color: '#FA8C16' }]}>{cleanupStats.suspected}</Text>
                 <Text style={styles.cleanupStatLabel}>可能失效</Text>
-              </View>
+              </TouchableOpacity>
             </View>
           </View>
         }

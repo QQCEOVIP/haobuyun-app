@@ -5,7 +5,7 @@
 import { Router } from 'express';
 import { db } from '../storage/database';
 import { contacts, backups } from '../storage/database/shared/schema';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, or, isNull } from 'drizzle-orm';
 import crypto from 'crypto';
 
 const router: any = Router();
@@ -55,10 +55,18 @@ function requireAuth(req: any, res: any, next: any) {
  */
 router.get('/', requireAuth, async (req: any, res: any) => {
   try {
+    const { status } = req.query;
+    const conditions = [
+      eq(contacts.user_id, (req as any).userId),
+      or(isNull(contacts.is_deleted), eq(contacts.is_deleted, false))
+    ];
+    if (status && ['normal', 'stopped', 'suspected_stopped'].includes(status)) {
+      conditions.push(eq(contacts.status, status as string));
+    }
     const userContacts = await db
       .select()
       .from(contacts)
-      .where(eq(contacts.user_id, (req as any).userId))
+      .where(and(...conditions))
       .orderBy(desc(contacts.updated_at));
 
     res.json({
@@ -200,30 +208,160 @@ router.put('/:id', requireAuth, async (req: any, res: any) => {
 });
 
 /**
- * 删除联系人
+ * 删除联系人（软删除 - 移入回收站，60天后自动清理）
  * DELETE /api/v1/contacts/:id
  */
 router.delete('/:id', requireAuth, async (req: any, res: any) => {
   try {
-    const deleted = await db
-      .delete(contacts)
+    const updated = await db
+      .update(contacts)
+      .set({ is_deleted: true, deleted_at: new Date() })
       .where(and(
         eq(contacts.id, req.params.id),
         eq(contacts.user_id, (req as any).userId)
       ))
       .returning();
 
-    if (deleted.length === 0) {
+    if (updated.length === 0) {
       return res.status(404).json({ error: '联系人不存在' });
     }
 
     res.json({
       success: true,
-      message: '删除成功'
+      message: '已移入回收站，60天内可恢复'
     });
   } catch (error) {
     console.error('删除联系人失败:', error);
     res.status(500).json({ error: '删除联系人失败' });
+  }
+});
+
+/**
+ * 获取回收站（已软删除的联系人）
+ * GET /api/v1/contacts/trash
+ */
+router.get('/trash', requireAuth, async (req: any, res: any) => {
+  try {
+    const trashContacts = await db
+      .select()
+      .from(contacts)
+      .where(and(
+        eq(contacts.user_id, (req as any).userId),
+        eq(contacts.is_deleted, true)
+      ))
+      .orderBy(desc(contacts.deleted_at));
+
+    // 计算剩余天数
+    const now = new Date();
+    const data = trashContacts.map(c => {
+      const deletedAt = c.deleted_at ? new Date(c.deleted_at) : now;
+      const daysSinceDelete = Math.floor((now.getTime() - deletedAt.getTime()) / (1000 * 60 * 60 * 24));
+      const daysRemaining = Math.max(0, 60 - daysSinceDelete);
+      return { ...c, days_remaining: daysRemaining };
+    });
+
+    res.json({
+      success: true,
+      data,
+      total: data.length
+    });
+  } catch (error) {
+    console.error('获取回收站失败:', error);
+    res.status(500).json({ error: '获取回收站失败' });
+  }
+});
+
+/**
+ * 恢复联系人（从回收站恢复）
+ * POST /api/v1/contacts/:id/restore
+ */
+router.post('/:id/restore', requireAuth, async (req: any, res: any) => {
+  try {
+    const updated = await db
+      .update(contacts)
+      .set({ is_deleted: false, deleted_at: null })
+      .where(and(
+        eq(contacts.id, req.params.id),
+        eq(contacts.user_id, (req as any).userId),
+        eq(contacts.is_deleted, true)
+      ))
+      .returning();
+
+    if (updated.length === 0) {
+      return res.status(404).json({ error: '回收站中未找到该联系人' });
+    }
+
+    res.json({
+      success: true,
+      message: '恢复成功'
+    });
+  } catch (error) {
+    console.error('恢复联系人失败:', error);
+    res.status(500).json({ error: '恢复联系人失败' });
+  }
+});
+
+/**
+ * 批量恢复联系人
+ * POST /api/v1/contacts/trash/restore-batch
+ */
+router.post('/trash/restore-batch', requireAuth, async (req: any, res: any) => {
+  try {
+    const { ids } = req.body as { ids: string[] };
+    if (!ids || ids.length === 0) {
+      return res.status(400).json({ error: '请选择要恢复的联系人' });
+    }
+
+    let restoredCount = 0;
+    for (const id of ids) {
+      const updated = await db
+        .update(contacts)
+        .set({ is_deleted: false, deleted_at: null })
+        .where(and(
+          eq(contacts.id, id),
+          eq(contacts.user_id, (req as any).userId),
+          eq(contacts.is_deleted, true)
+        ))
+        .returning();
+      if (updated.length > 0) restoredCount++;
+    }
+
+    res.json({
+      success: true,
+      message: `成功恢复 ${restoredCount} 个联系人`
+    });
+  } catch (error) {
+    console.error('批量恢复失败:', error);
+    res.status(500).json({ error: '批量恢复失败' });
+  }
+});
+
+/**
+ * 永久删除联系人（从回收站彻底删除）
+ * DELETE /api/v1/contacts/:id/permanent
+ */
+router.delete('/:id/permanent', requireAuth, async (req: any, res: any) => {
+  try {
+    const deleted = await db
+      .delete(contacts)
+      .where(and(
+        eq(contacts.id, req.params.id),
+        eq(contacts.user_id, (req as any).userId),
+        eq(contacts.is_deleted, true)
+      ))
+      .returning();
+
+    if (deleted.length === 0) {
+      return res.status(404).json({ error: '回收站中未找到该联系人' });
+    }
+
+    res.json({
+      success: true,
+      message: '已永久删除'
+    });
+  } catch (error) {
+    console.error('永久删除失败:', error);
+    res.status(500).json({ error: '永久删除失败' });
   }
 });
 

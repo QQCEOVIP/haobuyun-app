@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
 import { useSafeRouter } from "@/hooks/useSafeRouter";
@@ -78,7 +79,8 @@ export default function PointsScreen() {
   );
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
+      <ScrollView contentContainerStyle={styles.content}>
       {/* 积分概览 */}
       <View style={styles.balanceCard}>
         <Text style={styles.balanceLabel}>当前积分</Text>
@@ -147,6 +149,7 @@ export default function PointsScreen() {
         />
       </View>
     </ScrollView>
+    </SafeAreaView>
   );
 }
 

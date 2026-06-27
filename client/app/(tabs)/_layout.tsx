@@ -23,6 +23,7 @@ export default function TabLayout() {
 
   return (
     <Tabs
+      backBehavior="history"
       screenOptions={{
         headerShown: false,
         tabBarStyle,
@@ -34,6 +35,7 @@ export default function TabLayout() {
           marginTop: 2,
         },
         animation: 'none',
+        freezeOnBlur: true,
       }}
     >
       <Tabs.Screen

@@ -66,6 +66,8 @@ export default function RootLayout() {
             <Stack.Screen name="notification" options={{ title: "通知设置" }} />
             <Stack.Screen name="privacy-settings" options={{ title: "隐私设置" }} />
             <Stack.Screen name="duplicates" options={{ title: "疑似重复" }} />
+            <Stack.Screen name="stopped-contacts" options={{ title: "失效号码" }} />
+            <Stack.Screen name="recycle-bin" options={{ title: "回收站" }} />
           </Stack>
         </AuthGuard>
         <Toast />

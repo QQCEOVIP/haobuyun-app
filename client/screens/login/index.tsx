@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,11 +13,13 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as SecureStore from 'expo-secure-store';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/storage/supabase';
 import Logo from '@/components/Logo';
 
 const APP_NAME = '号簿云';
+const SECURE_EMAIL_KEY = 'saved_login_email';
+const SECURE_PASSWORD_KEY = 'saved_login_password';
 
 export default function LoginScreen() {
   const [isLogin, setIsLogin] = useState(true);
@@ -26,7 +28,35 @@ export default function LoginScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const { signInWithEmail, signUpWithEmail } = useAuth();
+
+  // Load saved credentials on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const savedEmail = await SecureStore.getItemAsync(SECURE_EMAIL_KEY);
+        const savedPassword = await SecureStore.getItemAsync(SECURE_PASSWORD_KEY);
+        if (savedEmail) setEmail(savedEmail);
+        if (savedPassword) {
+          setPassword(savedPassword);
+          setRememberMe(true);
+        }
+      } catch {}
+    })();
+  }, []);
+
+  const saveCredentials = async () => {
+    try {
+      if (rememberMe) {
+        await SecureStore.setItemAsync(SECURE_EMAIL_KEY, email);
+        await SecureStore.setItemAsync(SECURE_PASSWORD_KEY, password);
+      } else {
+        await SecureStore.deleteItemAsync(SECURE_EMAIL_KEY);
+        await SecureStore.deleteItemAsync(SECURE_PASSWORD_KEY);
+      }
+    } catch {}
+  };
 
   const handleSubmit = async () => {
     if (!email || !password) {
@@ -50,6 +80,8 @@ export default function LoginScreen() {
         const { error } = await signInWithEmail(email, password);
         if (error) {
           Alert.alert('登录失败', error.message);
+        } else {
+          await saveCredentials();
         }
       } else {
         const { error } = await signUpWithEmail(email, password);
@@ -124,6 +156,18 @@ export default function LoginScreen() {
               </View>
             </View>
 
+            {isLogin && (
+              <TouchableOpacity
+                style={styles.rememberRow}
+                onPress={() => setRememberMe(!rememberMe)}
+              >
+                <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
+                  {rememberMe && <Ionicons name="checkmark" size={14} color="#FFF" />}
+                </View>
+                <Text style={styles.rememberText}>记住账号密码</Text>
+              </TouchableOpacity>
+            )}
+
             {!isLogin && (
               <View style={styles.inputContainer}>
                 <Text style={styles.label}>确认密码</Text>
@@ -164,8 +208,6 @@ export default function LoginScreen() {
                 {isLogin ? '还没有账号？去注册' : '已有账号？去登录'}
               </Text>
             </TouchableOpacity>
-
-
           </View>
 
           <View style={styles.privacy}>
@@ -199,12 +241,6 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     marginBottom: 40,
-  },
-  appIcon: {
-    width: 72,
-    height: 72,
-    borderRadius: 16,
-    marginBottom: 16,
   },
   appName: {
     fontSize: 24,
@@ -260,8 +296,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
-  eyeIcon: {
-    fontSize: 18,
+  rememberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 1.5,
+    borderColor: '#C0C4CC',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  checkboxChecked: {
+    backgroundColor: '#4A90D9',
+    borderColor: '#4A90D9',
+  },
+  rememberText: {
+    fontSize: 14,
+    color: '#606266',
   },
   button: {
     backgroundColor: '#4A90D9',
@@ -286,16 +342,6 @@ const styles = StyleSheet.create({
     color: '#4A90D9',
     fontSize: 14,
   },
-  demoButton: {
-    alignItems: 'center',
-    marginTop: 12,
-    paddingVertical: 8,
-  },
-  demoText: {
-    color: '#909399',
-    fontSize: 12,
-    textDecorationLine: 'underline',
-  },
   privacy: {
     marginTop: 32,
     alignItems: 'center',
@@ -303,7 +349,6 @@ const styles = StyleSheet.create({
   privacyText: {
     fontSize: 12,
     color: '#909399',
-    textAlign: 'center',
   },
   privacyLink: {
     color: '#4A90D9',

@@ -10,7 +10,7 @@ import {
   InteractionManager,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect, router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import Svg, { Circle } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import * as Contacts from 'expo-contacts';
@@ -49,13 +49,13 @@ export default function HomeScreen() {
   const userEmail = (user as any)?.email || '';
 
   // 分页获取所有设备联系人的辅助函数
-  const getAllDeviceContacts = async (fields: any[]) => {
+  const getAllDeviceContacts = async (fields: Contacts.Field[]) => {
     let allContacts: Contacts.Contact[] = [];
     let offset = 0;
     const pageSize = 1000;
     while (true) {
       const { data: dc } = await Contacts.getContactsAsync({
-        fields,
+        fields: fields as Contacts.Field[],
         pageSize,
         pageOffset: offset,
       });
@@ -791,9 +791,10 @@ export default function HomeScreen() {
     }
   };
 
+  // 使用 useFocusEffect 在每次获得焦点时刷新数据（如从其他页面返回）
+  // 使用 InteractionManager 延迟执行，避免在 Tab 切换动画期间阻塞 UI
   useFocusEffect(
     useCallback(() => {
-      // 延迟到过渡动画完成后再执行重度异步操作，防止切换闪屏
       const handle = InteractionManager.runAfterInteractions(() => {
         fetchStats();
       });

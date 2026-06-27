@@ -16,6 +16,8 @@ export const contacts = pgTable(
     invalid_report_count: integer("invalid_report_count").default(0).notNull(), // 众包标记次数
     last_contact_date: timestamp("last_contact_date", { withTimezone: true }),
     notes: text("notes"),
+    is_deleted: boolean("is_deleted").default(false).notNull(),
+    deleted_at: timestamp("deleted_at", { withTimezone: true }),
     created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updated_at: timestamp("updated_at", { withTimezone: true }),
   },
