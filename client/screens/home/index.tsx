@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Contacts from 'expo-contacts';
 import * as FileSystemLegacy from 'expo-file-system/legacy';
 import { StorageAccessFramework } from 'expo-file-system/legacy';
+import Constants from 'expo-constants';
 
 
 import * as DocumentPicker from 'expo-document-picker';
@@ -765,36 +766,77 @@ export default function HomeScreen() {
     }
   };
 
-  const analyzeBackups = () => {
-    if (backups.length < 2) {
-      setAnalysisResult({ error: '至少需要2次备份才能进行对比分析' });
-      return;
-    }
-    const latest = backups[0]?.contacts || [];
-    const previous = backups[1]?.contacts || [];
-    
-    const latestPhones = new Set(latest.map((c: any) => c.phone));
-    const previousPhones = new Set(previous.map((c: any) => c.phone));
-    
-    const added = latest.filter((c: any) => !previousPhones.has(c.phone));
-    const deleted = previous.filter((c: any) => !latestPhones.has(c.phone));
-    
-    const modified: any[] = [];
-    latest.forEach((c: any) => {
-      const prev = previous.find((p: any) => p.phone === c.phone);
-      if (prev && (prev.name !== c.name || prev.email !== c.email)) {
-        modified.push({ phone: c.phone, oldName: prev.name, newName: c.name, oldEmail: prev.email, newEmail: c.email });
+  const analyzeBackups = async () => {
+    try {
+      const dirInfo = await FileSystemLegacy.getInfoAsync(LOCAL_BACKUP_DIR).catch(() => null);
+      if (!dirInfo?.exists) {
+        setAnalysisResult({ error: '暂无本地备份记录，请先进行云端备份' });
+        return;
       }
-    });
-    
-    setAnalysisResult({
-      latestDate: backups[0].created_at,
-      previousDate: backups[1].created_at,
-      added: added.length,
-      deleted: deleted.length,
-      modified: modified.length,
-      details: { added, deleted, modified },
-    });
+      const files = await FileSystemLegacy.readDirectoryAsync(LOCAL_BACKUP_DIR);
+      const jsonFiles = (files || []).filter((f: string) => f.endsWith('.json')).sort().reverse();
+      if (jsonFiles.length < 2) {
+        setAnalysisResult({ error: '至少需要2次备份才能进行对比分析' });
+        return;
+      }
+
+      const latestContent = await FileSystemLegacy.readAsStringAsync(LOCAL_BACKUP_DIR + jsonFiles[0]);
+      const previousContent = await FileSystemLegacy.readAsStringAsync(LOCAL_BACKUP_DIR + jsonFiles[1]);
+      const latest = JSON.parse(latestContent);
+      const previous = JSON.parse(previousContent);
+
+      const latestContacts = latest.contacts || [];
+      const previousContacts = previous.contacts || [];
+
+      // Build phone->name maps
+      const latestPhoneMap = new Map<string, string>();
+      latestContacts.forEach((c: any) => {
+        const phone = c.phones?.[0]?.number || '';
+        if (phone) latestPhoneMap.set(phone, c.name || '');
+      });
+      const previousPhoneMap = new Map<string, string>();
+      previousContacts.forEach((c: any) => {
+        const phone = c.phones?.[0]?.number || '';
+        if (phone) previousPhoneMap.set(phone, c.name || '');
+      });
+
+      const latestPhones = new Set(latestPhoneMap.keys());
+      const previousPhones = new Set(previousPhoneMap.keys());
+
+      // 新增联系人: in latest but not in previous
+      const added: any[] = [];
+      latestPhoneMap.forEach((name, phone) => {
+        if (!previousPhones.has(phone)) added.push({ name, phone });
+      });
+
+      // 删除联系人: in previous but not in latest
+      const deleted: any[] = [];
+      previousPhoneMap.forEach((name, phone) => {
+        if (!latestPhones.has(phone)) deleted.push({ name, phone });
+      });
+
+      // 姓名变更: same phone, different name
+      const modified: any[] = [];
+      latestPhoneMap.forEach((newName, phone) => {
+        const oldName = previousPhoneMap.get(phone);
+        if (oldName && oldName !== newName) {
+          modified.push({ phone, oldName, newName });
+        }
+      });
+
+      setAnalysisResult({
+        latestDate: latest.exportedAt,
+        previousDate: previous.exportedAt,
+        added: added.length,
+        deleted: deleted.length,
+        modified: modified.length,
+        details: { added, deleted, modified },
+      });
+      setAnalysisExpanded({ added: false, deleted: false, modified: false });
+    } catch (err) {
+      console.warn('Analyze backups error:', err);
+      setAnalysisResult({ error: '分析失败，请重试' });
+    }
   };
 
   // ========== Supabase Storage 云端备份/恢复 ==========
@@ -802,6 +844,78 @@ export default function HomeScreen() {
   const [cloudLoading, setCloudLoading] = useState(false);
   const [cloudProgress, setCloudProgress] = useState('');
   const [cloudBackupLoading, setCloudBackupLoading] = useState<'uploading' | 'downloading' | null>(null);
+  const [restoreSelectVisible, setRestoreSelectVisible] = useState(false);
+  const [analysisExpanded, setAnalysisExpanded] = useState<{ added: boolean; deleted: boolean; modified: boolean }>({ added: false, deleted: false, modified: false });
+
+  // ========== Helper functions for backup ==========
+  const getDeviceModel = (): string => {
+    if (Constants.deviceName) return Constants.deviceName.replace(/[^a-z0-9\-]/gi, '-').substring(0, 20);
+    const brand = (Platform as any).constants?.Brand || '';
+    const model = (Platform as any).constants?.Model || '';
+    const deviceStr = (brand + ' ' + model).trim() || 'Unknown';
+    return deviceStr.replace(/[^a-z0-9\-]/gi, '-').substring(0, 20);
+  };
+
+  const formatBackupFileName = (): string => {
+    const now = new Date();
+    const ts = now.getFullYear().toString() + '-' +
+      (now.getMonth() + 1).toString().padStart(2, '0') + '-' +
+      now.getDate().toString().padStart(2, '0') + '_' +
+      now.getHours().toString().padStart(2, '0') + '-' +
+      now.getMinutes().toString().padStart(2, '0') + '-' +
+      now.getSeconds().toString().padStart(2, '0');
+    const device = getDeviceModel();
+    return `${ts}_${device}.json`;
+  };
+
+  const parseBackupFileName = (fileName: string): { displayTime: string; device: string } => {
+    // Format: 2026-06-28_20-41-46_DeviceModel.json
+    const base = fileName.replace('.json', '');
+    const parts = base.split('_');
+    if (parts.length >= 4) {
+      const datePart = parts[0]; // 2026-06-28
+      const timeParts = parts.slice(1, parts.length - 1).join('_'); // could be "20-41-46" or more if device has underscores
+      // The time is always the second part: HH-MM-SS
+      const timeStr = parts[1]; // 20-41-46
+      const displayTime = datePart.replace(/-/g, '/') + ' ' + timeStr.replace(/-/g, ':');
+      // Device is everything after the time part
+      const device = parts.slice(2).join(' ').replace(/-/g, ' ').trim() || 'Unknown';
+      return { displayTime, device };
+    }
+    // Fallback for old format (YYYYMMDDHHmmss.json)
+    return { displayTime: fileName.replace('.json', ''), device: 'Unknown' };
+  };
+
+  const LOCAL_BACKUP_DIR = (FileSystemLegacy.documentDirectory || '') + 'backups/';
+
+  const saveLocalBackup = async (fileName: string, content: string) => {
+    try {
+      const dirInfo = await FileSystemLegacy.getInfoAsync(LOCAL_BACKUP_DIR).catch(() => null);
+      if (!dirInfo?.exists) {
+        await FileSystemLegacy.makeDirectoryAsync(LOCAL_BACKUP_DIR, { intermediates: true });
+      }
+      await FileSystemLegacy.writeAsStringAsync(LOCAL_BACKUP_DIR + fileName, content);
+    } catch (err) {
+      console.warn('Failed to save local backup:', err);
+    }
+  };
+
+  const cleanupOldLocalBackups = async (keepCount: number = 10) => {
+    try {
+      const files = await FileSystemLegacy.readDirectoryAsync(LOCAL_BACKUP_DIR);
+      if (!files || files.length <= keepCount) return;
+      const sorted = files
+        .filter(f => f.endsWith('.json'))
+        .sort()
+        .reverse();
+      const toDelete = sorted.slice(keepCount);
+      for (const file of toDelete) {
+        await FileSystemLegacy.deleteAsync(LOCAL_BACKUP_DIR + file, { idempotent: true });
+      }
+    } catch (err) {
+      console.warn('Failed to cleanup old backups:', err);
+    }
+  };
 
   // 生成备份数据（复用现有逻辑）
   const generateBackupData = async () => {
@@ -833,6 +947,7 @@ export default function HomeScreen() {
       version: '1.0',
       exportedAt: new Date().toISOString(),
       device: 'mobile',
+      device_model: Constants.deviceName || ((Platform as any).constants?.Brand || '') + ' ' + ((Platform as any).constants?.Model || '') || 'Unknown',
       contacts: allContacts
         .filter(c => c.phoneNumbers && c.phoneNumbers.length > 0)
         .map(c => ({
@@ -862,14 +977,12 @@ export default function HomeScreen() {
     try {
       const backupData = await generateBackupData();
       const content = JSON.stringify(backupData, null, 2);
-      const now = new Date();
-      const ts = now.getFullYear().toString() +
-        (now.getMonth() + 1).toString().padStart(2, '0') +
-        now.getDate().toString().padStart(2, '0') +
-        now.getHours().toString().padStart(2, '0') +
-        now.getMinutes().toString().padStart(2, '0') +
-        now.getSeconds().toString().padStart(2, '0');
-      const fileName = `${ts}.json`;
+      const fileName = formatBackupFileName();
+
+      // Save local backup copy
+      setCloudProgress('正在保存本地副本...');
+      await saveLocalBackup(fileName, content);
+      await cleanupOldLocalBackups(10);
 
       setCloudProgress('正在上传到云端...');
       /**
@@ -1291,7 +1404,7 @@ export default function HomeScreen() {
                   style={styles.cloudButtonItem}
                   onPress={() => {
                     loadCloudBackups();
-                    setCloudBackupTab('records');
+                    setRestoreSelectVisible(true);
                   }}
                   disabled={cloudBackupLoading !== null}
                 >
@@ -1306,7 +1419,7 @@ export default function HomeScreen() {
                 {/* 备份记录 */}
                 <TouchableOpacity
                   style={styles.cloudButtonItem}
-                  onPress={() => setCloudBackupTab('records')}
+                  onPress={() => { loadCloudBackups(); setCloudBackupTab('records'); }}
                 >
                   <View style={[styles.cloudButtonIcon, { backgroundColor: 'rgba(230, 162, 60, 0.12)' }]}>
                     <Ionicons name="time" size={24} color="#E6A23C" />
@@ -1333,25 +1446,27 @@ export default function HomeScreen() {
               {cloudBackupTab === 'records' && (
                 <View style={styles.recordsContainer}>
                   {cloudBackups.length > 0 ? (
-                    cloudBackups.map((backup, index) => (
-                      <View key={index} style={styles.backupRecord}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.backupRecordText}>
-                            {new Date(backup.created_at).toLocaleString()}
-                          </Text>
-                          <Text style={{ fontSize: 11, color: '#909399', marginTop: 2 }}>
-                            {backup.name} ({Math.round((backup.metadata?.size || 0) / 1024)}KB)
-                          </Text>
-                        </View>
+                    cloudBackups.map((backup, index) => {
+                      const parsed = parseBackupFileName(backup.name);
+                      return (
                         <TouchableOpacity
-                          style={styles.restoreButton}
+                          key={index}
+                          style={styles.backupRecord}
                           onPress={() => handleCloudRestore(backup.name)}
                           disabled={cloudBackupLoading !== null}
                         >
-                          <Text style={styles.restoreButtonText}>恢复</Text>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.backupRecordText}>
+                              {parsed.displayTime}
+                            </Text>
+                            <Text style={{ fontSize: 11, color: '#909399', marginTop: 2 }}>
+                              设备：{parsed.device} · {Math.round((backup.metadata?.size || backup.size || 0) / 1024)}KB
+                            </Text>
+                          </View>
+                          <Ionicons name="chevron-forward" size={18} color="#C0C4CC" />
                         </TouchableOpacity>
-                      </View>
-                    ))
+                      );
+                    })
                   ) : (
                     <Text style={styles.noBackupText}>暂无云端备份记录</Text>
                   )}
@@ -1365,28 +1480,176 @@ export default function HomeScreen() {
                     <Text style={styles.noBackupText}>{analysisResult.error}</Text>
                   ) : (
                     <>
+                      <Text style={{ fontSize: 13, color: '#606266', marginBottom: 10, fontWeight: '600' }}>
+                        统计概览
+                      </Text>
                       <View style={styles.analysisRow}>
                         <Text style={styles.analysisLabel}>新增联系人</Text>
-                        <Text style={[styles.analysisValue, { color: '#67C23A' }]}>
-                          +{analysisResult.added}
-                        </Text>
+                        <Text style={[styles.analysisValue, { color: '#67C23A' }]}>+{analysisResult.added} 人</Text>
                       </View>
                       <View style={styles.analysisRow}>
                         <Text style={styles.analysisLabel}>删除联系人</Text>
-                        <Text style={[styles.analysisValue, { color: '#F56C6C' }]}>
-                          -{analysisResult.deleted}
-                        </Text>
+                        <Text style={[styles.analysisValue, { color: '#F56C6C' }]}>-{analysisResult.deleted} 人</Text>
                       </View>
                       <View style={styles.analysisRow}>
                         <Text style={styles.analysisLabel}>修改联系人</Text>
-                        <Text style={[styles.analysisValue, { color: '#E6A23C' }]}>
-                          ~{analysisResult.modified}
-                        </Text>
+                        <Text style={[styles.analysisValue, { color: '#E6A23C' }]}>~{analysisResult.modified} 人</Text>
                       </View>
+
+                      <Text style={{ fontSize: 13, color: '#606266', marginTop: 16, marginBottom: 8, fontWeight: '600' }}>
+                        详细列表
+                      </Text>
+
+                      {/* 新增详情 */}
+                      {analysisResult.added > 0 && (
+                        <TouchableOpacity
+                          style={{ marginBottom: 6 }}
+                          onPress={() => setAnalysisExpanded(prev => ({ ...prev, added: !prev.added }))}
+                        >
+                          <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 12, backgroundColor: 'rgba(103,194,58,0.08)', borderRadius: 8 }}>
+                            <Ionicons name={analysisExpanded.added ? 'chevron-down' : 'chevron-forward'} size={14} color="#67C23A" />
+                            <Text style={{ fontSize: 13, color: '#67C23A', fontWeight: '600', marginLeft: 6 }}>
+                              新增 +{analysisResult.added}
+                            </Text>
+                          </View>
+                          {analysisExpanded.added && (
+                            <View style={{ paddingLeft: 20, paddingTop: 4 }}>
+                              {analysisResult.details?.added?.map((item: any, i: number) => (
+                                <Text key={i} style={{ fontSize: 12, color: '#606266', paddingVertical: 2 }}>
+                                  {item.name} · {item.phone}
+                                </Text>
+                              ))}
+                            </View>
+                          )}
+                        </TouchableOpacity>
+                      )}
+
+                      {/* 删除详情 */}
+                      {analysisResult.deleted > 0 && (
+                        <TouchableOpacity
+                          style={{ marginBottom: 6 }}
+                          onPress={() => setAnalysisExpanded(prev => ({ ...prev, deleted: !prev.deleted }))}
+                        >
+                          <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 12, backgroundColor: 'rgba(245,108,108,0.08)', borderRadius: 8 }}>
+                            <Ionicons name={analysisExpanded.deleted ? 'chevron-down' : 'chevron-forward'} size={14} color="#F56C6C" />
+                            <Text style={{ fontSize: 13, color: '#F56C6C', fontWeight: '600', marginLeft: 6 }}>
+                              删除 -{analysisResult.deleted}
+                            </Text>
+                          </View>
+                          {analysisExpanded.deleted && (
+                            <View style={{ paddingLeft: 20, paddingTop: 4 }}>
+                              {analysisResult.details?.deleted?.map((item: any, i: number) => (
+                                <Text key={i} style={{ fontSize: 12, color: '#606266', paddingVertical: 2 }}>
+                                  {item.name} · {item.phone}
+                                </Text>
+                              ))}
+                            </View>
+                          )}
+                        </TouchableOpacity>
+                      )}
+
+                      {/* 修改详情 */}
+                      {analysisResult.modified > 0 && (
+                        <TouchableOpacity
+                          style={{ marginBottom: 6 }}
+                          onPress={() => setAnalysisExpanded(prev => ({ ...prev, modified: !prev.modified }))}
+                        >
+                          <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 12, backgroundColor: 'rgba(230,162,60,0.08)', borderRadius: 8 }}>
+                            <Ionicons name={analysisExpanded.modified ? 'chevron-down' : 'chevron-forward'} size={14} color="#E6A23C" />
+                            <Text style={{ fontSize: 13, color: '#E6A23C', fontWeight: '600', marginLeft: 6 }}>
+                              修改 ~{analysisResult.modified}
+                            </Text>
+                          </View>
+                          {analysisExpanded.modified && (
+                            <View style={{ paddingLeft: 20, paddingTop: 4 }}>
+                              {analysisResult.details?.modified?.map((item: any, i: number) => (
+                                <Text key={i} style={{ fontSize: 12, color: '#606266', paddingVertical: 2 }}>
+                                  {item.phone}: {item.oldName} → {item.newName}
+                                </Text>
+                              ))}
+                            </View>
+                          )}
+                        </TouchableOpacity>
+                      )}
                     </>
                   )}
                 </View>
               )}
+            </View>
+          </View>
+        </View>
+      </Modal>
+      )}
+
+      {/* 恢复选择弹窗 */}
+      {restoreSelectVisible && (
+      <Modal
+        visible={true}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setRestoreSelectVisible(false)}
+      >
+        <View style={styles.cloudModalOverlay}>
+          <View style={[styles.cloudModalContent, { maxHeight: '70%' }]}>
+            <View style={styles.cloudModalHeader}>
+              <Text style={styles.cloudModalTitle}>请选择要恢复的数据</Text>
+              <TouchableOpacity onPress={() => setRestoreSelectVisible(false)}>
+                <Ionicons name="close" size={24} color="#909399" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.cloudModalBody}>
+              {cloudBackups.length > 0 ? (
+                cloudBackups.map((backup, index) => {
+                  const parsed = parseBackupFileName(backup.name);
+                  return (
+                    <TouchableOpacity
+                      key={index}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        paddingVertical: 14,
+                        paddingHorizontal: 16,
+                        borderBottomWidth: StyleSheet.hairlineWidth,
+                        borderBottomColor: '#EBEEF5',
+                      }}
+                      onPress={() => {
+                        setRestoreSelectVisible(false);
+                        handleCloudRestore(backup.name);
+                      }}
+                      disabled={cloudBackupLoading !== null}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 15, color: '#303133', fontWeight: '500' }}>
+                          {parsed.displayTime}
+                        </Text>
+                        <Text style={{ fontSize: 12, color: '#909399', marginTop: 4 }}>
+                          设备：{parsed.device}
+                        </Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={20} color="#C0C4CC" />
+                    </TouchableOpacity>
+                  );
+                })
+              ) : (
+                <View style={{ padding: 40, alignItems: 'center' }}>
+                  <Ionicons name="cloud-outline" size={48} color="#C0C4CC" />
+                  <Text style={{ fontSize: 14, color: '#909399', marginTop: 12 }}>暂无云端备份记录</Text>
+                </View>
+              )}
+
+              <TouchableOpacity
+                style={{
+                  marginTop: 16,
+                  paddingVertical: 12,
+                  borderRadius: 8,
+                  backgroundColor: '#F2F6FC',
+                  alignItems: 'center',
+                }}
+                onPress={() => setRestoreSelectVisible(false)}
+              >
+                <Text style={{ fontSize: 15, color: '#909399', fontWeight: '500' }}>取消</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </View>
