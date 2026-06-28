@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,10 +6,14 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Image,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
+import { useSafeRouter } from '@/hooks/useSafeRouter';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface MenuItemProps {
@@ -38,8 +42,98 @@ function MenuItem({ name, color, title, subtitle, badge, onPress }: MenuItemProp
 }
 
 export default function ProfileScreen() {
-  const router = useRouter();
+  const router = useSafeRouter();
   const { user, signOut } = useAuth();
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  // Load profile on focus
+  useFocusEffect(
+    useCallback(() => {
+      loadProfile();
+    }, [user?.id])
+  );
+
+  const loadProfile = async () => {
+    if (!user?.id) return;
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (user.id) headers['x-user-id'] = user.id;
+      const response = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/profile`, { headers });
+      if (response.ok) {
+        const result = await response.json();
+        if (result.profile?.avatar_url) {
+          setAvatarUrl(result.profile.avatar_url);
+        }
+      }
+    } catch (error) {
+      console.error('Load profile error:', error);
+    }
+  };
+
+  const handlePickAvatar = async () => {
+    // Request permission
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('权限不足', '需要相册权限才能选择头像');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      await uploadAvatar(result.assets[0].uri);
+    }
+  };
+
+  const uploadAvatar = async (uri: string) => {
+    if (!user?.id) return;
+    setUploading(true);
+    try {
+      // Read file as base64 for FormData
+      const filename = uri.split('/').pop() || 'avatar.jpg';
+      const match = /\.(\w+)$/.exec(filename);
+      const type = match ? `image/${match[1]}` : 'image/jpeg';
+
+      const formData = new FormData();
+      formData.append('avatar', {
+        uri,
+        name: filename,
+        type,
+      } as any);
+
+      /**
+       * 服务端文件：server/src/routes/profile.ts
+       * 接口：POST /api/v1/profile/avatar
+       * Headers: x-user-id: string
+       * Body: FormData with 'avatar' field
+       */
+      const response = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/profile/avatar`, {
+        method: 'POST',
+        headers: {
+          'x-user-id': user.id,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) throw new Error('Upload failed');
+      const result = await response.json();
+      if (result.avatar_url) {
+        setAvatarUrl(result.avatar_url);
+        Alert.alert('成功', '头像已更新');
+      }
+    } catch (error) {
+      console.error('Upload avatar error:', error);
+      Alert.alert('错误', '上传头像失败');
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const handleLogout = () => {
     Alert.alert(
@@ -70,11 +164,23 @@ export default function ProfileScreen() {
 
         {/* 用户信息 */}
         <View style={styles.userCard}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>
-              {userEmail[0]?.toUpperCase() || '?'}
-            </Text>
-          </View>
+          <TouchableOpacity style={styles.avatar} onPress={handlePickAvatar} disabled={uploading}>
+            {avatarUrl ? (
+              <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
+            ) : (
+              <Text style={styles.avatarText}>
+                {userEmail[0]?.toUpperCase() || '?'}
+              </Text>
+            )}
+            {uploading && (
+              <View style={styles.avatarOverlay}>
+                <ActivityIndicator size="small" color="#FFF" />
+              </View>
+            )}
+            <View style={styles.avatarEditIcon}>
+              <Ionicons name="camera" size={12} color="#FFF" />
+            </View>
+          </TouchableOpacity>
           <View style={styles.userInfo}>
             <Text style={styles.userName}>{userName}</Text>
             <Text style={styles.userEmail}>{userEmail}</Text>
@@ -175,6 +281,32 @@ const styles = StyleSheet.create({
     backgroundColor: '#4A90D9',
     justifyContent: 'center',
     alignItems: 'center',
+    position: 'relative',
+  },
+  avatarImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+  },
+  avatarOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 30,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarEditIcon: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#4A90D9',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#FFF',
   },
   avatarText: {
     fontSize: 24,

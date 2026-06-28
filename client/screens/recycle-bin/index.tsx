@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface TrashContact {
   id: number;
@@ -22,6 +23,7 @@ interface TrashContact {
 
 export default function RecycleBinScreen() {
   const router = useSafeRouter();
+  const { user } = useAuth();
   const [trashContacts, setTrashContacts] = useState<TrashContact[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -30,17 +32,22 @@ export default function RecycleBinScreen() {
   const loadTrash = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/contacts/trash`);
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (user?.id) {
+        headers['x-user-id'] = user.id;
+      }
+      const response = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/contacts/trash`, { headers });
       if (!response.ok) throw new Error('Failed to load trash');
-      const data = await response.json();
-      setTrashContacts(data);
+      const result = await response.json();
+      // Backend returns { success, data, total }
+      setTrashContacts(Array.isArray(result) ? result : (result.data || []));
     } catch (error) {
       console.error('Failed to load trash:', error);
       Alert.alert('错误', '加载回收站失败');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user?.id]);
 
   useFocusEffect(
     useCallback(() => {
@@ -73,11 +80,12 @@ export default function RecycleBinScreen() {
 
     setActionLoading(true);
     try {
-      // 批量恢复：逐个调用恢复接口
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (user?.id) headers['x-user-id'] = user.id;
       for (const id of selectedIds) {
         const response = await fetch(
           `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/contacts/${id}/restore`,
-          { method: 'POST' }
+          { method: 'POST', headers }
         );
         if (!response.ok) throw new Error(`Failed to restore ${id}`);
       }
@@ -109,10 +117,12 @@ export default function RecycleBinScreen() {
           onPress: async () => {
             setActionLoading(true);
             try {
+              const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+              if (user?.id) headers['x-user-id'] = user.id;
               for (const id of selectedIds) {
                 await fetch(
                   `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/contacts/${id}/permanent`,
-                  { method: 'DELETE' }
+                  { method: 'DELETE', headers }
                 );
               }
               Alert.alert('完成', `已永久删除 ${selectedIds.size} 个号码`);

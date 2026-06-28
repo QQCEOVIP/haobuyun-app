@@ -424,10 +424,15 @@ export default function ContactsScreen() {
                 <Text style={styles.cleanupTitle}>管理助手</Text>
               </View>
               <TouchableOpacity
-                style={styles.cleanupButton}
+                style={styles.pillButton}
                 onPress={() => router.push('/recycle-bin')}
               >
-                <Text style={styles.cleanupButtonText}>后悔药</Text>
+                <View style={styles.pillLeft}>
+                  <Text style={styles.pillText}>后悔</Text>
+                </View>
+                <View style={styles.pillRight}>
+                  <Text style={styles.pillText}>药</Text>
+                </View>
               </TouchableOpacity>
             </View>
             <View style={styles.cleanupStats}>
@@ -845,6 +850,26 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#EA580C',
+  },
+  pillButton: {
+    flexDirection: 'row',
+    borderRadius: 999,
+    overflow: 'hidden',
+  },
+  pillLeft: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#FBBF24',
+  },
+  pillRight: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#EF4444',
+  },
+  pillText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   cleanupStats: {
     flexDirection: 'row',

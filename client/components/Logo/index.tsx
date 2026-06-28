@@ -12,7 +12,7 @@ export default function Logo({ size = 80, showText = false, style }: LogoProps) 
     <View style={styles.container}>
       <Image
         source={require('@/assets/images/login-logo.png')}
-        style={[{ width: size, height: size, resizeMode: 'contain' }, style]}
+        style={[{ width: size, height: size, resizeMode: 'contain', borderRadius: size * 0.25 }, style]}
       />
       {showText && (
         <Text style={styles.text}>号簿云</Text>

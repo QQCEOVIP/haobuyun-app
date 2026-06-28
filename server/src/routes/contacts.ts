@@ -237,6 +237,37 @@ router.delete('/:id', requireAuth, async (req: any, res: any) => {
 });
 
 /**
+ * 记录删除的联系人到回收站
+ * POST /api/v1/contacts/trash
+ * Body: { name: string, phone: string }
+ */
+router.post('/trash', requireAuth, async (req: any, res: any) => {
+  try {
+    const { name, phone } = req.body;
+    if (!name || !phone) {
+      return res.status(400).json({ error: 'Missing name or phone' });
+    }
+
+    const phoneHash = hashPhone(phone);
+    const newContact = {
+      user_id: (req as any).userId,
+      name,
+      phone,
+      phone_hash: phoneHash,
+      is_deleted: true,
+      deleted_at: new Date(),
+      status: 'unknown',
+    };
+
+    const [created] = await db.insert(contacts).values(newContact).returning();
+    res.json({ success: true, data: created });
+  } catch (error) {
+    console.error('记录回收站失败:', error);
+    res.status(500).json({ error: '记录回收站失败' });
+  }
+});
+
+/**
  * 获取回收站（已软删除的联系人）
  * GET /api/v1/contacts/trash
  */

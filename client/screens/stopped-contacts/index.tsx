@@ -14,6 +14,7 @@ import { useSafeRouter, useSafeSearchParams } from '@/hooks/useSafeRouter';
 import { Ionicons } from '@expo/vector-icons';
 import * as Contacts from 'expo-contacts';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface StoppedContact {
   id: string;
@@ -35,6 +36,7 @@ const STATUS_COLORS: Record<string, string> = {
 export default function StoppedContactsScreen() {
   const router = useSafeRouter();
   const { status } = useSafeSearchParams<{ status: string }>();
+  const { user } = useAuth();
   const [contacts, setContacts] = useState<StoppedContact[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -149,8 +151,22 @@ export default function StoppedContactsScreen() {
             try {
               const toDelete = contacts.filter(c => selectedIds.has(c.id));
               let successCount = 0;
+              const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+              if (user?.id) headers['x-user-id'] = user.id;
+
               for (const contact of toDelete) {
                 try {
+                  // Record to backend recycle bin
+                  if (user?.id) {
+                    await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/contacts/trash`, {
+                      method: 'POST',
+                      headers,
+                      body: JSON.stringify({
+                        name: contact.name,
+                        phone: contact.phone,
+                      }),
+                    }).catch(() => { /* Silently fail if backend is unavailable */ });
+                  }
                   // Only attempt device contact removal if we have a valid device contact ID
                   if (contact.id && !contact.id.startsWith('@')) {
                     await Contacts.removeContactAsync(contact.id).catch(() => {
