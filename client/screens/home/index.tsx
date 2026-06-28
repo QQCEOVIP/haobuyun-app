@@ -14,7 +14,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import Svg, { Circle } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '@/storage/supabase';
 import * as Contacts from 'expo-contacts';
 import * as FileSystemLegacy from 'expo-file-system/legacy';
 import { StorageAccessFramework } from 'expo-file-system/legacy';
@@ -863,29 +862,26 @@ export default function HomeScreen() {
     try {
       const backupData = await generateBackupData();
       const content = JSON.stringify(backupData, null, 2);
-      const timestamp = Date.now();
-      const fileName = `${userId}/${timestamp}.json`;
+      const fileName = `${Date.now()}.json`;
 
       setCloudProgress('正在上传到云端...');
-      // 尝试上传，如果存储桶不存在则自动创建
-      let { error } = await supabase.storage
-        .from('backups')
-        .upload(fileName, content, { contentType: 'application/json', upsert: true });
+      /**
+       * 服务端文件：server/src/routes/backup.ts
+       * 接口：POST /api/v1/backup/cloud
+       * Headers: x-user-id: string
+       * Body: { fileName: string, content: string }
+       */
+      const response = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/backup/cloud`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': userId,
+        },
+        body: JSON.stringify({ fileName, content }),
+      });
 
-      if (error && (error.message.includes('Bucket not found') || error.message.includes('not found'))) {
-        setCloudProgress('正在创建云存储空间...');
-        const { error: createError } = await supabase.storage.createBucket('backups', { public: false });
-        if (createError && !createError.message.includes('already exists')) {
-          throw createError;
-        }
-        // 重试上传
-        const retry = await supabase.storage
-          .from('backups')
-          .upload(fileName, content, { contentType: 'application/json', upsert: true });
-        error = retry.error;
-      }
-
-      if (error) throw error;
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || '上传失败');
 
       Alert.alert('云端备份成功', `已备份 ${backupData.contacts.length} 个联系人到云端`);
       loadCloudBackups();
@@ -904,16 +900,20 @@ export default function HomeScreen() {
   const loadCloudBackups = async () => {
     if (!userId) return;
     try {
-      const { data: files, error } = await supabase.storage
-        .from('backups')
-        .list(userId, { limit: 20, sortBy: { column: 'created_at', order: 'desc' } });
-
-      if (error) {
-        console.warn('Load cloud backups error:', error.message);
+      /**
+       * 服务端文件：server/src/routes/backup.ts
+       * 接口：GET /api/v1/backup/cloud
+       * Headers: x-user-id: string
+       */
+      const response = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/backup/cloud`, {
+        headers: { 'x-user-id': userId },
+      });
+      const result = await response.json();
+      if (result.success) {
+        setCloudBackups(result.files || []);
+      } else {
         setCloudBackups([]);
-        return;
       }
-      setCloudBackups(files || []);
     } catch (err: any) {
       console.warn('Load cloud backups error:', err?.message);
       setCloudBackups([]);
@@ -933,16 +933,20 @@ export default function HomeScreen() {
           setCloudBackupLoading('downloading');
           setCloudProgress('正在下载备份...');
           try {
-            const { data, error } = await supabase.storage
-              .from('backups')
-              .download(`${userId}/${fileName}`);
-
-            if (error) throw error;
-            if (!data) throw new Error('下载失败');
+            /**
+             * 服务端文件：server/src/routes/backup.ts
+             * 接口：GET /api/v1/backup/cloud/download?fileName=xxx
+             * Headers: x-user-id: string
+             */
+            const response = await fetch(
+              `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/backup/cloud/download?fileName=${encodeURIComponent(fileName)}`,
+              { headers: { 'x-user-id': userId } }
+            );
+            const result = await response.json();
+            if (!response.ok || !result.success) throw new Error(result.error || '下载失败');
 
             setCloudProgress('正在解析数据...');
-            const text = await data.text();
-            const backupData = JSON.parse(text);
+            const backupData = JSON.parse(result.content);
 
             if (!backupData.contacts || backupData.contacts.length === 0) {
               Alert.alert('提示', '备份文件中没有联系人数据');

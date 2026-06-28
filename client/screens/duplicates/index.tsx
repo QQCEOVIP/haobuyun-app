@@ -134,6 +134,10 @@ export default function DuplicatesScreen() {
     }
   };
 
+  const handleSelectKeep = (groupKey: string, index: number) => {
+    setKeepIndices(prev => ({ ...prev, [groupKey]: index }));
+  };
+
   const handleBatchDelete = () => {
     if (selectedGroups.size === 0) {
       Alert.alert('提示', '请先选择要处理的重复组');

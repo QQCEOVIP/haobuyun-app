@@ -5,6 +5,7 @@ import { fileURLToPath } from "url";
 import pointsRouter from "./routes/points";
 import contactsRouter from "./routes/contacts";
 import profileRouter from "./routes/profile";
+import backupRouter from "./routes/backup";
 // TODO: 扩展点预留 - 广告和游戏路由
 // import adsRouter from "./routes/ads";    // 广告回调 (AdMob/穿山甲/优量汇)
 // import gameRouter from "./routes/game";  // 小游戏 (H5/外部渠道)
@@ -30,6 +31,9 @@ app.use('/api/v1/contacts', contactsRouter);
 
 // 用户资料路由
 app.use('/api/v1/profile', profileRouter);
+
+// 云端备份路由
+app.use('/api/v1/backup', backupRouter);
 
 // 测试账号路由
 

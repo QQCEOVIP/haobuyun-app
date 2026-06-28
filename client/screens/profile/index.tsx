@@ -123,8 +123,8 @@ export default function ProfileScreen() {
 
       if (!response.ok) throw new Error('Upload failed');
       const result = await response.json();
-      if (result.avatar_url) {
-        setAvatarUrl(result.avatar_url);
+      if (result.avatarUrl) {
+        setAvatarUrl(result.avatarUrl);
         Alert.alert('成功', '头像已更新');
       }
     } catch (error) {
