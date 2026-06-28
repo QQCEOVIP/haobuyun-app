@@ -1178,89 +1178,32 @@ export default function HomeScreen() {
             </View>
 
             <View style={styles.cloudModalBody}>
-              {/* Supabase 云存储区域 */}
-              <View style={{ marginBottom: 16 }}>
-                <Text style={{ fontSize: 14, fontWeight: '600', color: '#303133', marginBottom: 10 }}>
-                  Supabase 云存储
-                </Text>
-                <View style={styles.cloudButtonGrid}>
-                  <TouchableOpacity
-                    style={styles.cloudButtonItem}
-                    onPress={handleCloudBackup}
-                    disabled={cloudBackupLoading !== null}
-                  >
-                    <View style={[styles.cloudButtonIcon, { backgroundColor: 'rgba(74, 144, 217, 0.12)' }]}>
-                      <Ionicons name="cloud" size={24} color="#4A90D9" />
-                    </View>
-                    <Text style={styles.cloudButtonText}>
-                      {cloudBackupLoading === 'uploading' ? '上传中...' : '云端备份'}
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.cloudButtonItem}
-                    onPress={handleCloudRestore}
-                    disabled={cloudBackupLoading !== null}
-                  >
-                    <View style={[styles.cloudButtonIcon, { backgroundColor: 'rgba(103, 194, 58, 0.12)' }]}>
-                      <Ionicons name="refresh" size={24} color="#67C23A" />
-                    </View>
-                    <Text style={styles.cloudButtonText}>
-                      {cloudBackupLoading === 'downloading' ? '下载中...' : '云端恢复'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-
-                {cloudBackups.length > 0 && (
-                  <View style={{ marginTop: 10 }}>
-                    <Text style={{ fontSize: 12, color: '#909399', marginBottom: 6 }}>
-                      已有 {cloudBackups.length} 个云端备份
-                    </Text>
-                    {cloudBackups.slice(0, 3).map((backup, index) => (
-                      <View key={index} style={{
-                        flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-                        paddingVertical: 6, paddingHorizontal: 10, backgroundColor: '#F5F7FA', borderRadius: 8, marginBottom: 4,
-                      }}>
-                        <Text style={{ fontSize: 12, color: '#606266' }} numberOfLines={1}>
-                          {backup.name} ({Math.round((backup.metadata?.size || 0) / 1024)}KB)
-                        </Text>
-                        <TouchableOpacity onPress={() => handleCloudRestore(backup.name)}>
-                          <Ionicons name="download-outline" size={16} color="#4A90D9" />
-                        </TouchableOpacity>
-                      </View>
-                    ))}
-                  </View>
-                )}
-              </View>
-
-              <View style={styles.cloudDivider} />
-
               <View style={styles.cloudButtonGrid}>
-                {/* 本地备份 */}
+                {/* 云端备份 */}
                 <TouchableOpacity
                   style={styles.cloudButtonItem}
-                  onPress={handleBackup}
-                  disabled={backupLoading}
+                  onPress={handleCloudBackup}
+                  disabled={cloudBackupLoading !== null}
                 >
                   <View style={[styles.cloudButtonIcon, { backgroundColor: 'rgba(74, 144, 217, 0.12)' }]}>
-                    <Ionicons name="save-outline" size={24} color="#4A90D9" />
+                    <Ionicons name="cloud-upload" size={24} color="#4A90D9" />
                   </View>
                   <Text style={styles.cloudButtonText}>
-                    {backupLoading ? '备份中...' : '本地备份'}
+                    {cloudBackupLoading === 'uploading' ? '上传中...' : '云端备份'}
                   </Text>
                 </TouchableOpacity>
 
-                {/* 本地恢复 */}
+                {/* 云端恢复 */}
                 <TouchableOpacity
                   style={styles.cloudButtonItem}
-                  onPress={() => handleRestore()}
-                  disabled={backupLoading}
+                  onPress={handleCloudRestore}
+                  disabled={cloudBackupLoading !== null}
                 >
                   <View style={[styles.cloudButtonIcon, { backgroundColor: 'rgba(103, 194, 58, 0.12)' }]}>
-                    <Ionicons name="folder-open-outline" size={24} color="#67C23A" />
+                    <Ionicons name="cloud-download" size={24} color="#67C23A" />
                   </View>
                   <Text style={styles.cloudButtonText}>
-                    {backupLoading ? '恢复中...' : '本地恢复'}
+                    {cloudBackupLoading === 'downloading' ? '下载中...' : '云端恢复'}
                   </Text>
                 </TouchableOpacity>
 
@@ -1289,6 +1232,27 @@ export default function HomeScreen() {
                   <Text style={styles.cloudButtonText}>数据分析</Text>
                 </TouchableOpacity>
               </View>
+
+              {cloudBackups.length > 0 && (
+                <View style={{ marginTop: 12 }}>
+                  <Text style={{ fontSize: 12, color: '#909399', marginBottom: 6 }}>
+                    已有 {cloudBackups.length} 个云端备份
+                  </Text>
+                  {cloudBackups.slice(0, 3).map((backup, index) => (
+                    <View key={index} style={{
+                      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+                      paddingVertical: 6, paddingHorizontal: 10, backgroundColor: '#F5F7FA', borderRadius: 8, marginBottom: 4,
+                    }}>
+                      <Text style={{ fontSize: 12, color: '#606266' }} numberOfLines={1}>
+                        {backup.name} ({Math.round((backup.metadata?.size || 0) / 1024)}KB)
+                      </Text>
+                      <TouchableOpacity onPress={() => handleCloudRestore(backup.name)}>
+                        <Ionicons name="download-outline" size={16} color="#4A90D9" />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              )}
 
               {/* 备份记录详情 */}
               {cloudBackupTab === 'records' && (
