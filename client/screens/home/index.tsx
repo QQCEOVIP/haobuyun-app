@@ -14,18 +14,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import Svg, { Circle } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
-import * as FileSystemLegacyLegacy from 'expo-file-system/legacy';
 import { supabase } from '@/storage/supabase';
-
-// StorageAccessFramework for custom path on Android
-const SAF = (FileSystemLegacyLegacy as any).StorageAccessFramework;
 import * as Contacts from 'expo-contacts';
 import * as FileSystemLegacy from 'expo-file-system/legacy';
+
+// StorageAccessFramework for custom path on Android
+const SAF = (FileSystemLegacy as any).StorageAccessFramework;
 import * as DocumentPicker from 'expo-document-picker';
 import * as Sharing from 'expo-sharing';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/storage/supabase';
 
 interface ContactStats {
   total: number;
