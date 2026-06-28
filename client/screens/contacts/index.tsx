@@ -101,8 +101,6 @@ export default function ContactsScreen() {
           .filter(c => c.phoneNumbers && c.phoneNumbers.length > 0)
           .map(c => {
             const phone = c.phoneNumbers![0].number || '';
-            // Filter out phone numbers containing '*' (invalid/masked numbers)
-            if (phone.includes('*')) return null;
             const localData = allLocalContacts?.find((lc: any) => lc.phone === phone);
             return {
               id: c.id,
@@ -111,8 +109,7 @@ export default function ContactsScreen() {
               status: localData?.status || null,
               lastContactDate: localData?.last_contact_date,
             };
-          })
-          .filter((c): c is Contact => c !== null);
+          });
 
         // Load locally persisted status overrides from AsyncStorage
         const allKeys = await AsyncStorage.getAllKeys();
@@ -430,7 +427,7 @@ export default function ContactsScreen() {
                 style={styles.cleanupButton}
                 onPress={() => router.push('/recycle-bin')}
               >
-                <Ionicons name="medical" size={14} color="#FA8C16" style={{ marginRight: 4 }} />
+                <Ionicons name="refresh" size={14} color="#FA8C16" style={{ marginRight: 4 }} />
                 <Text style={styles.cleanupButtonText}>后悔药</Text>
               </TouchableOpacity>
             </View>

@@ -61,8 +61,6 @@ export default function DuplicatesScreen() {
       for (const contact of allContacts) {
         if (!contact.phoneNumbers || contact.phoneNumbers.length === 0) continue;
         const rawPhone = contact.phoneNumbers[0].number || '';
-        // Skip phone numbers containing '*' (invalid/masked numbers)
-        if (rawPhone.includes('*')) continue;
         const normalized = normalize(rawPhone);
         if (normalized.length < 7) continue;
 
