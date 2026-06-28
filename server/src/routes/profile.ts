@@ -8,8 +8,8 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 *
 
 const storage = new S3Storage({
   endpointUrl: process.env.COZE_BUCKET_ENDPOINT_URL,
-  accessKey: '',
-  secretKey: '',
+  accessKey: process.env.COZE_BUCKET_ACCESS_KEY || '',
+  secretKey: process.env.COZE_BUCKET_SECRET_KEY || '',
   bucketName: process.env.COZE_BUCKET_NAME,
   region: 'cn-beijing',
 });
