@@ -862,7 +862,14 @@ export default function HomeScreen() {
     try {
       const backupData = await generateBackupData();
       const content = JSON.stringify(backupData, null, 2);
-      const fileName = `${Date.now()}.json`;
+      const now = new Date();
+      const ts = now.getFullYear().toString() +
+        (now.getMonth() + 1).toString().padStart(2, '0') +
+        now.getDate().toString().padStart(2, '0') +
+        now.getHours().toString().padStart(2, '0') +
+        now.getMinutes().toString().padStart(2, '0') +
+        now.getSeconds().toString().padStart(2, '0');
+      const fileName = `${ts}.json`;
 
       setCloudProgress('正在上传到云端...');
       /**
@@ -923,7 +930,7 @@ export default function HomeScreen() {
   // 从云端恢复
   const handleCloudRestore = async (fileName: string) => {
     if (!userId) return;
-    Alert.alert('确认恢复', '恢复将覆盖当前通讯录数据，确定继续？', [
+    Alert.alert('确认恢复', '恢复将替换当前所有通讯录数据（先清空再导入），确定继续？', [
       { text: '取消', style: 'cancel' },
       {
         text: '确定恢复',
@@ -955,15 +962,45 @@ export default function HomeScreen() {
               return;
             }
 
+            // Step 1: Delete ALL existing contacts from device
+            setCloudProgress('正在清空当前通讯录...');
+            try {
+              const { data: existingContacts } = await Contacts.getAllContactsAsync({
+                fields: [Contacts.Fields.PhoneNumbers],
+              });
+              if (existingContacts) {
+                let deletedCount = 0;
+                for (const contact of existingContacts) {
+                  try {
+                    await Contacts.removeContactAsync(contact.id);
+                    deletedCount++;
+                  } catch (_e) { /* skip individual delete failures */ }
+                }
+                console.log(`Deleted ${deletedCount} existing contacts`);
+              }
+            } catch (clearErr) {
+              console.warn('Failed to clear contacts:', clearErr);
+              // Continue anyway - try to add restored contacts
+            }
+
+            // Step 2: Add restored contacts
             setCloudProgress(`正在恢复 ${backupData.contacts.length} 个联系人...`);
             let successCount = 0;
             for (const contact of backupData.contacts) {
               try {
                 const contactData: any = {
-                  name: contact.name,
-                  phoneNumbers: contact.phones?.map((p: any) => ({ number: p.number })) || [{ number: contact.phones?.[0]?.number || '' }],
+                  name: contact.name || '',
+                  phoneNumbers: contact.phones?.map((p: any) => ({ number: p.number, label: p.label || 'mobile' })) || [{ number: '', label: 'mobile' }],
                 };
-                if (contact.emails?.length) contactData.emails = contact.emails.map((e: any) => ({ email: e.email }));
+                if (contact.emails?.length) {
+                  contactData.emails = contact.emails.map((e: any) => ({ email: e.email, label: e.label || 'home' }));
+                }
+                if (contact.addresses?.length) {
+                  contactData.postalAddresses = contact.addresses.map((a: any) => ({
+                    street: a.street || '', city: a.city || '', region: a.region || '',
+                    postalCode: a.postalCode || '', country: a.country || '',
+                  }));
+                }
                 if (contact.company) contactData.company = contact.company;
                 if (contact.jobTitle) contactData.jobTitle = contact.jobTitle;
                 if (contact.note) contactData.note = contact.note;
@@ -973,7 +1010,8 @@ export default function HomeScreen() {
               } catch (_e) { /* skip failed contact */ }
             }
 
-            Alert.alert('恢复成功', `已恢复 ${successCount} 个联系人`);
+            Alert.alert('恢复成功', `已替换通讯录，恢复 ${successCount} 个联系人`);
+            loadCloudBackups();
           } catch (err: any) {
             console.error('Cloud restore error:', err);
             Alert.alert('恢复失败', err?.message || '请重试');
@@ -1251,7 +1289,10 @@ export default function HomeScreen() {
                 {/* 云端恢复 */}
                 <TouchableOpacity
                   style={styles.cloudButtonItem}
-                  onPress={handleCloudRestore}
+                  onPress={() => {
+                    loadCloudBackups();
+                    setCloudBackupTab('records');
+                  }}
                   disabled={cloudBackupLoading !== null}
                 >
                   <View style={[styles.cloudButtonIcon, { backgroundColor: 'rgba(103, 194, 58, 0.12)' }]}>
@@ -1288,51 +1329,31 @@ export default function HomeScreen() {
                 </TouchableOpacity>
               </View>
 
-              {cloudBackups.length > 0 && (
-                <View style={{ marginTop: 12 }}>
-                  <Text style={{ fontSize: 12, color: '#909399', marginBottom: 6 }}>
-                    已有 {cloudBackups.length} 个云端备份
-                  </Text>
-                  {cloudBackups.slice(0, 3).map((backup, index) => (
-                    <View key={index} style={{
-                      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-                      paddingVertical: 6, paddingHorizontal: 10, backgroundColor: '#F5F7FA', borderRadius: 8, marginBottom: 4,
-                    }}>
-                      <Text style={{ fontSize: 12, color: '#606266' }} numberOfLines={1}>
-                        {backup.name} ({Math.round((backup.metadata?.size || 0) / 1024)}KB)
-                      </Text>
-                      <TouchableOpacity onPress={() => handleCloudRestore(backup.name)}>
-                        <Ionicons name="download-outline" size={16} color="#4A90D9" />
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                </View>
-              )}
-
               {/* 备份记录详情 */}
               {cloudBackupTab === 'records' && (
                 <View style={styles.recordsContainer}>
-                  {backups.length > 0 ? (
-                    backups.map((backup, index) => (
+                  {cloudBackups.length > 0 ? (
+                    cloudBackups.map((backup, index) => (
                       <View key={index} style={styles.backupRecord}>
-                        <View>
+                        <View style={{ flex: 1 }}>
                           <Text style={styles.backupRecordText}>
                             {new Date(backup.created_at).toLocaleString()}
                           </Text>
-                          <Text style={styles.backupRecordCount}>
-                            {backup.contact_count} 个联系人
+                          <Text style={{ fontSize: 11, color: '#909399', marginTop: 2 }}>
+                            {backup.name} ({Math.round((backup.metadata?.size || 0) / 1024)}KB)
                           </Text>
                         </View>
                         <TouchableOpacity
                           style={styles.restoreButton}
-                          onPress={() => handleRestore(backup)}
+                          onPress={() => handleCloudRestore(backup.name)}
+                          disabled={cloudBackupLoading !== null}
                         >
                           <Text style={styles.restoreButtonText}>恢复</Text>
                         </TouchableOpacity>
                       </View>
                     ))
                   ) : (
-                    <Text style={styles.noBackupText}>暂无备份记录</Text>
+                    <Text style={styles.noBackupText}>暂无云端备份记录</Text>
                   )}
                 </View>
               )}
