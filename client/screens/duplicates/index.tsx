@@ -61,6 +61,8 @@ export default function DuplicatesScreen() {
       for (const contact of allContacts) {
         if (!contact.phoneNumbers || contact.phoneNumbers.length === 0) continue;
         const rawPhone = contact.phoneNumbers[0].number || '';
+        // Skip phone numbers containing '*' (invalid/masked numbers)
+        if (rawPhone.includes('*')) continue;
         const normalized = normalize(rawPhone);
         if (normalized.length < 7) continue;
 
@@ -153,14 +155,25 @@ export default function DuplicatesScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
+              let totalDeleted = 0;
               for (const group of duplicateGroups) {
                 if (!selectedGroups.has(group.phone)) continue;
-                // Mark as dismissed (keep first, remove rest from display)
-                await AsyncStorage.setItem(`${DISMISS_KEY_PREFIX}${group.phone}`, 'true');
+                // Delete all entries except the recommended one from device contacts
+                for (let i = 0; i < group.entries.length; i++) {
+                  if (i === group.recommendedIndex) continue; // Keep the recommended entry
+                  const entry = group.entries[i];
+                  try {
+                    // Actually delete from device contacts
+                    await Contacts.removeContactAsync(entry.id);
+                    totalDeleted++;
+                  } catch (removeErr) {
+                    console.warn('Failed to delete contact:', entry.name, removeErr);
+                  }
+                }
               }
               setSelectedGroups(new Set());
               loadDuplicates();
-              Alert.alert('完成', `已处理 ${selectedGroups.size} 组重复号码`);
+              Alert.alert('完成', `已从通讯录删除 ${totalDeleted} 个重复条目`);
             } catch (error) {
               console.error('Batch delete failed:', error);
             }

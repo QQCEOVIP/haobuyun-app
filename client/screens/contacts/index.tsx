@@ -101,6 +101,8 @@ export default function ContactsScreen() {
           .filter(c => c.phoneNumbers && c.phoneNumbers.length > 0)
           .map(c => {
             const phone = c.phoneNumbers![0].number || '';
+            // Filter out phone numbers containing '*' (invalid/masked numbers)
+            if (phone.includes('*')) return null;
             const localData = allLocalContacts?.find((lc: any) => lc.phone === phone);
             return {
               id: c.id,
@@ -109,7 +111,8 @@ export default function ContactsScreen() {
               status: localData?.status || null,
               lastContactDate: localData?.last_contact_date,
             };
-          });
+          })
+          .filter((c): c is Contact => c !== null);
 
         // Load locally persisted status overrides from AsyncStorage
         const allKeys = await AsyncStorage.getAllKeys();
@@ -444,7 +447,7 @@ export default function ContactsScreen() {
               <TouchableOpacity
                 style={styles.cleanupStatItem}
                 activeOpacity={0.7}
-                onPress={() => router.push({ pathname: '/stopped-contacts', params: { status: 'stopped' } })}
+                onPress={() => router.push('/stopped-contacts', { status: 'stopped' })}
               >
                 <Text style={[styles.cleanupStatValue, { color: '#F56C6C' }]}>{cleanupStats.stopped}</Text>
                 <Text style={styles.cleanupStatLabel}>确认失效</Text>
@@ -453,7 +456,7 @@ export default function ContactsScreen() {
               <TouchableOpacity
                 style={styles.cleanupStatItem}
                 activeOpacity={0.7}
-                onPress={() => router.push({ pathname: '/stopped-contacts', params: { status: 'suspected_stopped' } })}
+                onPress={() => router.push('/stopped-contacts', { status: 'suspected_stopped' })}
               >
                 <Text style={[styles.cleanupStatValue, { color: '#FA8C16' }]}>{cleanupStats.suspected}</Text>
                 <Text style={styles.cleanupStatLabel}>可能失效</Text>

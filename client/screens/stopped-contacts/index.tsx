@@ -84,6 +84,8 @@ export default function StoppedContactsScreen() {
         if (!contact.phoneNumbers || contact.phoneNumbers.length === 0) continue;
         const phone = contact.phoneNumbers[0].number || '';
         if (!phone) continue;
+        // Skip phone numbers containing '*' (invalid/masked numbers)
+        if (phone.includes('*')) continue;
 
         try {
           const storedLabel = await AsyncStorage.getItem(`@contact_status_${phone}`);
