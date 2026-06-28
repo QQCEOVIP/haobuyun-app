@@ -433,8 +433,8 @@ export default function HomeScreen() {
       const contactCount = backupData.contacts.length;
 
       // Write to cache and share
-      const fileUri = FileSystemLegacyLegacy.cacheDirectory + defaultFileName;
-      await FileSystemLegacyLegacy.writeAsStringAsync(fileUri, backupContent, { encoding: FileSystemLegacyLegacy.EncodingType.UTF8 });
+      const fileUri = FileSystemLegacy.cacheDirectory + defaultFileName;
+      await FileSystemLegacy.writeAsStringAsync(fileUri, backupContent, { encoding: FileSystemLegacy.EncodingType.UTF8 });
 
       // Use Sharing API - lets user choose save location via system share sheet
       if (await Sharing.isAvailableAsync()) {
