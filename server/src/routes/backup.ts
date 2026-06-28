@@ -110,4 +110,32 @@ router.get('/cloud/download', async (req, res) => {
   }
 });
 
+// DELETE /api/v1/backup/cloud
+// Headers: x-user-id (required)
+// Body: { fileName: string }
+router.delete('/cloud', async (req, res) => {
+  try {
+    const userId = req.headers['x-user-id'] as string;
+    if (!userId) {
+      return res.status(400).json({ error: 'Missing x-user-id header' });
+    }
+    const { fileName } = req.body;
+    if (!fileName) {
+      return res.status(400).json({ error: 'Missing fileName in body' });
+    }
+
+    const supabase = getSupabaseAdmin();
+    const storagePath = `${userId}/${fileName}`;
+    const { error } = await supabase.storage
+      .from(BUCKET_NAME)
+      .remove([storagePath]);
+
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Cloud backup delete error:', error?.message || error);
+    res.status(500).json({ error: `Delete failed: ${error?.message || 'Unknown error'}` });
+  }
+});
+
 export default router;

@@ -18,14 +18,16 @@ import { useAuth } from '@/contexts/AuthContext';
 import Logo from '@/components/Logo';
 
 const APP_NAME = '号簿云';
-const SECURE_EMAIL_KEY = 'saved_login_email';
+const SECURE_PHONE_KEY = 'saved_login_phone';
 const SECURE_PASSWORD_KEY = 'saved_login_password';
+const APP_DOMAIN = 'haobuyun.app';
 
 export default function LoginScreen() {
   const [isLogin, setIsLogin] = useState(true);
-  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [idCard, setIdCard] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
@@ -35,9 +37,9 @@ export default function LoginScreen() {
   useEffect(() => {
     (async () => {
       try {
-        const savedEmail = await SecureStore.getItemAsync(SECURE_EMAIL_KEY);
+        const savedPhone = await SecureStore.getItemAsync(SECURE_PHONE_KEY);
         const savedPassword = await SecureStore.getItemAsync(SECURE_PASSWORD_KEY);
-        if (savedEmail) setEmail(savedEmail);
+        if (savedPhone) setPhone(savedPhone);
         if (savedPassword) {
           setPassword(savedPassword);
           setRememberMe(true);
@@ -49,23 +51,27 @@ export default function LoginScreen() {
   const saveCredentials = async () => {
     try {
       if (rememberMe) {
-        await SecureStore.setItemAsync(SECURE_EMAIL_KEY, email);
+        await SecureStore.setItemAsync(SECURE_PHONE_KEY, phone);
         await SecureStore.setItemAsync(SECURE_PASSWORD_KEY, password);
       } else {
-        await SecureStore.deleteItemAsync(SECURE_EMAIL_KEY);
+        await SecureStore.deleteItemAsync(SECURE_PHONE_KEY);
         await SecureStore.deleteItemAsync(SECURE_PASSWORD_KEY);
       }
     } catch {}
   };
 
+  // Convert phone to email for Supabase auth
+  const phoneToEmail = (phoneNumber: string) => `${phoneNumber}@${APP_DOMAIN}`;
+
   const handleSubmit = async () => {
-    if (!email || !password) {
-      Alert.alert('提示', '请输入邮箱和密码');
+    if (!phone || !password) {
+      Alert.alert('提示', '请输入手机号和密码');
       return;
     }
 
-    if (!isLogin && password !== confirmPassword) {
-      Alert.alert('提示', '两次输入的密码不一致');
+    // Validate phone number (11 digits for China)
+    if (!/^\d{11}$/.test(phone)) {
+      Alert.alert('提示', '请输入正确的11位手机号');
       return;
     }
 
@@ -74,8 +80,20 @@ export default function LoginScreen() {
       return;
     }
 
+    if (!isLogin) {
+      if (password !== confirmPassword) {
+        Alert.alert('提示', '两次输入的密码不一致');
+        return;
+      }
+      if (!idCard || idCard.length !== 18) {
+        Alert.alert('提示', '请输入正确的18位身份证号');
+        return;
+      }
+    }
+
     setLoading(true);
     try {
+      const email = phoneToEmail(phone);
       if (isLogin) {
         const { error } = await signInWithEmail(email, password);
         if (error) {
@@ -84,11 +102,11 @@ export default function LoginScreen() {
           await saveCredentials();
         }
       } else {
-        const { error } = await signUpWithEmail(email, password);
+        const { error } = await signUpWithEmail(email, password, { phone, id_card: idCard });
         if (error) {
           Alert.alert('注册失败', error.message);
         } else {
-          Alert.alert('注册成功', '请查收邮箱中的验证链接完成注册', [
+          Alert.alert('注册成功', '注册成功，请登录', [
             { text: '确定', onPress: () => setIsLogin(true) }
           ]);
         }
@@ -118,14 +136,15 @@ export default function LoginScreen() {
 
           <View style={styles.form}>
             <View style={styles.inputContainer}>
-              <Text style={styles.label}>邮箱</Text>
+              <Text style={styles.label}>手机号</Text>
               <TextInput
                 style={styles.input}
-                placeholder="请输入邮箱"
+                placeholder="请输入手机号"
                 placeholderTextColor="#B2BEC3"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
+                value={phone}
+                onChangeText={setPhone}
+                keyboardType="phone-pad"
+                maxLength={11}
                 autoCapitalize="none"
                 autoCorrect={false}
               />
@@ -169,18 +188,33 @@ export default function LoginScreen() {
             )}
 
             {!isLogin && (
-              <View style={styles.inputContainer}>
-                <Text style={styles.label}>确认密码</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="请再次输入密码"
-                  placeholderTextColor="#B2BEC3"
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  secureTextEntry={!showPassword}
-                  autoCapitalize="none"
-                />
-              </View>
+              <>
+                <View style={styles.inputContainer}>
+                  <Text style={styles.label}>确认密码</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="请再次输入密码"
+                    placeholderTextColor="#B2BEC3"
+                    value={confirmPassword}
+                    onChangeText={setConfirmPassword}
+                    secureTextEntry={!showPassword}
+                    autoCapitalize="none"
+                  />
+                </View>
+                <View style={styles.inputContainer}>
+                  <Text style={styles.label}>身份证号</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="请输入身份证号（用于找回密码）"
+                    placeholderTextColor="#B2BEC3"
+                    value={idCard}
+                    onChangeText={setIdCard}
+                    maxLength={18}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                </View>
+              </>
             )}
 
             <TouchableOpacity
@@ -202,6 +236,7 @@ export default function LoginScreen() {
               onPress={() => {
                 setIsLogin(!isLogin);
                 setConfirmPassword('');
+                setIdCard('');
               }}
             >
               <Text style={styles.switchText}>
@@ -299,17 +334,17 @@ const styles = StyleSheet.create({
   rememberRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 16,
   },
   checkbox: {
     width: 20,
     height: 20,
     borderRadius: 4,
-    borderWidth: 1.5,
-    borderColor: '#C0C4CC',
+    borderWidth: 1,
+    borderColor: '#DCDFE6',
+    marginRight: 8,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 8,
   },
   checkboxChecked: {
     backgroundColor: '#4A90D9',
@@ -327,7 +362,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   buttonDisabled: {
-    opacity: 0.7,
+    opacity: 0.6,
   },
   buttonText: {
     color: '#FFFFFF',
@@ -335,15 +370,15 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   switchButton: {
+    marginTop: 16,
     alignItems: 'center',
-    marginTop: 20,
   },
   switchText: {
     color: '#4A90D9',
     fontSize: 14,
   },
   privacy: {
-    marginTop: 32,
+    marginTop: 24,
     alignItems: 'center',
   },
   privacyText: {

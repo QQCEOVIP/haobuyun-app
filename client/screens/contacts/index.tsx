@@ -55,6 +55,11 @@ export default function ContactsScreen() {
   const [communityMarks, setCommunityMarks] = useState<Map<string, { status: NumberStatus; markCount: number }>>(new Map());
   const [contactAvatars, setContactAvatars] = useState<Record<string, string>>({});
   const [avatarMenuContact, setAvatarMenuContact] = useState<Contact | null>(null);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editingContact, setEditingContact] = useState<Contact | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
 
   const userId = (user as any)?.id;
 
@@ -99,6 +104,51 @@ export default function ContactsScreen() {
     delete updated[contact.phone];
     setContactAvatars(updated);
     await AsyncStorage.setItem('@contact_avatars', JSON.stringify(updated));
+  };
+
+  // 打开编辑弹窗
+  const handleOpenEdit = (contact: Contact) => {
+    setStatusMenuContact(null);
+    setEditingContact(contact);
+    setEditName(contact.name);
+    setEditPhone(contact.phone);
+    setEditModalVisible(true);
+  };
+
+  // 保存编辑
+  const handleSaveEdit = async () => {
+    if (!editingContact) return;
+    if (!editName.trim()) {
+      Alert.alert('提示', '姓名不能为空');
+      return;
+    }
+    if (!editPhone.trim()) {
+      Alert.alert('提示', '号码不能为空');
+      return;
+    }
+    setEditSaving(true);
+    try {
+      // Update device contact
+      await Contacts.updateContactAsync({
+        id: editingContact.deviceContactId,
+        firstName: editName.trim(),
+        phoneNumbers: [{ number: editPhone.trim(), label: 'mobile' }],
+      });
+      // Update local state
+      setContacts(prev => prev.map(c =>
+        c.deviceContactId === editingContact.deviceContactId
+          ? { ...c, name: editName.trim(), phone: editPhone.trim() }
+          : c
+      ));
+      Alert.alert('成功', '联系人已更新');
+      setEditModalVisible(false);
+      setEditingContact(null);
+    } catch (error) {
+      console.error('Update contact error:', error);
+      Alert.alert('错误', '更新失败，请重试');
+    } finally {
+      setEditSaving(false);
+    }
   };
 
   const loadContacts = useCallback(async () => {
@@ -621,6 +671,13 @@ export default function ContactsScreen() {
                   <Text style={[styles.statusMenuOptionText, { color: '#E6A23C' }]}>疑似停机</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
+                  style={[styles.statusMenuOption, { backgroundColor: '#E8F0FE' }]}
+                  onPress={() => handleOpenEdit(statusMenuContact)}
+                >
+                  <Ionicons name="create-outline" size={20} color="#4A90D9" />
+                  <Text style={[styles.statusMenuOptionText, { color: '#4A90D9' }]}>编辑</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
                   style={styles.statusMenuCancel}
                   onPress={() => setStatusMenuContact(null)}
                 >
@@ -680,6 +737,63 @@ export default function ContactsScreen() {
           </View>
         </TouchableWithoutFeedback>
       </Modal>
+      )}
+
+      {/* 编辑联系人弹窗 */}
+      {editModalVisible && (
+        <Modal
+          visible={true}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setEditModalVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.editModalCard}>
+              <View style={styles.editModalHeader}>
+                <Text style={styles.editModalTitle}>编辑联系人</Text>
+                <TouchableOpacity onPress={() => setEditModalVisible(false)}>
+                  <Ionicons name="close" size={24} color="#909399" />
+                </TouchableOpacity>
+              </View>
+              <View style={styles.editModalBody}>
+                <Text style={styles.editLabel}>姓名</Text>
+                <TextInput
+                  style={styles.editInput}
+                  value={editName}
+                  onChangeText={setEditName}
+                  placeholder="请输入姓名"
+                  placeholderTextColor="#B2BEC3"
+                />
+                <Text style={[styles.editLabel, { marginTop: 16 }]}>号码</Text>
+                <TextInput
+                  style={styles.editInput}
+                  value={editPhone}
+                  onChangeText={setEditPhone}
+                  placeholder="请输入号码"
+                  placeholderTextColor="#B2BEC3"
+                  keyboardType="phone-pad"
+                />
+              </View>
+              <View style={styles.editModalFooter}>
+                <TouchableOpacity
+                  style={styles.editCancelButton}
+                  onPress={() => setEditModalVisible(false)}
+                >
+                  <Text style={styles.editCancelText}>取消</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.editSaveButton, editSaving && { opacity: 0.6 }]}
+                  onPress={handleSaveEdit}
+                  disabled={editSaving}
+                >
+                  <Text style={styles.editSaveText}>
+                    {editSaving ? '保存中...' : '保存'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       )}
     </SafeAreaView>
   );
@@ -915,6 +1029,76 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#909399',
     fontWeight: '600',
+  },
+  editModalCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    width: '85%',
+    maxWidth: 360,
+    overflow: 'hidden',
+  },
+  editModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  editModalTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#303133',
+  },
+  editModalBody: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  editLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#606266',
+    marginBottom: 8,
+  },
+  editInput: {
+    backgroundColor: '#F5F7FA',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: '#303133',
+  },
+  editModalFooter: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    gap: 12,
+  },
+  editCancelButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: '#F5F7FA',
+    alignItems: 'center',
+  },
+  editCancelText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#909399',
+  },
+  editSaveButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: '#4A90D9',
+    alignItems: 'center',
+  },
+  editSaveText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
   cleanupCard: {
     backgroundColor: '#FFFFFF',

@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -125,6 +126,8 @@ export default function ProfileScreen() {
       const result = await response.json();
       if (result.avatarUrl) {
         setAvatarUrl(result.avatarUrl);
+        // Sync avatar URL to AsyncStorage so other screens can access it
+        await AsyncStorage.setItem('@user_avatar', result.avatarUrl);
         Alert.alert('成功', '头像已更新');
       }
     } catch (error) {

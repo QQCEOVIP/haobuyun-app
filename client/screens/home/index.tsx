@@ -9,6 +9,8 @@ import {
   TextInput,
   Platform,
   ActivityIndicator,
+  Image,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
@@ -51,36 +53,36 @@ export default function HomeScreen() {
   const [analysisResult, setAnalysisResult] = useState<any>(null);
   const [customFileName, setCustomFileName] = useState('');
   const [fileNameModalVisible, setFileNameModalVisible] = useState(false);
+  const [userAvatar, setUserAvatar] = useState<string | null>(null);
 
   const userId = (user as any)?.id;
   const userEmail = (user as any)?.email || '';
 
-  // 分页获取所有设备联系人的辅助函数
+  // Load user avatar from AsyncStorage on focus
+  useFocusEffect(
+    useCallback(() => {
+      (async () => {
+        try {
+          const savedAvatar = await AsyncStorage.getItem('@user_avatar');
+          if (savedAvatar) setUserAvatar(savedAvatar);
+        } catch (_e) { /* ignore */ }
+      })();
+    }, [])
+  );
+
+  // 获取所有设备联系人（不分页，一次性获取全部）
   const getAllDeviceContacts = async (fields: Contacts.Field[]) => {
     // 过滤掉 null/undefined 的字段值，防止原生模块崩溃
     const safeFields = fields.filter((f): f is Contacts.Field => f != null && f !== undefined);
     if (safeFields.length === 0) return [];
 
-    let allContacts: Contacts.Contact[] = [];
-    let offset = 0;
-    const pageSize = 1000;
-    while (true) {
-      try {
-        const { data: dc } = await Contacts.getContactsAsync({
-          fields: safeFields,
-          pageSize,
-          pageOffset: offset,
-        });
-        if (!dc || dc.length === 0) break;
-        allContacts = allContacts.concat(dc);
-        offset += dc.length;
-        if (dc.length < pageSize) break;
-      } catch (pageError) {
-        console.error('Failed to fetch contacts page:', pageError);
-        break;
-      }
+    try {
+      const { data } = await Contacts.getAllContactsAsync({ fields: safeFields });
+      return data || [];
+    } catch (error) {
+      console.error('Failed to fetch all contacts:', error);
+      return [];
     }
-    return allContacts;
   };
 
   // 一键检测功能
@@ -439,7 +441,6 @@ export default function HomeScreen() {
           const SAF = StorageAccessFramework ?? (FileSystemLegacy as any).StorageAccessFramework;
           if (SAF && typeof SAF.createFileAsync === 'function') {
             const fileUri = await SAF.createFileAsync(
-              FileSystemLegacy.documentDirectory || '',
               'application/json',
               defaultFileName
             );
@@ -586,7 +587,6 @@ export default function HomeScreen() {
           const SAF = StorageAccessFramework ?? (FileSystemLegacy as any).StorageAccessFramework;
           if (SAF && typeof SAF.createFileAsync === 'function') {
             const fileUri = await SAF.createFileAsync(
-              FileSystemLegacy.documentDirectory || '',
               'text/vcard',
               defaultFileName
             );
@@ -845,6 +845,7 @@ export default function HomeScreen() {
   const [cloudProgress, setCloudProgress] = useState('');
   const [cloudBackupLoading, setCloudBackupLoading] = useState<'uploading' | 'downloading' | null>(null);
   const [restoreSelectVisible, setRestoreSelectVisible] = useState(false);
+  const [backupRecordsVisible, setBackupRecordsVisible] = useState(false);
   const [analysisExpanded, setAnalysisExpanded] = useState<{ added: boolean; deleted: boolean; modified: boolean }>({ added: false, deleted: false, modified: false });
 
   // ========== Helper functions for backup ==========
@@ -856,7 +857,7 @@ export default function HomeScreen() {
     return deviceStr.replace(/[^a-z0-9\-]/gi, '-').substring(0, 20);
   };
 
-  const formatBackupFileName = (): string => {
+  const formatBackupFileName = (count: number = 0): string => {
     const now = new Date();
     const ts = now.getFullYear().toString() + '-' +
       (now.getMonth() + 1).toString().padStart(2, '0') + '-' +
@@ -865,25 +866,41 @@ export default function HomeScreen() {
       now.getMinutes().toString().padStart(2, '0') + '-' +
       now.getSeconds().toString().padStart(2, '0');
     const device = getDeviceModel();
-    return `${ts}_${device}.json`;
+    return `${ts}_${device}_${count}.json`;
   };
 
-  const parseBackupFileName = (fileName: string): { displayTime: string; device: string } => {
-    // Format: 2026-06-28_20-41-46_DeviceModel.json
+  const parseBackupFilename = (fileName: string): { displayTime: string; device: string; count: number } => {
+    // Format: 2026-06-28_20-41-46_DeviceModel_1905.json
     const base = fileName.replace('.json', '');
     const parts = base.split('_');
-    if (parts.length >= 4) {
+    
+    // Try to extract timestamp (first 2 parts: YYYY-MM-DD and HH-MM-SS)
+    let displayTime = fileName;
+    let device = '';
+    let count = 0;
+    
+    if (parts.length >= 2) {
       const datePart = parts[0]; // 2026-06-28
-      const timeParts = parts.slice(1, parts.length - 1).join('_'); // could be "20-41-46" or more if device has underscores
-      // The time is always the second part: HH-MM-SS
-      const timeStr = parts[1]; // 20-41-46
-      const displayTime = datePart.replace(/-/g, '/') + ' ' + timeStr.replace(/-/g, ':');
-      // Device is everything after the time part
-      const device = parts.slice(2).join(' ').replace(/-/g, ' ').trim() || 'Unknown';
-      return { displayTime, device };
+      const timePart = parts[1]; // 20-41-46
+      displayTime = `${datePart} ${timePart.replace(/-/g, ':')}`;
     }
-    // Fallback for old format (YYYYMMDDHHmmss.json)
-    return { displayTime: fileName.replace('.json', ''), device: 'Unknown' };
+    
+    // Last part might be count (if it's a number)
+    const lastPart = parts[parts.length - 1];
+    if (/^\d+$/.test(lastPart)) {
+      count = parseInt(lastPart, 10);
+      // Device is everything between time and count
+      if (parts.length >= 4) {
+        device = parts.slice(2, -1).join('_');
+      }
+    } else {
+      // No count, device is everything after time
+      if (parts.length >= 3) {
+        device = parts.slice(2).join('_');
+      }
+    }
+    
+    return { displayTime, device, count };
   };
 
   const LOCAL_BACKUP_DIR = (FileSystemLegacy.documentDirectory || '') + 'backups/';
@@ -977,7 +994,8 @@ export default function HomeScreen() {
     try {
       const backupData = await generateBackupData();
       const content = JSON.stringify(backupData, null, 2);
-      const fileName = formatBackupFileName();
+      const contactCount = backupData.contacts?.length || 0;
+      const fileName = formatBackupFileName(contactCount);
 
       // Save local backup copy
       setCloudProgress('正在保存本地副本...');
@@ -1038,6 +1056,46 @@ export default function HomeScreen() {
       console.warn('Load cloud backups error:', err?.message);
       setCloudBackups([]);
     }
+  };
+
+  // 删除云端备份
+  const handleDeleteBackup = (fileName: string) => {
+    Alert.alert('确认删除', '确定删除此备份记录？删除后不可恢复。', [
+      { text: '取消', style: 'cancel' },
+      {
+        text: '删除',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            /**
+             * 服务端文件：server/src/routes/backup.ts
+             * 接口：DELETE /api/v1/backup/cloud
+             * Headers: x-user-id: string
+             * Body: { fileName: string }
+             */
+            const response = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/backup/cloud`, {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json', 'x-user-id': userId || '' },
+              body: JSON.stringify({ fileName }),
+            });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.error || '删除失败');
+
+            // Also delete local file if exists
+            try {
+              const backupsDir = `${FileSystemLegacy.documentDirectory}backups/`;
+              await FileSystemLegacy.deleteAsync(`${backupsDir}${fileName}`, { idempotent: true });
+            } catch (_e) { /* ignore local delete error */ }
+
+            Alert.alert('成功', '备份已删除');
+            loadCloudBackups();
+          } catch (err: any) {
+            console.error('Delete backup error:', err);
+            Alert.alert('错误', err?.message || '删除失败');
+          }
+        },
+      },
+    ]);
   };
 
   // 从云端恢复
@@ -1217,9 +1275,13 @@ export default function HomeScreen() {
           {/* 用户头像在左上角 */}
           <View style={styles.avatarContainer}>
             <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {userEmail.split('@')[0]?.[0]?.toUpperCase() || 'U'}
-              </Text>
+              {userAvatar ? (
+                <Image source={{ uri: userAvatar }} style={styles.avatarImage} />
+              ) : (
+                <Text style={styles.avatarText}>
+                  {userEmail.split('@')[0]?.[0]?.toUpperCase() || 'U'}
+                </Text>
+              )}
             </View>
           </View>
 
@@ -1419,7 +1481,7 @@ export default function HomeScreen() {
                 {/* 备份记录 */}
                 <TouchableOpacity
                   style={styles.cloudButtonItem}
-                  onPress={() => { loadCloudBackups(); setCloudBackupTab('records'); }}
+                  onPress={() => { loadCloudBackups(); setBackupRecordsVisible(true); }}
                 >
                   <View style={[styles.cloudButtonIcon, { backgroundColor: 'rgba(230, 162, 60, 0.12)' }]}>
                     <Ionicons name="time" size={24} color="#E6A23C" />
@@ -1441,37 +1503,6 @@ export default function HomeScreen() {
                   <Text style={styles.cloudButtonText}>数据分析</Text>
                 </TouchableOpacity>
               </View>
-
-              {/* 备份记录详情 */}
-              {cloudBackupTab === 'records' && (
-                <View style={styles.recordsContainer}>
-                  {cloudBackups.length > 0 ? (
-                    cloudBackups.map((backup, index) => {
-                      const parsed = parseBackupFileName(backup.name);
-                      return (
-                        <TouchableOpacity
-                          key={index}
-                          style={styles.backupRecord}
-                          onPress={() => handleCloudRestore(backup.name)}
-                          disabled={cloudBackupLoading !== null}
-                        >
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.backupRecordText}>
-                              {parsed.displayTime}
-                            </Text>
-                            <Text style={{ fontSize: 11, color: '#909399', marginTop: 2 }}>
-                              设备：{parsed.device} · {Math.round((backup.metadata?.size || backup.size || 0) / 1024)}KB
-                            </Text>
-                          </View>
-                          <Ionicons name="chevron-forward" size={18} color="#C0C4CC" />
-                        </TouchableOpacity>
-                      );
-                    })
-                  ) : (
-                    <Text style={styles.noBackupText}>暂无云端备份记录</Text>
-                  )}
-                </View>
-              )}
 
               {/* 数据分析详情 */}
               {cloudBackupTab === 'analysis' && analysisResult && (
@@ -1601,7 +1632,7 @@ export default function HomeScreen() {
             <View style={styles.cloudModalBody}>
               {cloudBackups.length > 0 ? (
                 cloudBackups.map((backup, index) => {
-                  const parsed = parseBackupFileName(backup.name);
+                  const parsed = parseBackupFilename(backup.name);
                   return (
                     <TouchableOpacity
                       key={index}
@@ -1624,7 +1655,7 @@ export default function HomeScreen() {
                           {parsed.displayTime}
                         </Text>
                         <Text style={{ fontSize: 12, color: '#909399', marginTop: 4 }}>
-                          设备：{parsed.device}
+                          {parsed.device ? `设备：${parsed.device} — ` : ''}{parsed.count}个号码
                         </Text>
                       </View>
                       <Ionicons name="chevron-forward" size={20} color="#C0C4CC" />
@@ -1651,6 +1682,88 @@ export default function HomeScreen() {
                 <Text style={{ fontSize: 15, color: '#909399', fontWeight: '500' }}>取消</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+      )}
+
+      {/* 备份记录弹窗 */}
+      {backupRecordsVisible && (
+      <Modal
+        visible={true}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setBackupRecordsVisible(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' }}>
+          <View style={{
+            backgroundColor: '#FFFFFF',
+            borderTopLeftRadius: 20,
+            borderTopRightRadius: 20,
+            maxHeight: '70%',
+            paddingBottom: 34,
+          }}>
+            <View style={{
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              paddingHorizontal: 20,
+              paddingTop: 20,
+              paddingBottom: 12,
+              borderBottomWidth: 1,
+              borderBottomColor: '#F0F0F0',
+            }}>
+              <Text style={{ fontSize: 17, fontWeight: '700', color: '#303133' }}>备份记录</Text>
+              <TouchableOpacity onPress={() => setBackupRecordsVisible(false)}>
+                <Ionicons name="close" size={24} color="#909399" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>
+              {cloudBackups.length > 0 ? (
+                <View style={{ padding: 16, gap: 12 }}>
+                  {cloudBackups.map((backup, index) => {
+                    const parsed = parseBackupFilename(backup.name);
+                    return (
+                      <TouchableOpacity
+                        key={index}
+                        style={{
+                          backgroundColor: '#F8FAFC',
+                          borderRadius: 12,
+                          padding: 16,
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                        }}
+                        onLongPress={() => handleDeleteBackup(backup.name)}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 14, fontWeight: '600', color: '#303133' }}>
+                            {parsed.displayTime}
+                          </Text>
+                          <Text style={{ fontSize: 12, color: '#909399', marginTop: 4 }}>
+                            {parsed.device ? `设备：${parsed.device} — ` : ''}{parsed.count}个号码
+                            {'  '}({Math.round((backup.metadata?.size || 0) / 1024)}KB)
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          style={{ padding: 8 }}
+                          onPress={() => handleDeleteBackup(backup.name)}
+                        >
+                          <Ionicons name="trash-outline" size={20} color="#F56C6C" />
+                        </TouchableOpacity>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ) : (
+                <View style={{ padding: 40, alignItems: 'center' }}>
+                  <Ionicons name="cloud-outline" size={48} color="#DCDFE6" />
+                  <Text style={{ fontSize: 14, color: '#909399', marginTop: 12 }}>暂无云端备份记录</Text>
+                  <Text style={{ fontSize: 12, color: '#C0C4CC', marginTop: 4 }}>长按记录可删除</Text>
+                </View>
+              )}
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -1743,6 +1856,11 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  avatarImage: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
   },
   gaugeContainer: {
     position: 'relative',
