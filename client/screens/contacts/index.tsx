@@ -60,6 +60,7 @@ export default function ContactsScreen() {
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [editSaving, setEditSaving] = useState(false);
+  const [editAvatarUri, setEditAvatarUri] = useState<string | null>(null);
 
   const userId = (user as any)?.id;
 
@@ -112,7 +113,24 @@ export default function ContactsScreen() {
     setEditingContact(contact);
     setEditName(contact.name);
     setEditPhone(contact.phone);
+    setEditAvatarUri(contactAvatars[contact.phone] || null);
     setEditModalVisible(true);
+  };
+
+  // 选择编辑头像
+  const handlePickEditAvatar = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        quality: 0.8,
+      });
+      if (!result.canceled && result.assets[0]) {
+        setEditAvatarUri(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Pick edit avatar error:', error);
+    }
   };
 
   // 保存编辑
@@ -140,6 +158,12 @@ export default function ContactsScreen() {
           ? { ...c, name: editName.trim(), phone: editPhone.trim() }
           : c
       ));
+      // Save avatar if changed
+      if (editAvatarUri !== null) {
+        const newAvatars = { ...contactAvatars, [editingContact.phone]: editAvatarUri };
+        setContactAvatars(newAvatars);
+        await AsyncStorage.setItem('@contact_avatars', JSON.stringify(newAvatars));
+      }
       Alert.alert('成功', '联系人已更新');
       setEditModalVisible(false);
       setEditingContact(null);
@@ -472,6 +496,12 @@ export default function ContactsScreen() {
             </TouchableOpacity>
           )}
         </View>
+        <TouchableOpacity
+          style={styles.editButton}
+          onPress={() => handleOpenEdit(item)}
+        >
+          <Ionicons name="create-outline" size={18} color="#4A90D9" />
+        </TouchableOpacity>
       </TouchableOpacity>
     );
   };
@@ -671,13 +701,6 @@ export default function ContactsScreen() {
                   <Text style={[styles.statusMenuOptionText, { color: '#E6A23C' }]}>疑似停机</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.statusMenuOption, { backgroundColor: '#E8F0FE' }]}
-                  onPress={() => handleOpenEdit(statusMenuContact)}
-                >
-                  <Ionicons name="create-outline" size={20} color="#4A90D9" />
-                  <Text style={[styles.statusMenuOptionText, { color: '#4A90D9' }]}>编辑</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
                   style={styles.statusMenuCancel}
                   onPress={() => setStatusMenuContact(null)}
                 >
@@ -756,6 +779,25 @@ export default function ContactsScreen() {
                 </TouchableOpacity>
               </View>
               <View style={styles.editModalBody}>
+                {/* 头像选择 */}
+                <View style={styles.editAvatarSection}>
+                  <TouchableOpacity
+                    style={styles.editAvatarContainer}
+                    onPress={handlePickEditAvatar}
+                  >
+                    {editAvatarUri ? (
+                      <Image source={{ uri: editAvatarUri }} style={styles.editAvatarImage} />
+                    ) : (
+                      <View style={styles.editAvatarPlaceholder}>
+                        <Ionicons name="camera" size={24} color="#B2BEC3" />
+                      </View>
+                    )}
+                    <View style={styles.editAvatarEditIcon}>
+                      <Ionicons name="create" size={12} color="#FFF" />
+                    </View>
+                  </TouchableOpacity>
+                  <Text style={styles.editAvatarHint}>点击更换头像</Text>
+                </View>
                 <Text style={styles.editLabel}>姓名</Text>
                 <TextInput
                   style={styles.editInput}
@@ -928,6 +970,59 @@ const styles = StyleSheet.create({
   },
   badgeContainer: {
     alignItems: 'flex-end',
+  },
+  editButton: {
+    position: 'absolute',
+    right: 12,
+    top: 12,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(74, 144, 217, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  editAvatarSection: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  editAvatarContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  editAvatarImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+  },
+  editAvatarPlaceholder: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#F0F0F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  editAvatarEditIcon: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#4A90D9',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFF',
+  },
+  editAvatarHint: {
+    fontSize: 12,
+    color: '#909399',
+    marginTop: 8,
   },
   badgeGroup: {
     flexDirection: 'row',

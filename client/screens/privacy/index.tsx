@@ -45,6 +45,7 @@ export default function PrivacyScreen() {
 
         <Text style={styles.sectionTitle}>八、联系我们</Text>
         <Text style={styles.paragraph}>如您对本隐私政策有任何疑问、意见或建议，可通过应用内反馈功能与我们联系。</Text>
+        <Text style={styles.paragraph}>联系邮箱：vip2012@vip.qq.com</Text>
       </ScrollView>
     </SafeAreaView>
   );

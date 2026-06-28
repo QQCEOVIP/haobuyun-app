@@ -44,16 +44,25 @@ export default function FeedbackScreen() {
     setSubmitting(true);
     try {
       const userId = (user as any)?.id || 'anonymous';
-      const { error } = await supabase.from('feedback').insert({
-        user_id: userId,
-        category,
-        content: content.trim(),
-        contact: contact.trim() || null,
+      /**
+       * 服务端文件：server/src/routes/feedback.ts
+       * 接口：POST /api/v1/feedback
+       * Body: { category: string, content: string, contact?: string, userId: string }
+       */
+      const response = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/feedback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          category,
+          content: content.trim(),
+          contact: contact.trim() || null,
+          userId,
+        }),
       });
 
-      if (error) {
-        // Table might not exist yet, log but show success
-        console.warn('Feedback insert error:', error.message);
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || '提交失败');
       }
 
       Alert.alert('提交成功', '感谢您的反馈，我们会认真处理！', [
@@ -61,7 +70,7 @@ export default function FeedbackScreen() {
       ]);
     } catch (err: any) {
       console.error('Feedback submit error:', err);
-      Alert.alert('提交失败', '网络异常，请稍后重试');
+      Alert.alert('提交失败', err?.message || '网络异常，请稍后重试');
     } finally {
       setSubmitting(false);
     }

@@ -77,8 +77,10 @@ export default function HomeScreen() {
     if (safeFields.length === 0) return [];
 
     try {
-      const { data } = await Contacts.getAllContactsAsync({ fields: safeFields });
-      return data || [];
+      const result = await Contacts.getAllContactsAsync({ fields: safeFields });
+      // Handle both API formats: { data } or { contacts } or direct array
+      if (Array.isArray(result)) return result;
+      return (result as any).data || (result as any).contacts || [];
     } catch (error) {
       console.error('Failed to fetch all contacts:', error);
       return [];

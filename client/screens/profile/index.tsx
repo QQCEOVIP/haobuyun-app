@@ -58,6 +58,13 @@ export default function ProfileScreen() {
   const loadProfile = async () => {
     if (!user?.id) return;
     try {
+      // First check AsyncStorage for cached avatar
+      const cachedAvatar = await AsyncStorage.getItem('@user_avatar');
+      if (cachedAvatar) {
+        setAvatarUrl(cachedAvatar);
+      }
+
+      // Then try to fetch from backend
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (user.id) headers['x-user-id'] = user.id;
       const response = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/profile`, { headers });
@@ -65,6 +72,8 @@ export default function ProfileScreen() {
         const result = await response.json();
         if (result.profile?.avatar_url) {
           setAvatarUrl(result.profile.avatar_url);
+          // Cache to AsyncStorage
+          await AsyncStorage.setItem('@user_avatar', result.profile.avatar_url);
         }
       }
     } catch (error) {
