@@ -761,6 +761,7 @@ export default function HomeScreen() {
   const [cloudBackups, setCloudBackups] = useState<any[]>([]);
   const [cloudLoading, setCloudLoading] = useState(false);
   const [cloudProgress, setCloudProgress] = useState('');
+  const [cloudBackupLoading, setCloudBackupLoading] = useState<'uploading' | 'downloading' | null>(null);
 
   // 生成备份数据（复用现有逻辑）
   const generateBackupData = async () => {
@@ -816,6 +817,7 @@ export default function HomeScreen() {
       return;
     }
     setCloudLoading(true);
+    setCloudBackupLoading('uploading');
     setCloudProgress('正在生成备份数据...');
     try {
       const backupData = await generateBackupData();
@@ -842,6 +844,7 @@ export default function HomeScreen() {
       }
     } finally {
       setCloudLoading(false);
+      setCloudBackupLoading(null);
       setCloudProgress('');
     }
   };
@@ -876,6 +879,7 @@ export default function HomeScreen() {
         style: 'destructive',
         onPress: async () => {
           setCloudLoading(true);
+          setCloudBackupLoading('downloading');
           setCloudProgress('正在下载备份...');
           try {
             const { data, error } = await supabase.storage
@@ -892,6 +896,7 @@ export default function HomeScreen() {
             if (!backupData.contacts || backupData.contacts.length === 0) {
               Alert.alert('提示', '备份文件中没有联系人数据');
               setCloudLoading(false);
+              setCloudBackupLoading(null);
               return;
             }
 
@@ -919,6 +924,7 @@ export default function HomeScreen() {
             Alert.alert('恢复失败', err?.message || '请重试');
           } finally {
             setCloudLoading(false);
+            setCloudBackupLoading(null);
             setCloudProgress('');
           }
         },
