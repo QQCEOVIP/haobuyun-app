@@ -93,16 +93,28 @@ export default function CleanupScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
+              // Soft delete: set is_deleted = true so contacts appear in recycle bin
               const { error } = await supabase
                 .from('contacts')
-                .delete()
+                .update({ is_deleted: true, deleted_at: new Date().toISOString() })
                 .in('id', Array.from(selectedIds));
 
               if (error) throw error;
 
+              // Also record to backend trash API for recycle bin
+              if (user?.id) {
+                try {
+                  await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/contacts/trash`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'x-user-id': user.id },
+                    body: JSON.stringify({ contactIds: Array.from(selectedIds) }),
+                  });
+                } catch { /* ignore */ }
+              }
+
               setContacts(prev => prev.filter(c => !selectedIds.has(c.id)));
               setSelectedIds(new Set());
-              Alert.alert('删除成功', `已删除 ${selectedIds.size} 位联系人`);
+              Alert.alert('删除成功', `已删除 ${selectedIds.size} 位联系人，可在回收站恢复`);
             } catch (error) {
               Alert.alert('删除失败', '请重试');
             }
