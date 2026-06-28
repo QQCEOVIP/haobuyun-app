@@ -11,6 +11,7 @@ import {
   TouchableWithoutFeedback,
   Alert,
   Image,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
@@ -60,7 +61,7 @@ export default function ContactsScreen() {
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [editName, setEditName] = useState('');
-  const [editPhone, setEditPhone] = useState('');
+  const [editPhones, setEditPhones] = useState<string[]>([]);
   const [editSaving, setEditSaving] = useState(false);
   const [editAvatarUri, setEditAvatarUri] = useState<string | null>(null);
 
@@ -114,7 +115,7 @@ export default function ContactsScreen() {
     setStatusMenuContact(null);
     setEditingContact(contact);
     setEditName(contact.name);
-    setEditPhone(contact.phone);
+    setEditPhones(contact.phoneNumbers.length > 0 ? [...contact.phoneNumbers] : [contact.phone]);
     setEditAvatarUri(contactAvatars[contact.phone] || null);
     setEditModalVisible(true);
   };
@@ -142,21 +143,27 @@ export default function ContactsScreen() {
       Alert.alert('提示', '姓名不能为空');
       return;
     }
-    if (!editPhone.trim()) {
-      Alert.alert('提示', '号码不能为空');
+    // Filter out empty phone numbers
+    const validPhones = editPhones.map(p => p.trim()).filter(p => p.length > 0);
+    if (validPhones.length === 0) {
+      Alert.alert('提示', '至少需要一个号码');
       return;
     }
     setEditSaving(true);
     try {
-      // Build phone numbers array - preserve all existing numbers, update the edited one
-      const existingPhones = editingContact.phoneNumbers || [{ number: editingContact.phone, label: 'mobile' }];
-      const updatedPhones = existingPhones.map((p, idx) => {
-        // Update the first phone number (or the one being edited)
-        if (idx === 0 || p.number === editingContact.phone) {
-          return { number: editPhone.trim(), label: p.label || 'mobile' };
-        }
-        return { number: p.number, label: p.label || 'mobile' };
-      });
+      // Request write contacts permission on Android before saving
+      const { status } = await Contacts.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('权限不足', '需要通讯录写入权限才能编辑联系人');
+        setEditSaving(false);
+        return;
+      }
+
+      // Build phone numbers array from the editable list
+      const updatedPhones = validPhones.map(number => ({
+        number,
+        label: 'mobile' as const,
+      }));
 
       // Update device contact - cross-platform approach
       // First get the existing contact to preserve platform-specific fields
@@ -168,15 +175,12 @@ export default function ContactsScreen() {
       // On iOS, use firstName/lastName; on Android, use name
       if (existingContact) {
         if ('firstName' in existingContact) {
-          // iOS format
           updateData.firstName = editName.trim();
           updateData.lastName = '';
         } else {
-          // Android format
           updateData.name = editName.trim();
         }
       } else {
-        // Fallback: try both
         updateData.name = editName.trim();
         updateData.firstName = editName.trim();
         updateData.lastName = '';
@@ -184,13 +188,14 @@ export default function ContactsScreen() {
       await Contacts.updateContactAsync(updateData);
 
       // Update local state
+      const newPrimaryPhone = validPhones[0];
       setContacts(prev => prev.map(c =>
         c.deviceContactId === editingContact.deviceContactId
           ? {
               ...c,
               name: editName.trim(),
-              phone: editPhone.trim(),
-              phoneNumbers: updatedPhones.map(p => ({ number: p.number, label: p.label || '' })),
+              phone: newPrimaryPhone,
+              phoneNumbers: validPhones,
             }
           : c
       ));
@@ -206,7 +211,8 @@ export default function ContactsScreen() {
       setEditingContact(null);
     } catch (error) {
       console.error('Update contact error:', error);
-      Alert.alert('错误', '更新失败，请重试');
+      const errMsg = error instanceof Error ? error.message : '未知错误';
+      Alert.alert('错误', `更新失败：${errMsg}`);
     } finally {
       setEditSaving(false);
     }
@@ -831,7 +837,7 @@ export default function ContactsScreen() {
                   <Ionicons name="close" size={24} color="#909399" />
                 </TouchableOpacity>
               </View>
-              <View style={styles.editModalBody}>
+              <ScrollView style={styles.editModalBody} showsVerticalScrollIndicator={false}>
                 {/* 头像选择 */}
                 <View style={styles.editAvatarSection}>
                   <TouchableOpacity
@@ -860,15 +866,41 @@ export default function ContactsScreen() {
                   placeholderTextColor="#B2BEC3"
                 />
                 <Text style={[styles.editLabel, { marginTop: 16 }]}>号码</Text>
-                <TextInput
-                  style={styles.editInput}
-                  value={editPhone}
-                  onChangeText={setEditPhone}
-                  placeholder="请输入号码"
-                  placeholderTextColor="#B2BEC3"
-                  keyboardType="phone-pad"
-                />
-              </View>
+                {editPhones.map((phone, index) => (
+                  <View key={index} style={styles.editPhoneRow}>
+                    <TextInput
+                      style={[styles.editInput, { flex: 1 }]}
+                      value={phone}
+                      onChangeText={(text) => {
+                        const updated = [...editPhones];
+                        updated[index] = text;
+                        setEditPhones(updated);
+                      }}
+                      placeholder="请输入号码"
+                      placeholderTextColor="#B2BEC3"
+                      keyboardType="phone-pad"
+                    />
+                    {editPhones.length > 1 && (
+                      <TouchableOpacity
+                        style={styles.editPhoneDeleteBtn}
+                        onPress={() => {
+                          const updated = editPhones.filter((_, i) => i !== index);
+                          setEditPhones(updated);
+                        }}
+                      >
+                        <Ionicons name="close-circle" size={22} color="#F56C6C" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                ))}
+                <TouchableOpacity
+                  style={styles.editPhoneAddBtn}
+                  onPress={() => setEditPhones([...editPhones, ''])}
+                >
+                  <Ionicons name="add-circle-outline" size={20} color="#4A90D9" />
+                  <Text style={styles.editPhoneAddText}>添加号码</Text>
+                </TouchableOpacity>
+              </ScrollView>
               <View style={styles.editModalFooter}>
                 <TouchableOpacity
                   style={styles.editCancelButton}
@@ -1212,6 +1244,7 @@ const styles = StyleSheet.create({
   editModalBody: {
     paddingHorizontal: 20,
     paddingVertical: 16,
+    maxHeight: 400,
   },
   editLabel: {
     fontSize: 13,
@@ -1256,6 +1289,30 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  editPhoneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  editPhoneDeleteBtn: {
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  editPhoneAddBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    marginTop: 4,
+  },
+  editPhoneAddText: {
+    fontSize: 14,
+    color: '#4A90D9',
+    fontWeight: '500',
   },
   cleanupCard: {
     backgroundColor: '#FFFFFF',
