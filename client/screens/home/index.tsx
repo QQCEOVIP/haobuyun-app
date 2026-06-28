@@ -18,8 +18,7 @@ import { supabase } from '@/storage/supabase';
 import * as Contacts from 'expo-contacts';
 import * as FileSystemLegacy from 'expo-file-system/legacy';
 
-// StorageAccessFramework for custom path on Android
-const SAF = (FileSystemLegacy as any).StorageAccessFramework;
+
 import * as DocumentPicker from 'expo-document-picker';
 import * as Sharing from 'expo-sharing';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -437,23 +436,7 @@ export default function HomeScreen() {
       const fileUri = FileSystemLegacyLegacy.cacheDirectory + defaultFileName;
       await FileSystemLegacyLegacy.writeAsStringAsync(fileUri, backupContent, { encoding: FileSystemLegacyLegacy.EncodingType.UTF8 });
 
-      // Try SAF (Android) for custom path
-      if (Platform.OS === 'android' && SAF) {
-        try {
-          const safUri = await SAF.createFileAsync(
-            'content://com.android.externalstorage.documents/tree/primary%3ADocuments',
-            'application/json',
-            defaultFileName
-          );
-          await SAF.writeAsStringAsync(safUri, backupContent, { encoding: FileSystemLegacyLegacy.EncodingType.UTF8 });
-          Alert.alert('导出成功', `已备份 ${contactCount} 个联系人（含标签状态）\n已保存到自定义位置\n仅号簿云可恢复此格式`);
-          return;
-        } catch (_safError) {
-          // SAF failed, fall through to Sharing API
-        }
-      }
-
-      // Try Sharing API
+      // Use Sharing API - lets user choose save location via system share sheet
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(fileUri, {
           mimeType: 'application/json',
@@ -579,23 +562,6 @@ export default function HomeScreen() {
       const contactCount = vcardLines.filter(l => l === 'BEGIN:VCARD').length;
       (global as any).__pendingBackupVcard = vcardContent;
       (global as any).__pendingBackupCount = contactCount;
-
-      // Try SAF (Android) for custom path
-      if (Platform.OS === 'android' && SAF) {
-        try {
-          const safUri = await SAF.createFileAsync(
-            'content://com.android.externalstorage.documents/tree/primary%3ADocuments',
-            'text/vcard',
-            defaultFileName
-          );
-          await SAF.writeAsStringAsync(safUri, vcardContent, { encoding: FileSystemLegacy.EncodingType.UTF8 });
-          Alert.alert('备份成功', `已备份 ${contactCount} 个联系人\n已保存到自定义位置`);
-          setBackupLoading(false);
-          return;
-        } catch (_safError) {
-          // SAF failed, fall through to file name modal
-        }
-      }
 
       // 弹出文件名输入框
       setCustomFileName(defaultFileName);
@@ -962,7 +928,7 @@ export default function HomeScreen() {
 
   // 打开云端备份弹窗时加载列表
   const openCloudBackupModal = () => {
-    openCloudBackupModal();
+    setCloudBackupVisible(true);
     setCloudBackupTab('backup');
     loadCloudBackups();
   };

@@ -52,7 +52,7 @@ router.post('/avatar', upload.single('avatar'), async (req, res) => {
       user_metadata: { avatar_url: avatarUrl, avatar_key: fileKey },
     });
 
-    res.json({ success: true, avatar_url: avatarUrl, avatar_key: fileKey });
+    res.json({ success: true, avatarUrl: avatarUrl, avatar_key: fileKey });
   } catch (error) {
     console.error('Upload avatar error:', error);
     res.status(500).json({ error: 'Upload failed' });
