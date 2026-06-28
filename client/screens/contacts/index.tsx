@@ -947,6 +947,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 14,
+    paddingRight: 50, // 为编辑按钮留出空间
     marginBottom: 10,
     shadowColor: '#D1D9E6',
     shadowOffset: { width: 0, height: 1 },
@@ -1003,11 +1004,13 @@ const styles = StyleSheet.create({
   },
   badgeContainer: {
     alignItems: 'flex-end',
+    marginRight: 8, // 与编辑按钮保持间距
   },
   editButton: {
     position: 'absolute',
     right: 12,
-    top: 12,
+    top: '50%',
+    marginTop: -16, // 垂直居中 (32/2 = 16)
     width: 32,
     height: 32,
     borderRadius: 16,

@@ -45,12 +45,12 @@ router.get("/balance", async (req: any, res: any) => {
       where: eq(userPoints.user_id, userId)
     });
 
-    // 如果没有记录，创建初始记录
+    // 如果没有记录，创建初始记录（新用户赠送10积分）
     if (!points) {
       const newPoints = {
         user_id: userId,
-        balance: 0,
-        total_earned: 0,
+        balance: 10,
+        total_earned: 10,
         total_spent: 0,
         credit_score: 100
       };

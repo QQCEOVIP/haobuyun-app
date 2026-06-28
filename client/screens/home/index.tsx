@@ -1214,11 +1214,26 @@ export default function HomeScreen() {
       // 1. 分页获取设备联系人数量（轻量：仅 PhoneNumbers）
       let deviceContactsCount = 0;
       const { status } = await Contacts.requestPermissionsAsync();
+      console.log('[Home] Contacts permission status:', status);
+      
       if (status === 'granted') {
         const allDevice = await getAllDeviceContacts([Contacts.Fields.PhoneNumbers]);
-        deviceContactsCount = allDevice.filter(
-          c => c.phoneNumbers && c.phoneNumbers.length > 0
-        ).length;
+        console.log('[Home] Total device contacts fetched:', allDevice.length);
+        
+        // 统计有电话号码的联系人
+        const contactsWithPhones = allDevice.filter(c => {
+          const hasPhones = c.phoneNumbers && c.phoneNumbers.length > 0;
+          return hasPhones;
+        });
+        deviceContactsCount = contactsWithPhones.length;
+        console.log('[Home] Contacts with phone numbers:', deviceContactsCount);
+        
+        // 调试：打印前3个联系人的结构
+        if (allDevice.length > 0) {
+          console.log('[Home] Sample contact structure:', JSON.stringify(allDevice[0], null, 2));
+        }
+      } else {
+        console.log('[Home] Contacts permission not granted');
       }
 
       // 2. 从 AsyncStorage 读取状态分布（真正的标签数据源）
