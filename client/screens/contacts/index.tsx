@@ -427,12 +427,8 @@ export default function ContactsScreen() {
                 style={styles.pillButton}
                 onPress={() => router.push('/recycle-bin')}
               >
-                <View style={styles.pillLeft}>
-                  <Text style={styles.pillText}>后悔</Text>
-                </View>
-                <View style={styles.pillRight}>
-                  <Text style={styles.pillText}>药</Text>
-                </View>
+                <View style={styles.pillLeft} />
+                <View style={styles.pillRight} />
               </TouchableOpacity>
             </View>
             <View style={styles.cleanupStats}>
@@ -853,23 +849,18 @@ const styles = StyleSheet.create({
   },
   pillButton: {
     flexDirection: 'row',
-    borderRadius: 999,
+    width: 48,
+    height: 24,
+    borderRadius: 12,
     overflow: 'hidden',
   },
   pillLeft: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    flex: 1,
     backgroundColor: '#FBBF24',
   },
   pillRight: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    flex: 1,
     backgroundColor: '#EF4444',
-  },
-  pillText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FFFFFF',
   },
   cleanupStats: {
     flexDirection: 'row',
