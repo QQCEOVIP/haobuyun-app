@@ -211,16 +211,6 @@ export default function DuplicatesScreen() {
             )}
           </View>
         ))}
-
-        <View style={styles.groupActions}>
-          <TouchableOpacity
-            style={styles.keepButton}
-            onPress={() => handleKeepGroup(item.phone)}
-          >
-            <Ionicons name="checkmark-circle" size={16} color="#67C23A" />
-            <Text style={styles.keepButtonText}>标记正常</Text>
-          </TouchableOpacity>
-        </View>
       </View>
     );
   };

@@ -21,6 +21,7 @@ import * as Contacts from 'expo-contacts';
 import { Crypto } from 'expo-crypto';
 import { CONSENSUS, type NumberStatus } from '@/constants/numberStatus';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import ContactAvatar from '@/components/ContactAvatar';
 
 interface Contact {
   id: string;
@@ -53,7 +54,7 @@ export default function ContactsScreen() {
 
   const userId = (user as any)?.id;
 
-  const loadContacts = async () => {
+  const loadContacts = useCallback(async () => {
     if (!userId) return;
 
     try {
@@ -138,7 +139,7 @@ export default function ContactsScreen() {
     } catch (error) {
       console.error('Failed to load contacts:', error);
     }
-  };
+  }, [userId]);
 
   const filterContacts = (contactList: Contact[], search: string, tab: string) => {
     let filtered = contactList;
@@ -282,10 +283,6 @@ export default function ContactsScreen() {
   };
 
   useEffect(() => {
-    loadContacts();
-  }, [userId]);
-
-  useEffect(() => {
     filterContacts(contacts, searchText, activeTab);
   }, [searchText, activeTab, contacts]);
 
@@ -295,13 +292,11 @@ export default function ContactsScreen() {
     }
   }, [contacts]);
 
-  // Tab切换/返回时刷新清理统计
+  // Tab切换/返回时刷新联系人列表和清理统计
   useFocusEffect(
     useCallback(() => {
-      if (contacts.length > 0) {
-        fetchCleanupStats();
-      }
-    }, [contacts.length])
+      loadContacts();
+    }, [loadContacts])
   );
 
   const onRefresh = async () => {
@@ -330,9 +325,7 @@ export default function ContactsScreen() {
 
     return (
       <TouchableOpacity style={styles.contactCard}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{item.name[0]?.toUpperCase() || '?'}</Text>
-        </View>
+        <ContactAvatar name={item.name} size={44} />
         <View style={styles.contactInfo}>
           <Text style={styles.contactName}>{item.name}</Text>
           <Text style={styles.contactPhone}>{item.phone}</Text>
@@ -434,7 +427,7 @@ export default function ContactsScreen() {
                 style={styles.cleanupButton}
                 onPress={() => router.push('/recycle-bin')}
               >
-                <Ionicons name="medical" size={16} color="#FA8C16" style={{ marginRight: 4 }} />
+                <Ionicons name="medical" size={14} color="#FA8C16" style={{ marginRight: 4 }} />
                 <Text style={styles.cleanupButtonText}>后悔药</Text>
               </TouchableOpacity>
             </View>
@@ -840,15 +833,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cleanupButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: 'rgba(74, 144, 217, 0.1)',
-    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    backgroundColor: '#FFF7ED',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#FED7AA',
   },
   cleanupButtonText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
-    color: '#4A90D9',
+    color: '#EA580C',
   },
   cleanupStats: {
     flexDirection: 'row',

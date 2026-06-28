@@ -39,8 +39,10 @@ export default function StoppedContactsScreen() {
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  const label = STATUS_LABELS[status as string] || '失效';
-  const color = STATUS_COLORS[status as string] || '#6B7280';
+  // Safely resolve status - default to 'stopped' if invalid
+  const validStatus = (status === 'stopped' || status === 'suspected_stopped') ? status : 'stopped';
+  const label = STATUS_LABELS[validStatus] || '失效';
+  const color = STATUS_COLORS[validStatus] || '#6B7280';
 
   const loadContacts = useCallback(async () => {
     setLoading(true);
@@ -55,20 +57,26 @@ export default function StoppedContactsScreen() {
       const fields: Contacts.Field[] = [
         Contacts.Fields.PhoneNumbers,
         Contacts.Fields.Name,
-      ];
+      ].filter((f): f is Contacts.Field => f != null && f !== undefined);
+
       let allContacts: Contacts.Contact[] = [];
       let offset = 0;
       const pageSize = 1000;
       while (true) {
-        const { data } = await Contacts.getContactsAsync({
-          fields,
-          pageSize,
-          pageOffset: offset,
-        });
-        if (!data || data.length === 0) break;
-        allContacts = allContacts.concat(data);
-        offset += data.length;
-        if (data.length < pageSize) break;
+        try {
+          const { data } = await Contacts.getContactsAsync({
+            fields,
+            pageSize,
+            pageOffset: offset,
+          });
+          if (!data || data.length === 0) break;
+          allContacts = allContacts.concat(data);
+          offset += data.length;
+          if (data.length < pageSize) break;
+        } catch (pageError) {
+          console.error('Failed to fetch contacts page:', pageError);
+          break;
+        }
       }
 
       const result: StoppedContact[] = [];
@@ -77,14 +85,18 @@ export default function StoppedContactsScreen() {
         const phone = contact.phoneNumbers[0].number || '';
         if (!phone) continue;
 
-        const storedLabel = await AsyncStorage.getItem(`@contact_status_${phone}`);
-        if (storedLabel === status) {
-          result.push({
-            id: contact.id || phone,
-            name: contact.name || '未知联系人',
-            phone,
-            label: storedLabel,
-          });
+        try {
+          const storedLabel = await AsyncStorage.getItem(`@contact_status_${phone}`);
+          if (storedLabel === validStatus) {
+            result.push({
+              id: contact.id || phone,
+              name: contact.name || '未知联系人',
+              phone,
+              label: storedLabel,
+            });
+          }
+        } catch (storageError) {
+          console.warn('AsyncStorage read failed for', phone, storageError);
         }
       }
 
@@ -94,7 +106,7 @@ export default function StoppedContactsScreen() {
     } finally {
       setLoading(false);
     }
-  }, [status]);
+  }, [validStatus]);
 
   useFocusEffect(
     useCallback(() => {
@@ -136,11 +148,22 @@ export default function StoppedContactsScreen() {
           onPress: async () => {
             try {
               const toDelete = contacts.filter(c => selectedIds.has(c.id));
+              let successCount = 0;
               for (const contact of toDelete) {
-                await Contacts.removeContactAsync(contact.id);
-                await AsyncStorage.removeItem(`@contact_status_${contact.phone}`);
+                try {
+                  // Only attempt device contact removal if we have a valid device contact ID
+                  if (contact.id && !contact.id.startsWith('@')) {
+                    await Contacts.removeContactAsync(contact.id).catch(() => {
+                      // Contact might not exist in device, skip silently
+                    });
+                  }
+                  await AsyncStorage.removeItem(`@contact_status_${contact.phone}`);
+                  successCount++;
+                } catch (itemError) {
+                  console.warn('Failed to delete contact:', contact.name, itemError);
+                }
               }
-              Alert.alert('完成', `已删除 ${toDelete.length} 个${label}号码`);
+              Alert.alert('完成', `已删除 ${successCount} 个${label}号码`);
               setSelectedIds(new Set());
               loadContacts();
             } catch (error) {
