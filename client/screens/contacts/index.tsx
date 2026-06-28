@@ -29,6 +29,7 @@ interface Contact {
   id: string;
   name: string;
   phone: string;
+  phoneNumbers: string[];
   status: string | null;
   lastContactDate?: string;
 }
@@ -146,18 +147,35 @@ export default function ContactsScreen() {
     }
     setEditSaving(true);
     try {
-      // Update device contact
+      // Build phone numbers array - preserve all existing numbers, update the edited one
+      const existingPhones = editingContact.phoneNumbers || [{ number: editingContact.phone, label: 'mobile' }];
+      const updatedPhones = existingPhones.map((p, idx) => {
+        // Update the first phone number (or the one being edited)
+        if (idx === 0 || p.number === editingContact.phone) {
+          return { number: editPhone.trim(), label: p.label || 'mobile' };
+        }
+        return { number: p.number, label: p.label || 'mobile' };
+      });
+
+      // Update device contact - use 'name' field instead of 'firstName'
       await Contacts.updateContactAsync({
         id: editingContact.deviceContactId,
-        firstName: editName.trim(),
-        phoneNumbers: [{ number: editPhone.trim(), label: 'mobile' }],
+        name: editName.trim(),
+        phoneNumbers: updatedPhones,
       });
+
       // Update local state
       setContacts(prev => prev.map(c =>
         c.deviceContactId === editingContact.deviceContactId
-          ? { ...c, name: editName.trim(), phone: editPhone.trim() }
+          ? {
+              ...c,
+              name: editName.trim(),
+              phone: editPhone.trim(),
+              phoneNumbers: updatedPhones.map(p => ({ number: p.number, label: p.label || '' })),
+            }
           : c
       ));
+
       // Save avatar if changed
       if (editAvatarUri !== null) {
         const newAvatars = { ...contactAvatars, [editingContact.phone]: editAvatarUri };
@@ -221,12 +239,14 @@ export default function ContactsScreen() {
         const mappedContacts: Contact[] = allDeviceContacts
           .filter(c => c.phoneNumbers && c.phoneNumbers.length > 0)
           .map(c => {
-            const phone = c.phoneNumbers![0].number || '';
+            const allPhones = c.phoneNumbers!.map(p => p.number || '').filter(n => n);
+            const phone = allPhones[0] || '';
             const localData = allLocalContacts?.find((lc: any) => lc.phone === phone);
             return {
               id: c.id,
               name: c.name || '未知联系人',
               phone: phone,
+              phoneNumbers: allPhones,
               status: localData?.status || null,
               lastContactDate: localData?.last_contact_date,
             };
@@ -459,7 +479,15 @@ export default function ContactsScreen() {
         )}
         <View style={styles.contactInfo}>
           <Text style={styles.contactName}>{item.name}</Text>
-          <Text style={styles.contactPhone}>{item.phone}</Text>
+          {item.phoneNumbers && item.phoneNumbers.length > 1 ? (
+            item.phoneNumbers.map((phone, index) => (
+              <Text key={index} style={[styles.contactPhone, index > 0 && styles.contactPhoneSecondary]}>
+                {phone}
+              </Text>
+            ))
+          ) : (
+            <Text style={styles.contactPhone}>{item.phone}</Text>
+          )}
         </View>
         <View style={styles.badgeContainer}>
           {communityStyle ? (
@@ -958,6 +986,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#909399',
     marginTop: 2,
+  },
+  contactPhoneSecondary: {
+    fontSize: 13,
+    color: '#B0B3B8',
+    marginTop: 1,
   },
   statusBadge: {
     paddingHorizontal: 10,

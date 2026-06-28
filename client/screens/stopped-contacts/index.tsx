@@ -154,19 +154,20 @@ export default function StoppedContactsScreen() {
               const headers: Record<string, string> = { 'Content-Type': 'application/json' };
               if (user?.id) headers['x-user-id'] = user.id;
 
+              // Batch soft delete via backend API
+              if (user?.id && toDelete.length > 0) {
+                const contactIds = toDelete.map(c => c.id).filter(id => id && !id.startsWith('@'));
+                if (contactIds.length > 0) {
+                  await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/contacts/batch-delete`, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({ contactIds }),
+                  }).catch(() => { /* Silently fail if backend is unavailable */ });
+                }
+              }
+
               for (const contact of toDelete) {
                 try {
-                  // Record to backend recycle bin
-                  if (user?.id) {
-                    await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/contacts/trash`, {
-                      method: 'POST',
-                      headers,
-                      body: JSON.stringify({
-                        name: contact.name,
-                        phone: contact.phone,
-                      }),
-                    }).catch(() => { /* Silently fail if backend is unavailable */ });
-                  }
                   // Only attempt device contact removal if we have a valid device contact ID
                   if (contact.id && !contact.id.startsWith('@')) {
                     await Contacts.removeContactAsync(contact.id).catch(() => {

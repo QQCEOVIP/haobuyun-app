@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   Image,
   ScrollView,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
@@ -54,6 +55,7 @@ export default function HomeScreen() {
   const [customFileName, setCustomFileName] = useState('');
   const [fileNameModalVisible, setFileNameModalVisible] = useState(false);
   const [userAvatar, setUserAvatar] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   const userId = (user as any)?.id;
   const userEmail = (user as any)?.email || '';
@@ -1265,13 +1267,33 @@ export default function HomeScreen() {
     }, [userId])
   );
 
+  // 下拉刷新处理函数
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await fetchStats();
+      await loadUserAvatar();
+    } catch (error) {
+      console.error('Refresh failed:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [userId]);
+
   const healthPercentage = stats.total > 0
     ? Math.round((stats.active / stats.total) * 100)
     : 100;
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
+        showsVerticalScrollIndicator={false}
+      >
         {/* 健康度仪表盘 */}
         <View style={styles.dashboardCard}>
           {/* 用户头像在左上角 */}
@@ -1382,7 +1404,7 @@ export default function HomeScreen() {
             <Text style={styles.actionText}>导出通讯录</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </ScrollView>
 
       {/* 检测结果 Modal */}
       {detectionResult !== null && (

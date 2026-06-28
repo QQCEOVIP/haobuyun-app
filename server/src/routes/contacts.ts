@@ -5,7 +5,7 @@
 import { Router } from 'express';
 import { db } from '../storage/database';
 import { contacts, backups } from '../storage/database/shared/schema';
-import { eq, and, desc, or, isNull } from 'drizzle-orm';
+import { eq, and, desc, or, isNull, inArray } from 'drizzle-orm';
 import crypto from 'crypto';
 
 const router: any = Router();
@@ -264,6 +264,41 @@ router.post('/trash', requireAuth, async (req: any, res: any) => {
   } catch (error) {
     console.error('记录回收站失败:', error);
     res.status(500).json({ error: '记录回收站失败' });
+  }
+});
+
+/**
+ * 批量软删除联系人
+ * POST /api/v1/contacts/batch-delete
+ * Body: { contactIds: string[] }
+ */
+router.post('/batch-delete', requireAuth, async (req: any, res: any) => {
+  try {
+    const { contactIds } = req.body;
+    if (!Array.isArray(contactIds) || contactIds.length === 0) {
+      return res.status(400).json({ error: 'Invalid contactIds' });
+    }
+
+    const userId = (req as any).userId;
+    const deletedAt = new Date();
+
+    // Soft delete: set is_deleted = true and deleted_at
+    const result = await db
+      .update(contacts)
+      .set({ is_deleted: true, deleted_at: deletedAt })
+      .where(and(
+        inArray(contacts.id, contactIds),
+        eq(contacts.user_id, userId)
+      ))
+      .returning({ id: contacts.id });
+
+    res.json({
+      success: true,
+      deleted: result.length
+    });
+  } catch (error) {
+    console.error('Batch delete error:', error);
+    res.status(500).json({ error: 'Failed to batch delete contacts' });
   }
 });
 

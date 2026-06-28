@@ -93,29 +93,29 @@ export default function CleanupScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              // Soft delete: set is_deleted = true so contacts appear in recycle bin
-              const { error } = await supabase
-                .from('contacts')
-                .update({ is_deleted: true, deleted_at: new Date().toISOString() })
-                .in('id', Array.from(selectedIds));
+              // Soft delete via backend API - bypasses RLS
+              const response = await fetch(
+                `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/contacts/batch-delete`,
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'x-user-id': userId,
+                  },
+                  body: JSON.stringify({ contactIds: Array.from(selectedIds) }),
+                }
+              );
 
-              if (error) throw error;
-
-              // Also record to backend trash API for recycle bin
-              if (user?.id) {
-                try {
-                  await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/contacts/trash`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'x-user-id': user.id },
-                    body: JSON.stringify({ contactIds: Array.from(selectedIds) }),
-                  });
-                } catch { /* ignore */ }
+              if (!response.ok) {
+                const result = await response.json();
+                throw new Error(result.error || 'Delete failed');
               }
 
               setContacts(prev => prev.filter(c => !selectedIds.has(c.id)));
               setSelectedIds(new Set());
               Alert.alert('删除成功', `已删除 ${selectedIds.size} 位联系人，可在回收站恢复`);
             } catch (error) {
+              console.error('Delete error:', error);
               Alert.alert('删除失败', '请重试');
             }
           },
