@@ -427,7 +427,7 @@ export default function ContactsScreen() {
                 style={styles.cleanupButton}
                 onPress={() => router.push('/recycle-bin')}
               >
-                <Text style={styles.cleanupButtonText}>恢复被误删的联系人</Text>
+                <Text style={styles.cleanupButtonText}>后悔药</Text>
               </TouchableOpacity>
             </View>
             <View style={styles.cleanupStats}>
