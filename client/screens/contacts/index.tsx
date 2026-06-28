@@ -10,6 +10,7 @@ import {
   Modal,
   TouchableWithoutFeedback,
   Alert,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
@@ -19,6 +20,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/storage/supabase';
 import * as Contacts from 'expo-contacts';
 import { Crypto } from 'expo-crypto';
+import * as ImagePicker from 'expo-image-picker';
 import { CONSENSUS, type NumberStatus } from '@/constants/numberStatus';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ContactAvatar from '@/components/ContactAvatar';
@@ -51,8 +53,53 @@ export default function ContactsScreen() {
   const [statusMenuContact, setStatusMenuContact] = useState<Contact | null>(null);
   const [cleanupStats, setCleanupStats] = useState({ duplicate: 0, stopped: 0, suspected: 0 });
   const [communityMarks, setCommunityMarks] = useState<Map<string, { status: NumberStatus; markCount: number }>>(new Map());
+  const [contactAvatars, setContactAvatars] = useState<Record<string, string>>({});
+  const [avatarMenuContact, setAvatarMenuContact] = useState<Contact | null>(null);
 
   const userId = (user as any)?.id;
+
+  // Load custom avatars from AsyncStorage
+  const loadContactAvatars = useCallback(async () => {
+    try {
+      const json = await AsyncStorage.getItem('@contact_avatars');
+      if (json) setContactAvatars(JSON.parse(json));
+    } catch (_e) { /* ignore */ }
+  }, []);
+
+  // Save custom avatar for a contact
+  const saveContactAvatar = async (phone: string, uri: string) => {
+    const updated = { ...contactAvatars, [phone]: uri };
+    setContactAvatars(updated);
+    await AsyncStorage.setItem('@contact_avatars', JSON.stringify(updated));
+  };
+
+  // Handle setting custom avatar
+  const handleSetAvatar = async (contact: Contact) => {
+    setAvatarMenuContact(null);
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('权限不足', '需要相册权限才能设置头像');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets[0]) {
+      await saveContactAvatar(contact.phone, result.assets[0].uri);
+    }
+  };
+
+  // Handle removing custom avatar
+  const handleRemoveAvatar = async (contact: Contact) => {
+    setAvatarMenuContact(null);
+    const updated = { ...contactAvatars };
+    delete updated[contact.phone];
+    setContactAvatars(updated);
+    await AsyncStorage.setItem('@contact_avatars', JSON.stringify(updated));
+  };
 
   const loadContacts = useCallback(async () => {
     if (!userId) return;
@@ -296,7 +343,8 @@ export default function ContactsScreen() {
   useFocusEffect(
     useCallback(() => {
       loadContacts();
-    }, [loadContacts])
+      loadContactAvatars();
+    }, [loadContacts, loadContactAvatars])
   );
 
   const onRefresh = async () => {
@@ -322,10 +370,19 @@ export default function ContactsScreen() {
     const statusStyle = getStatusStyle(item.status);
     const communityMark = communityMarks.get(item.phone);
     const communityStyle = communityMark ? getStatusStyle(communityMark.status) : null;
+    const customAvatarUri = contactAvatars[item.phone];
 
     return (
-      <TouchableOpacity style={styles.contactCard}>
-        <ContactAvatar name={item.name} size={44} />
+      <TouchableOpacity
+        style={styles.contactCard}
+        onLongPress={() => setAvatarMenuContact(item)}
+        delayLongPress={500}
+      >
+        {customAvatarUri ? (
+          <Image source={{ uri: customAvatarUri }} style={styles.customAvatar} />
+        ) : (
+          <ContactAvatar name={item.name} size={44} />
+        )}
         <View style={styles.contactInfo}>
           <Text style={styles.contactName}>{item.name}</Text>
           <Text style={styles.contactPhone}>{item.phone}</Text>
@@ -575,6 +632,55 @@ export default function ContactsScreen() {
         </TouchableWithoutFeedback>
       </Modal>
       )}
+
+      {/* 头像设置菜单 */}
+      {avatarMenuContact !== null && (
+      <Modal
+        visible={true}
+        transparent
+        animationType="none"
+        onRequestClose={() => setAvatarMenuContact(null)}
+      >
+        <TouchableWithoutFeedback onPress={() => setAvatarMenuContact(null)}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.statusMenuCard}>
+                <Text style={styles.statusMenuTitle}>
+                  {contactAvatars[avatarMenuContact.phone] ? '管理头像' : '设置头像'}
+                </Text>
+                <Text style={styles.statusMenuContactName}>
+                  {avatarMenuContact.name} ({avatarMenuContact.phone})
+                </Text>
+                <TouchableOpacity
+                  style={[styles.statusMenuOption, { backgroundColor: '#E8F0FE' }]}
+                  onPress={() => handleSetAvatar(avatarMenuContact)}
+                >
+                  <Ionicons name="camera" size={20} color="#4A90D9" />
+                  <Text style={[styles.statusMenuOptionText, { color: '#4A90D9' }]}>
+                    {contactAvatars[avatarMenuContact.phone] ? '更换头像' : '设置头像'}
+                  </Text>
+                </TouchableOpacity>
+                {contactAvatars[avatarMenuContact.phone] && (
+                  <TouchableOpacity
+                    style={[styles.statusMenuOption, { backgroundColor: '#FEF0F0' }]}
+                    onPress={() => handleRemoveAvatar(avatarMenuContact)}
+                  >
+                    <Ionicons name="trash" size={20} color="#F56C6C" />
+                    <Text style={[styles.statusMenuOptionText, { color: '#F56C6C' }]}>删除头像</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity
+                  style={styles.statusMenuCancel}
+                  onPress={() => setAvatarMenuContact(null)}
+                >
+                  <Text style={styles.statusMenuCancelText}>取消</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+      )}
     </SafeAreaView>
   );
 }
@@ -671,6 +777,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#4A90D9',
     justifyContent: 'center',
     alignItems: 'center',
+    marginRight: 12,
+  },
+  customAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     marginRight: 12,
   },
   avatarText: {

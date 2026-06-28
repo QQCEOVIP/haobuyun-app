@@ -224,6 +224,12 @@ export default function ProfileScreen() {
               onPress={() => router.push('/privacy')}
             />
             <MenuItem
+              name="chatbubble-ellipses"
+              color="#E6A23C"
+              title="意见反馈"
+              onPress={() => router.push('/feedback')}
+            />
+            <MenuItem
               name="information-circle"
               color="#909399"
               title="关于我们"

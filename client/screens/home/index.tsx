@@ -7,13 +7,20 @@ import {
   Alert,
   Modal,
   TextInput,
+  Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import Svg, { Circle } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
+import * as FileSystemLegacyLegacy from 'expo-file-system/legacy';
+import { supabase } from '@/storage/supabase';
+
+// StorageAccessFramework for custom path on Android
+const SAF = (FileSystemLegacyLegacy as any).StorageAccessFramework;
 import * as Contacts from 'expo-contacts';
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystemLegacy from 'expo-file-system/legacy';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Sharing from 'expo-sharing';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -200,7 +207,7 @@ export default function HomeScreen() {
         // Determine file type by extension
         const fileName = file.name || '';
         const fileUri = file.uri;
-        const content = await FileSystem.readAsStringAsync(fileUri);
+        const content = await FileSystemLegacy.readAsStringAsync(fileUri);
         
         if (fileName.endsWith('.json') || fileName.endsWith('.vcf')) {
           await importFromContent(content, fileName);
@@ -209,7 +216,7 @@ export default function HomeScreen() {
         }
       } else {
         // Fallback: scan document directory
-        const dirInfo = await FileSystem.readDirectoryAsync(FileSystem.documentDirectory);
+        const dirInfo = await FileSystemLegacy.readDirectoryAsync(FileSystemLegacy.documentDirectory);
         const importFiles = dirInfo.filter((f: string) => f.endsWith(".vcf") || f.endsWith(".json"));
         if (importFiles.length === 0) {
           Alert.alert("提示", "未找到可导入的通讯录文件（.vcf 或 .json）\n请将文件放入应用文档目录，或升级应用以支持文件选择");
@@ -292,8 +299,8 @@ export default function HomeScreen() {
 
   const importFromFile = async (fileName: string) => {
     try {
-      const filePath = FileSystem.documentDirectory + fileName;
-      const content = await FileSystem.readAsStringAsync(filePath);
+      const filePath = FileSystemLegacy.documentDirectory + fileName;
+      const content = await FileSystemLegacy.readAsStringAsync(filePath);
       let contacts: Array<{ name: string; phone: string; email?: string; company?: string; jobTitle?: string; note?: string }> = [];
       if (fileName.endsWith(".json")) {
         const parsed = JSON.parse(content);
@@ -429,8 +436,24 @@ export default function HomeScreen() {
       const contactCount = backupData.contacts.length;
 
       // Write to cache and share
-      const fileUri = FileSystem.cacheDirectory + defaultFileName;
-      await FileSystem.writeAsStringAsync(fileUri, backupContent, { encoding: FileSystem.EncodingType.UTF8 });
+      const fileUri = FileSystemLegacyLegacy.cacheDirectory + defaultFileName;
+      await FileSystemLegacyLegacy.writeAsStringAsync(fileUri, backupContent, { encoding: FileSystemLegacyLegacy.EncodingType.UTF8 });
+
+      // Try SAF (Android) for custom path
+      if (Platform.OS === 'android' && SAF) {
+        try {
+          const safUri = await SAF.createFileAsync(
+            'content://com.android.externalstorage.documents/tree/primary%3ADocuments',
+            'application/json',
+            defaultFileName
+          );
+          await SAF.writeAsStringAsync(safUri, backupContent, { encoding: FileSystemLegacyLegacy.EncodingType.UTF8 });
+          Alert.alert('导出成功', `已备份 ${contactCount} 个联系人（含标签状态）\n已保存到自定义位置\n仅号簿云可恢复此格式`);
+          return;
+        } catch (_safError) {
+          // SAF failed, fall through to Sharing API
+        }
+      }
 
       // Try Sharing API
       if (await Sharing.isAvailableAsync()) {
@@ -460,10 +483,10 @@ export default function HomeScreen() {
     const safeFileName = customFileName.trim().endsWith('.hbyun') 
       ? customFileName.trim() 
       : `${customFileName.trim()}.hbyun`;
-    const filePath = `${FileSystem.documentDirectory}${safeFileName}`;
+    const filePath = `${FileSystemLegacy.documentDirectory}${safeFileName}`;
     
     try {
-      await FileSystem.writeAsStringAsync(filePath, vcardContent);
+      await FileSystemLegacy.writeAsStringAsync(filePath, vcardContent);
       Alert.alert('备份成功', `已备份 ${contactCount} 个联系人\n文件：${safeFileName}\n仅号簿云可恢复此格式`);
     } catch (error) {
       console.error('导出失败:', error);
@@ -554,8 +577,27 @@ export default function HomeScreen() {
       const defaultFileName = `通讯录备份_${dateStr}.vcf`;
 
       // 保存待写入的内容
-      (global as any).__pendingBackupVcard = vcardLines.join('\n');
-      (global as any).__pendingBackupCount = vcardLines.filter(l => l === 'BEGIN:VCARD').length;
+      const vcardContent = vcardLines.join('\n');
+      const contactCount = vcardLines.filter(l => l === 'BEGIN:VCARD').length;
+      (global as any).__pendingBackupVcard = vcardContent;
+      (global as any).__pendingBackupCount = contactCount;
+
+      // Try SAF (Android) for custom path
+      if (Platform.OS === 'android' && SAF) {
+        try {
+          const safUri = await SAF.createFileAsync(
+            'content://com.android.externalstorage.documents/tree/primary%3ADocuments',
+            'text/vcard',
+            defaultFileName
+          );
+          await SAF.writeAsStringAsync(safUri, vcardContent, { encoding: FileSystemLegacy.EncodingType.UTF8 });
+          Alert.alert('备份成功', `已备份 ${contactCount} 个联系人\n已保存到自定义位置`);
+          setBackupLoading(false);
+          return;
+        } catch (_safError) {
+          // SAF failed, fall through to file name modal
+        }
+      }
 
       // 弹出文件名输入框
       setCustomFileName(defaultFileName);
@@ -578,10 +620,10 @@ export default function HomeScreen() {
     const safeFileName = customFileName.trim().endsWith('.vcf') 
       ? customFileName.trim() 
       : `${customFileName.trim()}.vcf`;
-    const filePath = `${FileSystem.documentDirectory}${safeFileName}`;
+    const filePath = `${FileSystemLegacy.documentDirectory}${safeFileName}`;
     
     try {
-      await FileSystem.writeAsStringAsync(filePath, vcardContent);
+      await FileSystemLegacy.writeAsStringAsync(filePath, vcardContent);
       Alert.alert(isBackupMode ? '备份成功' : '导出成功', `已${isBackupMode ? '备份' : '导出'} ${contactCount} 个联系人\n文件：${safeFileName}`);
       if (isBackupMode) fetchBackupList();
     } catch (error) {
@@ -600,7 +642,7 @@ export default function HomeScreen() {
 
   const fetchBackupList = async () => {
     try {
-      const files = await FileSystem.readDirectoryAsync(FileSystem.documentDirectory || '');
+      const files = await FileSystemLegacy.readDirectoryAsync(FileSystemLegacy.documentDirectory || '');
       const backupFiles = files
         .filter(f => (f.startsWith('contacts_backup_') && f.endsWith('.json')) || (f.startsWith('通讯录备份_') && f.endsWith('.vcf')))
         .sort()
@@ -608,8 +650,8 @@ export default function HomeScreen() {
 
       const backupList = await Promise.all(
         backupFiles.map(async (fileName) => {
-          const filePath = `${FileSystem.documentDirectory}${fileName}`;
-          const content = await FileSystem.readAsStringAsync(filePath);
+          const filePath = `${FileSystemLegacy.documentDirectory}${fileName}`;
+          const content = await FileSystemLegacy.readAsStringAsync(filePath);
           
           let contactCount = 0;
           let contacts: any[] = [];
@@ -749,6 +791,182 @@ export default function HomeScreen() {
       modified: modified.length,
       details: { added, deleted, modified },
     });
+  };
+
+  // ========== Supabase Storage 云端备份/恢复 ==========
+  const [cloudBackups, setCloudBackups] = useState<any[]>([]);
+  const [cloudLoading, setCloudLoading] = useState(false);
+  const [cloudProgress, setCloudProgress] = useState('');
+
+  // 生成备份数据（复用现有逻辑）
+  const generateBackupData = async () => {
+    const { status } = await Contacts.requestPermissionsAsync();
+    if (status !== 'granted') throw new Error('需要通讯录权限');
+
+    const allContacts = await getAllDeviceContacts([
+      Contacts.Fields.PhoneNumbers,
+      Contacts.Fields.Name,
+      Contacts.Fields.Emails,
+      Contacts.Fields.PostalAddresses,
+      Contacts.Fields.JobTitle,
+      Contacts.Fields.Company,
+      Contacts.Fields.Note,
+    ]);
+    if (!allContacts || allContacts.length === 0) throw new Error('通讯录中没有联系人');
+
+    const phoneKeys = allContacts
+      .filter(c => c.phoneNumbers && c.phoneNumbers.length > 0)
+      .map(c => `@contact_status_${c.phoneNumbers[0].number}`);
+    const statusEntries = phoneKeys.length > 0 ? await AsyncStorage.multiGet(phoneKeys) : [];
+    const statusMap = new Map<string, string>();
+    statusEntries.forEach(([key, value]) => {
+      if (value) statusMap.set(key.replace('@contact_status_', ''), value);
+    });
+
+    return {
+      format: 'HAOBUYUN_BACKUP',
+      version: '1.0',
+      exportedAt: new Date().toISOString(),
+      device: 'mobile',
+      contacts: allContacts
+        .filter(c => c.phoneNumbers && c.phoneNumbers.length > 0)
+        .map(c => ({
+          name: c.name || '',
+          phones: (c.phoneNumbers || []).map(p => ({
+            number: p.number || '',
+            label: p.label || 'mobile',
+            status: statusMap.get(p.number || '') || null,
+          })),
+          emails: (c.emails || []).map(e => ({ email: e.email || '', label: e.label || '' })),
+          company: c.company || '',
+          jobTitle: c.jobTitle || '',
+          note: c.note || '',
+        })),
+    };
+  };
+
+  // 云端备份到 Supabase Storage
+  const handleCloudBackup = async () => {
+    if (!userId) {
+      Alert.alert('提示', '请先登录');
+      return;
+    }
+    setCloudLoading(true);
+    setCloudProgress('正在生成备份数据...');
+    try {
+      const backupData = await generateBackupData();
+      const content = JSON.stringify(backupData, null, 2);
+      const timestamp = Date.now();
+      const fileName = `${userId}/${timestamp}.json`;
+
+      setCloudProgress('正在上传到云端...');
+      const { error } = await supabase.storage
+        .from('backups')
+        .upload(fileName, content, { contentType: 'application/json', upsert: true });
+
+      if (error) throw error;
+
+      Alert.alert('云端备份成功', `已备份 ${backupData.contacts.length} 个联系人到云端`);
+      loadCloudBackups();
+    } catch (err: any) {
+      console.error('Cloud backup error:', err);
+      const msg = err?.message || '请检查网络后重试';
+      if (msg.includes('Bucket not found') || msg.includes('not found')) {
+        Alert.alert('提示', '云端存储尚未配置，请联系管理员创建 backups 存储桶');
+      } else {
+        Alert.alert('云端备份失败', msg);
+      }
+    } finally {
+      setCloudLoading(false);
+      setCloudProgress('');
+    }
+  };
+
+  // 加载云端备份列表
+  const loadCloudBackups = async () => {
+    if (!userId) return;
+    try {
+      const { data: files, error } = await supabase.storage
+        .from('backups')
+        .list(userId, { limit: 20, sortBy: { column: 'created_at', order: 'desc' } });
+
+      if (error) {
+        console.warn('Load cloud backups error:', error.message);
+        setCloudBackups([]);
+        return;
+      }
+      setCloudBackups(files || []);
+    } catch (err: any) {
+      console.warn('Load cloud backups error:', err?.message);
+      setCloudBackups([]);
+    }
+  };
+
+  // 从云端恢复
+  const handleCloudRestore = async (fileName: string) => {
+    if (!userId) return;
+    Alert.alert('确认恢复', '恢复将覆盖当前通讯录数据，确定继续？', [
+      { text: '取消', style: 'cancel' },
+      {
+        text: '确定恢复',
+        style: 'destructive',
+        onPress: async () => {
+          setCloudLoading(true);
+          setCloudProgress('正在下载备份...');
+          try {
+            const { data, error } = await supabase.storage
+              .from('backups')
+              .download(`${userId}/${fileName}`);
+
+            if (error) throw error;
+            if (!data) throw new Error('下载失败');
+
+            setCloudProgress('正在解析数据...');
+            const text = await data.text();
+            const backupData = JSON.parse(text);
+
+            if (!backupData.contacts || backupData.contacts.length === 0) {
+              Alert.alert('提示', '备份文件中没有联系人数据');
+              setCloudLoading(false);
+              return;
+            }
+
+            setCloudProgress(`正在恢复 ${backupData.contacts.length} 个联系人...`);
+            let successCount = 0;
+            for (const contact of backupData.contacts) {
+              try {
+                const contactData: any = {
+                  name: contact.name,
+                  phoneNumbers: contact.phones?.map((p: any) => ({ number: p.number })) || [{ number: contact.phones?.[0]?.number || '' }],
+                };
+                if (contact.emails?.length) contactData.emails = contact.emails.map((e: any) => ({ email: e.email }));
+                if (contact.company) contactData.company = contact.company;
+                if (contact.jobTitle) contactData.jobTitle = contact.jobTitle;
+                if (contact.note) contactData.note = contact.note;
+
+                await Contacts.addContactAsync(contactData);
+                successCount++;
+              } catch (_e) { /* skip failed contact */ }
+            }
+
+            Alert.alert('恢复成功', `已恢复 ${successCount} 个联系人`);
+          } catch (err: any) {
+            console.error('Cloud restore error:', err);
+            Alert.alert('恢复失败', err?.message || '请重试');
+          } finally {
+            setCloudLoading(false);
+            setCloudProgress('');
+          }
+        },
+      },
+    ]);
+  };
+
+  // 打开云端备份弹窗时加载列表
+  const openCloudBackupModal = () => {
+    openCloudBackupModal();
+    setCloudBackupTab('backup');
+    loadCloudBackups();
   };
 
   const fetchStats = async () => {
@@ -905,7 +1123,7 @@ export default function HomeScreen() {
             </View>
             <Text style={styles.actionText}>{detecting ? '检测中...' : '一键检测'}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionCard} onPress={() => setCloudBackupVisible(true)}>
+          <TouchableOpacity style={styles.actionCard} onPress={() => openCloudBackupModal()}>
             <View style={[styles.actionIcon, { backgroundColor: 'rgba(103, 194, 58, 0.12)' }]}>
               <Ionicons name="cloud" size={24} color="#67C23A" />
             </View>
@@ -990,32 +1208,89 @@ export default function HomeScreen() {
             </View>
 
             <View style={styles.cloudModalBody}>
+              {/* Supabase 云存储区域 */}
+              <View style={{ marginBottom: 16 }}>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: '#303133', marginBottom: 10 }}>
+                  Supabase 云存储
+                </Text>
+                <View style={styles.cloudButtonGrid}>
+                  <TouchableOpacity
+                    style={styles.cloudButtonItem}
+                    onPress={handleCloudBackup}
+                    disabled={cloudBackupLoading !== null}
+                  >
+                    <View style={[styles.cloudButtonIcon, { backgroundColor: 'rgba(74, 144, 217, 0.12)' }]}>
+                      <Ionicons name="cloud" size={24} color="#4A90D9" />
+                    </View>
+                    <Text style={styles.cloudButtonText}>
+                      {cloudBackupLoading === 'uploading' ? '上传中...' : '云端备份'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.cloudButtonItem}
+                    onPress={handleCloudRestore}
+                    disabled={cloudBackupLoading !== null}
+                  >
+                    <View style={[styles.cloudButtonIcon, { backgroundColor: 'rgba(103, 194, 58, 0.12)' }]}>
+                      <Ionicons name="refresh" size={24} color="#67C23A" />
+                    </View>
+                    <Text style={styles.cloudButtonText}>
+                      {cloudBackupLoading === 'downloading' ? '下载中...' : '云端恢复'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {cloudBackups.length > 0 && (
+                  <View style={{ marginTop: 10 }}>
+                    <Text style={{ fontSize: 12, color: '#909399', marginBottom: 6 }}>
+                      已有 {cloudBackups.length} 个云端备份
+                    </Text>
+                    {cloudBackups.slice(0, 3).map((backup, index) => (
+                      <View key={index} style={{
+                        flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+                        paddingVertical: 6, paddingHorizontal: 10, backgroundColor: '#F5F7FA', borderRadius: 8, marginBottom: 4,
+                      }}>
+                        <Text style={{ fontSize: 12, color: '#606266' }} numberOfLines={1}>
+                          {backup.name} ({Math.round((backup.metadata?.size || 0) / 1024)}KB)
+                        </Text>
+                        <TouchableOpacity onPress={() => handleCloudRestore(backup.name)}>
+                          <Ionicons name="download-outline" size={16} color="#4A90D9" />
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+
+              <View style={styles.cloudDivider} />
+
               <View style={styles.cloudButtonGrid}>
-                {/* 备份通讯录 */}
+                {/* 本地备份 */}
                 <TouchableOpacity
                   style={styles.cloudButtonItem}
                   onPress={handleBackup}
                   disabled={backupLoading}
                 >
                   <View style={[styles.cloudButtonIcon, { backgroundColor: 'rgba(74, 144, 217, 0.12)' }]}>
-                    <Ionicons name="cloud-upload" size={24} color="#4A90D9" />
+                    <Ionicons name="save-outline" size={24} color="#4A90D9" />
                   </View>
                   <Text style={styles.cloudButtonText}>
-                    {backupLoading ? '备份中...' : '备份通讯录'}
+                    {backupLoading ? '备份中...' : '本地备份'}
                   </Text>
                 </TouchableOpacity>
 
-                {/* 恢复通讯录 */}
+                {/* 本地恢复 */}
                 <TouchableOpacity
                   style={styles.cloudButtonItem}
                   onPress={() => handleRestore()}
                   disabled={backupLoading}
                 >
                   <View style={[styles.cloudButtonIcon, { backgroundColor: 'rgba(103, 194, 58, 0.12)' }]}>
-                    <Ionicons name="cloud-download" size={24} color="#67C23A" />
+                    <Ionicons name="folder-open-outline" size={24} color="#67C23A" />
                   </View>
                   <Text style={styles.cloudButtonText}>
-                    {backupLoading ? '恢复中...' : '恢复通讯录'}
+                    {backupLoading ? '恢复中...' : '本地恢复'}
                   </Text>
                 </TouchableOpacity>
 
