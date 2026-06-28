@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/storage/supabase';
 import * as Contacts from 'expo-contacts';
 import * as FileSystemLegacy from 'expo-file-system/legacy';
+import { StorageAccessFramework } from 'expo-file-system/legacy';
 
 
 import * as DocumentPicker from 'expo-document-picker';
@@ -432,11 +433,29 @@ export default function HomeScreen() {
       const backupContent = JSON.stringify(backupData, null, 2);
       const contactCount = backupData.contacts.length;
 
-      // Write to cache and share
+      // On Android, use StorageAccessFramework to let user pick save location
+      if (Platform.OS === 'android') {
+        try {
+          const SAF = StorageAccessFramework ?? (FileSystemLegacy as any).StorageAccessFramework;
+          if (SAF && typeof SAF.createFileAsync === 'function') {
+            const fileUri = await SAF.createFileAsync(
+              FileSystemLegacy.documentDirectory || '',
+              'application/json',
+              defaultFileName
+            );
+            await SAF.writeAsStringAsync(fileUri, backupContent);
+            Alert.alert('导出成功', `已备份 ${contactCount} 个联系人（含标签状态）\n仅号簿云可恢复此格式`);
+            return;
+          }
+        } catch (safError) {
+          console.warn('SAF export failed, falling back to Sharing:', safError);
+        }
+      }
+
+      // Fallback: Write to cache and share
       const fileUri = FileSystemLegacy.cacheDirectory + defaultFileName;
       await FileSystemLegacy.writeAsStringAsync(fileUri, backupContent, { encoding: FileSystemLegacy.EncodingType.UTF8 });
 
-      // Use Sharing API - lets user choose save location via system share sheet
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(fileUri, {
           mimeType: 'application/json',
@@ -560,6 +579,28 @@ export default function HomeScreen() {
       // 保存待写入的内容
       const vcardContent = vcardLines.join('\n');
       const contactCount = vcardLines.filter(l => l === 'BEGIN:VCARD').length;
+
+      // On Android, use StorageAccessFramework to let user pick save location
+      if (Platform.OS === 'android') {
+        try {
+          const SAF = StorageAccessFramework ?? (FileSystemLegacy as any).StorageAccessFramework;
+          if (SAF && typeof SAF.createFileAsync === 'function') {
+            const fileUri = await SAF.createFileAsync(
+              FileSystemLegacy.documentDirectory || '',
+              'text/vcard',
+              defaultFileName
+            );
+            await SAF.writeAsStringAsync(fileUri, vcardContent);
+            Alert.alert('备份成功', `已备份 ${contactCount} 个联系人`);
+            setBackupLoading(false);
+            return;
+          }
+        } catch (safError) {
+          console.warn('SAF backup failed, falling back:', safError);
+        }
+      }
+
+      // Fallback: save to document directory via filename modal
       (global as any).__pendingBackupVcard = vcardContent;
       (global as any).__pendingBackupCount = contactCount;
 
