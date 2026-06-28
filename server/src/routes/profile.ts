@@ -15,8 +15,8 @@ const storage = new S3Storage({
 });
 
 const getSupabaseAdmin = () => createClient(
-  process.env.SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+  process.env.COZE_SUPABASE_URL || process.env.SUPABASE_URL || '',
+  process.env.COZE_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 );
 
 // POST /api/v1/profile/avatar - Upload avatar
@@ -46,16 +46,21 @@ router.post('/avatar', upload.single('avatar'), async (req, res) => {
       expireTime: 2592000, // 30 days
     });
 
-    // Update user metadata in Supabase
-    const supabase = getSupabaseAdmin();
-    await supabase.auth.admin.updateUserById(userId, {
-      user_metadata: { avatar_url: avatarUrl, avatar_key: fileKey },
-    });
+    // Update user metadata in Supabase (optional - skip if userId is not valid UUID)
+    try {
+      const supabase = getSupabaseAdmin();
+      await supabase.auth.admin.updateUserById(userId, {
+        user_metadata: { avatar_url: avatarUrl, avatar_key: fileKey },
+      });
+    } catch (metaError: any) {
+      console.warn('Failed to update user metadata:', metaError?.message);
+      // Continue anyway - avatar was uploaded successfully
+    }
 
     res.json({ success: true, avatarUrl: avatarUrl, avatar_key: fileKey });
-  } catch (error) {
-    console.error('Upload avatar error:', error);
-    res.status(500).json({ error: 'Upload failed' });
+  } catch (error: any) {
+    console.error('Upload avatar error:', error?.message || error);
+    res.status(500).json({ error: `Upload failed: ${error?.message || 'Unknown error'}` });
   }
 });
 

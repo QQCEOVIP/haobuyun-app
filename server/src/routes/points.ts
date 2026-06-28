@@ -9,8 +9,8 @@ const router: any = Router();
 
 // 获取 Supabase Admin Client
 const getSupabaseAdmin = () => createClient(
-  process.env.SUPABASE_URL || "",
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ""
+  process.env.COZE_SUPABASE_URL || process.env.SUPABASE_URL || "",
+  process.env.COZE_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 );
 
 // 获取当前用户ID

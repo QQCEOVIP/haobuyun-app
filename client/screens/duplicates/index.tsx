@@ -27,6 +27,7 @@ export default function DuplicatesScreen() {
   const [duplicateGroups, setDuplicateGroups] = useState<DuplicateGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set());
+  const [keepIndices, setKeepIndices] = useState<Record<string, number>>({});
 
   const loadDuplicates = useCallback(async () => {
     setLoading(true);
@@ -156,9 +157,11 @@ export default function DuplicatesScreen() {
               let totalDeleted = 0;
               for (const group of duplicateGroups) {
                 if (!selectedGroups.has(group.phone)) continue;
-                // Delete all entries except the recommended one from device contacts
+                // Determine which entry to keep (user-selected or recommended)
+                const keepIdx = keepIndices[group.phone] ?? group.recommendedIndex;
+                // Delete all entries except the kept one from device contacts
                 for (let i = 0; i < group.entries.length; i++) {
-                  if (i === group.recommendedIndex) continue; // Keep the recommended entry
+                  if (i === keepIdx) continue; // Keep the selected entry
                   const entry = group.entries[i];
                   try {
                     // Actually delete from device contacts
@@ -203,25 +206,35 @@ export default function DuplicatesScreen() {
           </View>
         </TouchableOpacity>
 
-        {item.entries.map((entry, index) => (
-          <View key={entry.id} style={[styles.entryRow, index === item.recommendedIndex && { backgroundColor: '#F0FDF4' }]}>
-            <View style={styles.entryAvatar}>
-              <Text style={styles.entryAvatarText}>
-                {entry.name[0]?.toUpperCase() || '?'}
-              </Text>
-            </View>
-            <View style={styles.entryInfo}>
-              <Text style={styles.entryName}>{entry.name}</Text>
-              <Text style={styles.entryPhone}>{entry.phone}</Text>
-            </View>
-            {index === item.recommendedIndex && (
-              <View style={styles.keepBadge}>
-                <Ionicons name="star" size={10} color="#67C23A" />
-                <Text style={styles.keepBadgeText}>推荐保留</Text>
+        {item.entries.map((entry, index) => {
+          const isKept = (keepIndices[item.phone] ?? item.recommendedIndex) === index;
+          return (
+            <TouchableOpacity
+              key={entry.id}
+              style={[styles.entryRow, isKept && { backgroundColor: '#F0FDF4' }]}
+              activeOpacity={0.7}
+              onPress={() => handleSelectKeep(item.phone, index)}
+            >
+              <View style={styles.entryAvatar}>
+                <Text style={styles.entryAvatarText}>
+                  {entry.name[0]?.toUpperCase() || '?'}
+                </Text>
               </View>
-            )}
-          </View>
-        ))}
+              <View style={styles.entryInfo}>
+                <Text style={styles.entryName}>{entry.name}</Text>
+                <Text style={styles.entryPhone}>{entry.phone}</Text>
+              </View>
+              {isKept && (
+                <View style={styles.keepBadge}>
+                  <Ionicons name="star" size={10} color="#67C23A" />
+                  <Text style={styles.keepBadgeText}>
+                    {index === item.recommendedIndex ? '推荐保留' : '选择保留'}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          );
+        })}
       </View>
     );
   };

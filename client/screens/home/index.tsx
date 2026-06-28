@@ -826,9 +826,23 @@ export default function HomeScreen() {
       const fileName = `${userId}/${timestamp}.json`;
 
       setCloudProgress('正在上传到云端...');
-      const { error } = await supabase.storage
+      // 尝试上传，如果存储桶不存在则自动创建
+      let { error } = await supabase.storage
         .from('backups')
         .upload(fileName, content, { contentType: 'application/json', upsert: true });
+
+      if (error && (error.message.includes('Bucket not found') || error.message.includes('not found'))) {
+        setCloudProgress('正在创建云存储空间...');
+        const { error: createError } = await supabase.storage.createBucket('backups', { public: false });
+        if (createError && !createError.message.includes('already exists')) {
+          throw createError;
+        }
+        // 重试上传
+        const retry = await supabase.storage
+          .from('backups')
+          .upload(fileName, content, { contentType: 'application/json', upsert: true });
+        error = retry.error;
+      }
 
       if (error) throw error;
 
@@ -837,11 +851,7 @@ export default function HomeScreen() {
     } catch (err: any) {
       console.error('Cloud backup error:', err);
       const msg = err?.message || '请检查网络后重试';
-      if (msg.includes('Bucket not found') || msg.includes('not found')) {
-        Alert.alert('提示', '云端存储尚未配置，请联系管理员创建 backups 存储桶');
-      } else {
-        Alert.alert('云端备份失败', msg);
-      }
+      Alert.alert('云端备份失败', msg);
     } finally {
       setCloudLoading(false);
       setCloudBackupLoading(null);
