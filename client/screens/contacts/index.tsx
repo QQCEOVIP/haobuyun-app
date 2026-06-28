@@ -427,8 +427,7 @@ export default function ContactsScreen() {
                 style={styles.cleanupButton}
                 onPress={() => router.push('/recycle-bin')}
               >
-                <Ionicons name="refresh" size={14} color="#FA8C16" style={{ marginRight: 4 }} />
-                <Text style={styles.cleanupButtonText}>后悔药</Text>
+                <Text style={styles.cleanupButtonText}>恢复被误删的联系人</Text>
               </TouchableOpacity>
             </View>
             <View style={styles.cleanupStats}>
@@ -835,10 +834,10 @@ const styles = StyleSheet.create({
   cleanupButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 7,
+    paddingHorizontal: 18,
+    paddingVertical: 8,
     backgroundColor: '#FFF7ED',
-    borderRadius: 20,
+    borderRadius: 999,
     borderWidth: 1,
     borderColor: '#FED7AA',
   },
