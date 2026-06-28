@@ -78,13 +78,39 @@ export default function HomeScreen() {
     const safeFields = fields.filter((f): f is Contacts.Field => f != null && f !== undefined);
     if (safeFields.length === 0) return [];
 
+    // 方法1：尝试 getAllContactsAsync
     try {
       const result = await Contacts.getAllContactsAsync({ fields: safeFields });
+      console.log('[Home] getAllContactsAsync result type:', typeof result, Array.isArray(result) ? 'array' : '', 'length:', Array.isArray(result) ? result.length : 'N/A');
       // Handle both API formats: { data } or { contacts } or direct array
       if (Array.isArray(result)) return result;
-      return (result as any).data || (result as any).contacts || [];
-    } catch (error) {
-      console.error('Failed to fetch all contacts:', error);
+      if ((result as any)?.data) return (result as any).data;
+      if ((result as any)?.contacts) return (result as any).contacts;
+    } catch (error1) {
+      console.warn('[Home] getAllContactsAsync failed, trying fallback:', error1);
+    }
+
+    // 方法2：fallback - 使用分页 getContactsAsync
+    try {
+      console.log('[Home] Trying fallback: getContactsAsync with pagination');
+      let allContacts: any[] = [];
+      let offset = 0;
+      const pageSize = 500;
+      while (true) {
+        const { data: pageContacts } = await Contacts.getContactsAsync({
+          fields: safeFields,
+          pageSize,
+          pageOffset: offset,
+        });
+        if (!pageContacts || pageContacts.length === 0) break;
+        allContacts = allContacts.concat(pageContacts);
+        offset += pageContacts.length;
+        if (pageContacts.length < pageSize) break;
+      }
+      console.log('[Home] Fallback getContactsAsync got', allContacts.length, 'contacts');
+      return allContacts;
+    } catch (error2) {
+      console.error('[Home] Fallback getContactsAsync also failed:', error2);
       return [];
     }
   };
@@ -1211,7 +1237,7 @@ export default function HomeScreen() {
     if (!userId) return;
 
     try {
-      // 1. 分页获取设备联系人数量（轻量：仅 PhoneNumbers）
+      // 1. 获取设备联系人数量
       let deviceContactsCount = 0;
       const { status } = await Contacts.requestPermissionsAsync();
       console.log('[Home] Contacts permission status:', status);
@@ -1233,7 +1259,7 @@ export default function HomeScreen() {
           console.log('[Home] Sample contact structure:', JSON.stringify(allDevice[0], null, 2));
         }
       } else {
-        console.log('[Home] Contacts permission not granted');
+        console.warn('[Home] Contacts permission not granted:', status);
       }
 
       // 2. 从 AsyncStorage 读取状态分布（真正的标签数据源）
@@ -1269,9 +1295,12 @@ export default function HomeScreen() {
         }
       }
 
+      console.log('[Home] Final stats:', JSON.stringify(contactStats));
       setStats(contactStats);
     } catch (error) {
-      console.error('Failed to fetch stats:', error);
+      console.error('[Home] Failed to fetch stats:', error);
+      // 即使出错也设置一个基本的 stats，避免 UI 显示异常
+      setStats(prev => prev);
     }
   };
 

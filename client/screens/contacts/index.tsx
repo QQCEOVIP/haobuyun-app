@@ -27,6 +27,7 @@ import ContactAvatar from '@/components/ContactAvatar';
 
 interface Contact {
   id: string;
+  deviceContactId: string;
   name: string;
   phone: string;
   phoneNumbers: string[];
@@ -157,12 +158,30 @@ export default function ContactsScreen() {
         return { number: p.number, label: p.label || 'mobile' };
       });
 
-      // Update device contact - use 'name' field instead of 'firstName'
-      await Contacts.updateContactAsync({
+      // Update device contact - cross-platform approach
+      // First get the existing contact to preserve platform-specific fields
+      const existingContact = await Contacts.getContactByIdAsync(editingContact.deviceContactId);
+      const updateData: any = {
         id: editingContact.deviceContactId,
-        name: editName.trim(),
         phoneNumbers: updatedPhones,
-      });
+      };
+      // On iOS, use firstName/lastName; on Android, use name
+      if (existingContact) {
+        if ('firstName' in existingContact) {
+          // iOS format
+          updateData.firstName = editName.trim();
+          updateData.lastName = '';
+        } else {
+          // Android format
+          updateData.name = editName.trim();
+        }
+      } else {
+        // Fallback: try both
+        updateData.name = editName.trim();
+        updateData.firstName = editName.trim();
+        updateData.lastName = '';
+      }
+      await Contacts.updateContactAsync(updateData);
 
       // Update local state
       setContacts(prev => prev.map(c =>
@@ -244,6 +263,7 @@ export default function ContactsScreen() {
             const localData = allLocalContacts?.find((lc: any) => lc.phone === phone);
             return {
               id: c.id,
+              deviceContactId: c.id,
               name: c.name || '未知联系人',
               phone: phone,
               phoneNumbers: allPhones,
@@ -490,6 +510,12 @@ export default function ContactsScreen() {
           )}
         </View>
         <View style={styles.badgeContainer}>
+          <TouchableOpacity
+            style={styles.editButton}
+            onPress={() => handleOpenEdit(item)}
+          >
+            <Ionicons name="create-outline" size={16} color="#4A90D9" />
+          </TouchableOpacity>
           {communityStyle ? (
             <>
               <TouchableOpacity
@@ -524,12 +550,6 @@ export default function ContactsScreen() {
             </TouchableOpacity>
           )}
         </View>
-        <TouchableOpacity
-          style={styles.editButton}
-          onPress={() => handleOpenEdit(item)}
-        >
-          <Ionicons name="create-outline" size={18} color="#4A90D9" />
-        </TouchableOpacity>
       </TouchableOpacity>
     );
   };
@@ -538,7 +558,12 @@ export default function ContactsScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <View style={styles.titleRow}>
-          <Text style={styles.title}>通讯录</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+            <Text style={styles.title}>通讯录</Text>
+            {contacts.length > 0 && (
+              <Text style={styles.titleCount}> ({contacts.length})</Text>
+            )}
+          </View>
           <View style={styles.headerButtons}>
             <TouchableOpacity
               style={styles.headerButton}
@@ -893,6 +918,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#303133',
   },
+  titleCount: {
+    fontSize: 16,
+    fontWeight: '400',
+    color: '#909399',
+  },
   headerButtons: {
     flexDirection: 'row',
     gap: 12,
@@ -947,7 +977,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 14,
-    paddingRight: 50, // 为编辑按钮留出空间
     marginBottom: 10,
     shadowColor: '#D1D9E6',
     shadowOffset: { width: 0, height: 1 },
@@ -1003,17 +1032,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   badgeContainer: {
-    alignItems: 'flex-end',
-    marginRight: 8, // 与编辑按钮保持间距
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   editButton: {
-    position: 'absolute',
-    right: 12,
-    top: '50%',
-    marginTop: -16, // 垂直居中 (32/2 = 16)
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: 'rgba(74, 144, 217, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
