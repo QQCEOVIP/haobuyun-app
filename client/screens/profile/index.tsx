@@ -8,6 +8,7 @@ import {
   Alert,
   Image,
   ActivityIndicator,
+  InteractionManager,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -51,7 +52,11 @@ export default function ProfileScreen() {
   // Load profile on focus
   useFocusEffect(
     useCallback(() => {
-      loadProfile();
+      // 延迟到过渡动画完成后再执行重度异步操作，防止切换闪屏
+      const handle = InteractionManager.runAfterInteractions(() => {
+        loadProfile();
+      });
+      return () => handle.cancel();
     }, [user?.id])
   );
 
