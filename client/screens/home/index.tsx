@@ -1457,50 +1457,51 @@ export default function HomeScreen() {
             </View>
 
             <View style={styles.cloudModalBody}>
-              <View style={styles.cloudButtonGrid}>
+              <View style={styles.cloudListContainer}>
                 {/* 云端备份 */}
                 <TouchableOpacity
-                  style={styles.cloudButtonItem}
+                  style={styles.cloudListItem}
                   onPress={handleCloudBackup}
                   disabled={cloudBackupLoading !== null}
                 >
-                  <View style={[styles.cloudButtonIcon, { backgroundColor: 'rgba(74, 144, 217, 0.12)' }]}>
-                    <Ionicons name="cloud-upload" size={24} color="#4A90D9" />
+                  <View style={[styles.cloudListIcon, { backgroundColor: 'rgba(74, 144, 217, 0.12)' }]}>
+                    <Ionicons name="cloud-upload" size={22} color="#4A90D9" />
                   </View>
-                  <Text style={styles.cloudButtonText}>
+                  <Text style={styles.cloudListText}>
                     {cloudBackupLoading === 'uploading' ? '上传中...' : '云端备份'}
                   </Text>
+                  <Ionicons name="chevron-forward" size={18} color="#C0C4CC" />
                 </TouchableOpacity>
 
                 {/* 云端恢复 */}
                 <TouchableOpacity
-                  style={styles.cloudButtonItem}
+                  style={styles.cloudListItem}
                   onPress={() => {
                     loadCloudBackups();
                     setRestoreSelectVisible(true);
                   }}
                   disabled={cloudBackupLoading !== null}
                 >
-                  <View style={[styles.cloudButtonIcon, { backgroundColor: 'rgba(103, 194, 58, 0.12)' }]}>
-                    <Ionicons name="cloud-download" size={24} color="#67C23A" />
+                  <View style={[styles.cloudListIcon, { backgroundColor: 'rgba(103, 194, 58, 0.12)' }]}>
+                    <Ionicons name="cloud-download" size={22} color="#67C23A" />
                   </View>
-                  <Text style={styles.cloudButtonText}>
+                  <Text style={styles.cloudListText}>
                     {cloudBackupLoading === 'downloading' ? '下载中...' : '云端恢复'}
                   </Text>
+                  <Ionicons name="chevron-forward" size={18} color="#C0C4CC" />
                 </TouchableOpacity>
 
                 {/* 备份记录 */}
                 <TouchableOpacity
-                  style={styles.cloudButtonItem}
+                  style={[styles.cloudListItem, { borderBottomWidth: 0 }]}
                   onPress={() => { loadCloudBackups(); setBackupRecordsVisible(true); }}
                 >
-                  <View style={[styles.cloudButtonIcon, { backgroundColor: 'rgba(230, 162, 60, 0.12)' }]}>
-                    <Ionicons name="time" size={24} color="#E6A23C" />
+                  <View style={[styles.cloudListIcon, { backgroundColor: 'rgba(230, 162, 60, 0.12)' }]}>
+                    <Ionicons name="time" size={22} color="#E6A23C" />
                   </View>
-                  <Text style={styles.cloudButtonText}>备份记录</Text>
+                  <Text style={styles.cloudListText}>备份记录</Text>
+                  <Ionicons name="chevron-forward" size={18} color="#C0C4CC" />
                 </TouchableOpacity>
-
-
               </View>
             </View>
           </View>
@@ -1904,7 +1905,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-start',
     alignItems: 'center',
-    paddingTop: 80,
+    paddingTop: 60,
   },
   cloudModalBody: {
     marginTop: 4,
@@ -1913,7 +1914,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 20,
-    minHeight: 380,
     width: '90%',
     maxWidth: 360,
   },
@@ -1928,38 +1928,34 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#303133',
   },
-  cloudButtonGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+  cloudListContainer: {
+    backgroundColor: '#F5F7FA',
+    borderRadius: 12,
+    overflow: 'hidden',
     marginTop: 4,
   },
-  cloudButtonItem: {
-    width: '48%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
+  cloudListItem: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
-    shadowColor: '#D1D9E6',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E8E8E8',
+    backgroundColor: '#FFFFFF',
   },
-  cloudButtonIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  cloudListIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8,
+    marginRight: 14,
   },
-  cloudButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
+  cloudListText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '500',
     color: '#303133',
-    textAlign: 'center',
   },
   recordsContainer: {
     marginTop: 8,

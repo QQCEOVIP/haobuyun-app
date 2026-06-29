@@ -12,6 +12,7 @@ import {
   Alert,
   Image,
   ScrollView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
@@ -141,15 +142,14 @@ export default function ContactsScreen() {
                   const statusLabel = contact.status ? getStatusStyle(contact.status).label : '';
                   const avatarUri = contactAvatars[contact.phone];
                   const hasAvatar = !!avatarUri;
-                  const noteParts = [statusLabel, hasAvatar ? '✓头像' : ''].filter(Boolean);
                   
                   // 如果没有标签也没有头像，跳过
-                  if (noteParts.length === 0 && !hasAvatar) {
+                  if (!statusLabel && !hasAvatar) {
                     skipCount++;
                     continue;
                   }
 
-                  const noteText = noteParts.length > 0 ? `[号簿云] ${noteParts.join(' ')}` : undefined;
+                  const noteText = statusLabel ? `[号簿云] ${statusLabel}` : '';
                   
                   // 获取现有联系人完整数据（包含所有字段）
                   const existing = await Contacts.getContactByIdAsync(contact.deviceContactId, [
@@ -166,9 +166,9 @@ export default function ContactsScreen() {
                     continue;
                   }
 
-                  // 如果备注已包含号簿云标记且内容相同，且没有头像需要同步，跳过
-                  const needsNoteUpdate = noteText && (!existing.note?.includes('[号簿云]') || !existing.note?.includes(statusLabel));
-                  const needsAvatarUpdate = hasAvatar && avatarUri;
+                  // 检查是否需要更新
+                  const needsNoteUpdate = !!statusLabel && (!existing.note?.includes('[号簿云]') || !existing.note?.includes(statusLabel));
+                  const needsAvatarUpdate = hasAvatar && !!avatarUri;
                   
                   if (!needsNoteUpdate && !needsAvatarUpdate) {
                     skipCount++;
@@ -178,10 +178,14 @@ export default function ContactsScreen() {
                   // 构建更新数据 - 保留所有现有字段
                   const updateData: any = {
                     id: existing.id,
-                    name: existing.name,
-                    firstName: existing.name,
-                    phoneNumbers: existing.phoneNumbers?.map(p => ({ number: p.number, label: p.label || 'mobile' })) || [],
+                    name: existing.name || contact.name,
+                    phoneNumbers: existing.phoneNumbers?.map((p: any) => ({ number: p.number, label: p.label || 'mobile' })) || [],
                   };
+                  
+                  // iOS 需要单独设置 firstName
+                  if (Platform.OS === 'ios') {
+                    updateData.firstName = existing.name || contact.name;
+                  }
                   
                   // 更新备注
                   if (needsNoteUpdate && noteText) {
@@ -210,7 +214,7 @@ export default function ContactsScreen() {
                   
                   // 保留其他字段
                   if (existing.emails && existing.emails.length > 0) {
-                    updateData.emails = existing.emails.map(e => ({ email: e.email, label: e.label || 'home' }));
+                    updateData.emails = existing.emails.map((e: any) => ({ email: e.email, label: e.label || 'home' }));
                   }
                   if (existing.company) updateData.company = existing.company;
                   if (existing.jobTitle) updateData.jobTitle = existing.jobTitle;
