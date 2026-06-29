@@ -1,17 +1,44 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Logo from '@/components/Logo';
 
 export default function AboutScreen() {
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+
+  const handleCheckUpdate = async () => {
+    setCheckingUpdate(true);
+    try {
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      Alert.alert(
+        '当前已是最新版本',
+        '版本号：1.0.0\n暂无可用更新',
+        [{ text: '确定', style: 'default' }]
+      );
+    } catch {
+      Alert.alert('检查失败', '无法检查更新，请稍后重试');
+    } finally {
+      setCheckingUpdate(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
         <View style={styles.logoContainer}>
-          <View style={styles.logo}>
-            <Text style={styles.logoText}>号</Text>
-          </View>
+          <Logo size={80} />
           <Text style={styles.appName}>号簿云</Text>
           <Text style={styles.version}>版本 1.0.0</Text>
+          <TouchableOpacity
+            style={styles.updateButton}
+            onPress={handleCheckUpdate}
+            disabled={checkingUpdate}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.updateButtonText}>
+              {checkingUpdate ? '检查中...' : '检查更新'}
+            </Text>
+          </TouchableOpacity>
         </View>
 
         <Text style={styles.sectionTitle}>应用简介</Text>
@@ -41,18 +68,22 @@ const styles = StyleSheet.create({
   scrollView: { flex: 1 },
   content: { padding: 20, paddingBottom: 40 },
   logoContainer: { alignItems: 'center', marginTop: 20, marginBottom: 32 },
-  logo: {
-    width: 80,
-    height: 80,
-    borderRadius: 20,
-    backgroundColor: '#4A90D9',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  logoText: { fontSize: 36, fontWeight: '800', color: '#FFFFFF' },
-  appName: { fontSize: 22, fontWeight: '700', color: '#303133', marginBottom: 4 },
+  appName: { fontSize: 22, fontWeight: '700', color: '#303133', marginTop: 12, marginBottom: 4 },
   version: { fontSize: 14, color: '#909399' },
+  updateButton: {
+    marginTop: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 16,
+    backgroundColor: '#F0F7FF',
+    borderWidth: 1,
+    borderColor: '#D4E8FC',
+  },
+  updateButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#4A90D9',
+  },
   sectionTitle: { fontSize: 17, fontWeight: '600', color: '#303133', marginTop: 20, marginBottom: 10 },
   paragraph: { fontSize: 15, color: '#606266', lineHeight: 24, marginBottom: 8 },
   copyright: { fontSize: 13, color: '#C0C4CC', textAlign: 'center', marginTop: 40 },

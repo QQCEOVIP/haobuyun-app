@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   Alert,
   Modal,
   TextInput,
@@ -486,6 +487,9 @@ export default function HomeScreen() {
               await SAF.writeAsStringAsync(fileUri, backupContent);
               Alert.alert('导出成功', `已备份 ${contactCount} 个联系人（含标签状态）\n仅号簿云可恢复此格式`);
               return;
+            } else {
+              // 用户取消了路径选择，直接取消导出
+              return;
             }
           }
         } catch (safError) {
@@ -633,6 +637,10 @@ export default function HomeScreen() {
               const fileUri = await SAF.createFileAsync(permission.directoryUri, defaultFileName, 'text/vcard');
               await SAF.writeAsStringAsync(fileUri, vcardContent);
               Alert.alert('备份成功', `已备份 ${contactCount} 个联系人`);
+              setBackupLoading(false);
+              return;
+            } else {
+              // 用户取消了路径选择，直接取消导出
               setBackupLoading(false);
               return;
             }
@@ -1475,7 +1483,9 @@ export default function HomeScreen() {
         animationType="slide"
         onRequestClose={() => setCloudBackupVisible(false)}
       >
+        <TouchableWithoutFeedback onPress={() => setCloudBackupVisible(false)}>
         <View style={styles.cloudModalOverlay}>
+          <TouchableWithoutFeedback>
           <View style={styles.cloudModalContent}>
             <View style={styles.cloudModalHeader}>
               <Text style={styles.cloudModalTitle}>云端备份</Text>
@@ -1533,7 +1543,9 @@ export default function HomeScreen() {
               </View>
             </View>
           </View>
+          </TouchableWithoutFeedback>
         </View>
+        </TouchableWithoutFeedback>
       </Modal>
       )}
 
@@ -1545,7 +1557,9 @@ export default function HomeScreen() {
         animationType="slide"
         onRequestClose={() => setRestoreSelectVisible(false)}
       >
+        <TouchableWithoutFeedback onPress={() => setRestoreSelectVisible(false)}>
         <View style={styles.cloudModalOverlay}>
+          <TouchableWithoutFeedback>
           <View style={[styles.cloudModalContent, { maxHeight: '70%' }]}>
             <View style={styles.cloudModalHeader}>
               <Text style={styles.cloudModalTitle}>请选择要恢复的数据</Text>
@@ -1608,7 +1622,9 @@ export default function HomeScreen() {
               </TouchableOpacity>
             </View>
           </View>
+          </TouchableWithoutFeedback>
         </View>
+        </TouchableWithoutFeedback>
       </Modal>
       )}
 
@@ -1620,7 +1636,9 @@ export default function HomeScreen() {
         animationType="slide"
         onRequestClose={() => setBackupRecordsVisible(false)}
       >
+        <TouchableWithoutFeedback onPress={() => setBackupRecordsVisible(false)}>
         <View style={styles.cloudModalOverlay}>
+          <TouchableWithoutFeedback>
           <View style={[styles.cloudModalContent, { maxHeight: '70%' }]}>
             <View style={styles.cloudModalHeader}>
               <Text style={styles.cloudModalTitle}>备份记录</Text>
@@ -1675,7 +1693,9 @@ export default function HomeScreen() {
               )}
             </ScrollView>
           </View>
+          </TouchableWithoutFeedback>
         </View>
+        </TouchableWithoutFeedback>
       </Modal>
       )}
 

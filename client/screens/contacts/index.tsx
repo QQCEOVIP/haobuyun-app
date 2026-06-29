@@ -693,15 +693,13 @@ export default function ContactsScreen() {
           </View>
           <View style={styles.headerButtons}>
             <TouchableOpacity
-              style={styles.headerButton}
+              style={styles.syncTextButton}
               onPress={handleSync}
               disabled={syncLoading}
             >
-              {syncLoading ? (
-                <Ionicons name="sync" size={22} color="#909399" />
-              ) : (
-                <Ionicons name="sync-outline" size={22} color="#4A90D9" />
-              )}
+              <Text style={[styles.syncTextButtonText, syncLoading && { color: '#909399' }]}>
+                {syncLoading ? '同步中...' : '同步'}
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.headerButton}
@@ -754,9 +752,10 @@ export default function ContactsScreen() {
               <TouchableOpacity
                 style={styles.pillButton}
                 onPress={() => router.push('/recycle-bin')}
+                activeOpacity={0.8}
               >
-                <View style={styles.pillLeft} />
-                <View style={styles.pillRight} />
+                <Ionicons name="trash-outline" size={14} color="#fff" style={{ marginRight: 4 }} />
+                <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>回收站</Text>
               </TouchableOpacity>
             </View>
             <View style={styles.cleanupStats}>
@@ -1093,6 +1092,15 @@ const styles = StyleSheet.create({
   },
   headerButton: {
     padding: 4,
+  },
+  syncTextButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  syncTextButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#4A90D9',
   },
   searchContainer: {
     flexDirection: 'row',
@@ -1498,10 +1506,17 @@ const styles = StyleSheet.create({
   },
   pillButton: {
     flexDirection: 'row',
-    width: 48,
-    height: 24,
-    borderRadius: 12,
-    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#F56C6C',
+    shadowColor: '#F56C6C',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    elevation: 5,
   },
   pillLeft: {
     flex: 1,

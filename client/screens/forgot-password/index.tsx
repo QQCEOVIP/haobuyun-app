@@ -35,14 +35,13 @@ export default function ForgotPasswordScreen() {
     setLoading(true);
     try {
       const response = await fetch(
-        `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/auth/forgot-password`,
+        `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/auth/verify-identity`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             phone: phone.trim(),
             idCard: idCard.trim(),
-            newPassword: 'temp_verify_only', // Just verify, don't reset yet
           }),
         }
       );

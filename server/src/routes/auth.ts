@@ -10,6 +10,47 @@ const supabaseAdmin = createClient(
 );
 
 /**
+ * POST /api/v1/auth/verify-identity
+ * Verify phone + ID card (without resetting password)
+ * Body: { phone: string, idCard: string }
+ */
+router.post('/verify-identity', async (req, res) => {
+  try {
+    const { phone, idCard } = req.body;
+
+    if (!phone || !idCard) {
+      return res.status(400).json({ 
+        success: false, 
+        error: '缺少必要参数' 
+      });
+    }
+
+    const email = `${phone}@haobuyun.app`;
+    const { data: users, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+    
+    if (listError) {
+      console.error('List users error:', listError);
+      return res.status(500).json({ success: false, error: '查询用户失败' });
+    }
+
+    const targetUser = users?.users?.find(u => u.email === email);
+    if (!targetUser) {
+      return res.status(404).json({ success: false, error: '该手机号未注册' });
+    }
+
+    const userIdCard = targetUser.user_metadata?.id_card;
+    if (!userIdCard || userIdCard !== idCard) {
+      return res.status(401).json({ success: false, error: '信息不匹配，请检查手机号和身份证号' });
+    }
+
+    res.json({ success: true, message: '验证通过' });
+  } catch (error) {
+    console.error('Verify identity error:', error);
+    res.status(500).json({ success: false, error: '服务器错误' });
+  }
+});
+
+/**
  * POST /api/v1/auth/forgot-password
  * Verify phone + ID card and reset password
  * Body: { phone: string, idCard: string, newPassword: string }
