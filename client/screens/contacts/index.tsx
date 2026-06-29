@@ -219,9 +219,12 @@ export default function ContactsScreen() {
                   if (existing.company) updateData.company = existing.company;
                   if (existing.jobTitle) updateData.jobTitle = existing.jobTitle;
 
+                  console.log(`[Sync] Updating ${contact.name} (${contact.phone}): note=${needsNoteUpdate}, avatar=${needsAvatarUpdate}`);
                   await Contacts.updateContactAsync(updateData);
                   syncCount++;
+                  console.log(`[Sync] Successfully synced ${contact.name}`);
                 } catch (e) {
+                  console.warn(`[Sync] Failed to sync ${contact.name}:`, e);
                   failCount++;
                   console.warn('Sync contact error:', contact.phone, (e as any)?.message);
                 }
@@ -363,7 +366,7 @@ export default function ContactsScreen() {
         // 分页获取所有设备联系人 - 使用更稳健的分页逻辑
         let allDeviceContacts: Contacts.Contact[] = [];
         let offset = 0;
-        const devicePageSize = 2000;
+        const devicePageSize = 5000;
         let hasMore = true;
         while (hasMore) {
           const { data: deviceContacts } = await Contacts.getContactsAsync({

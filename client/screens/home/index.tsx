@@ -531,8 +531,8 @@ export default function HomeScreen() {
             // 先让用户选择保存目录
             const permission = await SAF.requestDirectoryPermissionsAsync();
             if (permission.granted && permission.directoryUri) {
-              // SAF API: createFileAsync(parentUri, fileName, mimeType)
-              const fileUri = await SAF.createFileAsync(permission.directoryUri, defaultFileName, 'application/json');
+              // SAF API: createFileAsync(parentUri, mimeType, fileName)
+              const fileUri = await SAF.createFileAsync(permission.directoryUri, 'application/json', defaultFileName);
               await SAF.writeAsStringAsync(fileUri, backupContent);
               Alert.alert('导出成功', `已备份 ${contactCount} 个联系人（含标签状态）\n仅号簿云可恢复此格式`);
               return;
@@ -687,8 +687,8 @@ export default function HomeScreen() {
             // 先让用户选择保存目录
             const permission = await SAF.requestDirectoryPermissionsAsync();
             if (permission.granted && permission.directoryUri) {
-              // SAF API: createFileAsync(parentUri, fileName, mimeType)
-              const fileUri = await SAF.createFileAsync(permission.directoryUri, defaultFileName, 'text/vcard');
+              // SAF API: createFileAsync(parentUri, mimeType, fileName)
+              const fileUri = await SAF.createFileAsync(permission.directoryUri, 'text/vcard', defaultFileName);
               await SAF.writeAsStringAsync(fileUri, vcardContent);
               Alert.alert('备份成功', `已备份 ${contactCount} 个联系人`);
               setBackupLoading(false);
@@ -751,15 +751,37 @@ export default function HomeScreen() {
 
   const fetchBackupList = async () => {
     try {
-      const files = await FileSystemLegacy.readDirectoryAsync(FileSystemLegacy.documentDirectory || '');
-      const backupFiles = files
+      // Read from LOCAL_BACKUP_DIR (backups/ subdirectory)
+      const backupDir = LOCAL_BACKUP_DIR;
+      const dirInfo = await FileSystemLegacy.getInfoAsync(backupDir).catch(() => null);
+      let backupFiles: string[] = [];
+      
+      if (dirInfo?.exists) {
+        const files = await FileSystemLegacy.readDirectoryAsync(backupDir);
+        backupFiles = files
+          .filter(f => (f.startsWith('contacts_backup_') && f.endsWith('.json')) || (f.startsWith('通讯录备份_') && f.endsWith('.vcf')))
+          .sort()
+          .reverse();
+      }
+      
+      // Also check documentDirectory root for legacy backups
+      const rootFiles = await FileSystemLegacy.readDirectoryAsync(FileSystemLegacy.documentDirectory || '');
+      const rootBackupFiles = rootFiles
         .filter(f => (f.startsWith('contacts_backup_') && f.endsWith('.json')) || (f.startsWith('通讯录备份_') && f.endsWith('.vcf')))
         .sort()
         .reverse();
+      
+      // Combine both sources
+      const allBackupFiles = [...new Set([...backupFiles, ...rootBackupFiles])];
 
       const backupList = await Promise.all(
-        backupFiles.map(async (fileName) => {
-          const filePath = `${FileSystemLegacy.documentDirectory}${fileName}`;
+        allBackupFiles.map(async (fileName) => {
+          // Try LOCAL_BACKUP_DIR first, then documentDirectory root
+          let filePath = `${backupDir}${fileName}`;
+          const fileInfo = await FileSystemLegacy.getInfoAsync(filePath).catch(() => null);
+          if (!fileInfo?.exists) {
+            filePath = `${FileSystemLegacy.documentDirectory}${fileName}`;
+          }
           const content = await FileSystemLegacy.readAsStringAsync(filePath);
           
           let contactCount = 0;
@@ -828,6 +850,32 @@ export default function HomeScreen() {
           }
         })
       );
+
+      // If no local backups, fall back to cloud backups
+      if (backupList.length === 0 && user?.id) {
+        try {
+          const response = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/backups`, {
+            headers: { 'x-user-id': user.id },
+          });
+          if (response.ok) {
+            const cloudBackups = await response.json();
+            // Take the 2 most recent cloud backups
+            const recentCloudBackups = (cloudBackups || []).slice(0, 2).map((b: any) => ({
+              fileName: b.name || b.fileName || 'cloud_backup',
+              filePath: '',
+              created_at: b.created_at || new Date().toISOString(),
+              contact_count: b.metadata?.contact_count || 0,
+              contacts: [],
+              isCloud: true,
+              cloudKey: b.name || b.key,
+            }));
+            setBackups(recentCloudBackups);
+            return;
+          }
+        } catch (cloudErr) {
+          console.warn('Failed to fetch cloud backups:', cloudErr);
+        }
+      }
 
       setBackups(backupList);
     } catch (error) {

@@ -35,6 +35,10 @@ export default function TabLayout() {
           marginTop: 2,
         },
         animation: 'none',
+        transitionSpec: {
+          animation: 'timing',
+          config: { duration: 0 },
+        },
       }}
     >
       <Tabs.Screen
