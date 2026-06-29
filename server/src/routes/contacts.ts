@@ -294,35 +294,40 @@ router.post('/batch-delete', requireAuth, async (req: any, res: any) => {
     }
 
     if (Array.isArray(phones) && phones.length > 0) {
-      // Soft delete by phone numbers - first try to update existing records
+      // Soft delete by phone numbers - first try to update existing non-deleted records
       const phoneResult = await db
         .update(contacts)
         .set({ is_deleted: true, deleted_at: deletedAt })
         .where(and(
           inArray(contacts.phone, phones),
-          eq(contacts.user_id, userId)
+          eq(contacts.user_id, userId),
+          or(isNull(contacts.is_deleted), eq(contacts.is_deleted, false))
         ))
-        .returning({ id: contacts.id });
+        .returning({ id: contacts.id, phone: contacts.phone });
       result = result.concat(phoneResult);
 
-      // For phones that weren't found (not in DB), insert new records with is_deleted=true
-      const updatedPhones = new Set(phoneResult.map(r => r.id));
-      // We need to find which phones were NOT updated
-      // Since we can't easily map IDs back to phones, insert all phones that might not exist
-      // Use a simpler approach: insert any phone that doesn't already have a record
-      for (let i = 0; i < phones.length; i++) {
-        const phone = phones[i];
-        if (!phone) continue;
-        // Check if this phone already has a record for this user
-        const existing = await db
-          .select({ id: contacts.id })
+      // Find which phones were NOT updated (either never existed or already deleted)
+      const updatedPhones = new Set(phoneResult.map(r => r.phone));
+      const missingPhones = phones.filter(p => !updatedPhones.has(p));
+
+      if (missingPhones.length > 0) {
+        // Check which of these phones already have records (including soft-deleted)
+        const existingRecords = await db
+          .select({ phone: contacts.phone })
           .from(contacts)
-          .where(and(eq(contacts.user_id, userId), eq(contacts.phone, phone)))
-          .limit(1);
-        
-        if (existing.length === 0) {
-          // Insert a new soft-deleted record
-          const name = Array.isArray(names) && names[i] ? names[i] : '';
+          .where(and(
+            eq(contacts.user_id, userId),
+            inArray(contacts.phone, missingPhones)
+          ));
+        const existingPhones = new Set(existingRecords.map(r => r.phone));
+
+        // Insert new soft-deleted records only for phones with NO existing record
+        const phonesToInsert = missingPhones.filter(p => !existingPhones.has(p));
+        for (let i = 0; i < phonesToInsert.length; i++) {
+          const phone = phonesToInsert[i];
+          if (!phone) continue;
+          const originalIndex = phones.indexOf(phone);
+          const name = Array.isArray(names) && names[originalIndex] ? names[originalIndex] : '';
           const newRecord = await db
             .insert(contacts)
             .values({
@@ -338,6 +343,22 @@ router.post('/batch-delete', requireAuth, async (req: any, res: any) => {
             })
             .returning({ id: contacts.id });
           result = result.concat(newRecord);
+        }
+
+        // For phones that already have records but weren't soft-deleted (edge case),
+        // ensure they are now marked as deleted
+        const phonesToUpdate = missingPhones.filter(p => existingPhones.has(p));
+        if (phonesToUpdate.length > 0) {
+          const updateResult = await db
+            .update(contacts)
+            .set({ is_deleted: true, deleted_at: deletedAt })
+            .where(and(
+              eq(contacts.user_id, userId),
+              inArray(contacts.phone, phonesToUpdate),
+              or(isNull(contacts.is_deleted), eq(contacts.is_deleted, false))
+            ))
+            .returning({ id: contacts.id });
+          result = result.concat(updateResult);
         }
       }
     }

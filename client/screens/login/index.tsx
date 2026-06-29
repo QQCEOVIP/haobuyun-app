@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeRouter } from '@/hooks/useSafeRouter';
 import * as SecureStore from 'expo-secure-store';
 import { useAuth } from '@/contexts/AuthContext';
 import Logo from '@/components/Logo';
@@ -23,6 +24,7 @@ const SECURE_PASSWORD_KEY = 'saved_login_password';
 const APP_DOMAIN = 'haobuyun.app';
 
 export default function LoginScreen() {
+  const router = useSafeRouter();
   const [isLogin, setIsLogin] = useState(true);
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
@@ -231,6 +233,15 @@ export default function LoginScreen() {
               )}
             </TouchableOpacity>
 
+            {isLogin && (
+              <TouchableOpacity
+                style={styles.forgotPasswordRow}
+                onPress={() => router.push('/forgot-password')}
+              >
+                <Text style={styles.forgotPasswordText}>忘记密码？</Text>
+              </TouchableOpacity>
+            )}
+
             <TouchableOpacity
               style={styles.switchButton}
               onPress={() => {
@@ -376,6 +387,14 @@ const styles = StyleSheet.create({
   switchText: {
     color: '#4A90D9',
     fontSize: 14,
+  },
+  forgotPasswordRow: {
+    marginTop: 12,
+    alignItems: 'center',
+  },
+  forgotPasswordText: {
+    color: '#909399',
+    fontSize: 13,
   },
   privacy: {
     marginTop: 24,

@@ -707,7 +707,22 @@ export default function HomeScreen() {
           let contacts: any[] = [];
           
           if (fileName.endsWith('.json')) {
-            contacts = JSON.parse(content);
+            const parsed = JSON.parse(content);
+            // Handle HAOBUYUN_BACKUP format: { format: 'HAOBUYUN_BACKUP', contacts: [...] }
+            if (parsed.format === 'HAOBUYUN_BACKUP' && Array.isArray(parsed.contacts)) {
+              contacts = parsed.contacts.map((c: any) => ({
+                name: c.name || '',
+                phone: c.phones?.[0]?.number || c.phone || '',
+                email: c.emails?.[0]?.email || c.email || '',
+                company: c.company || '',
+                jobTitle: c.jobTitle || '',
+                note: c.note || '',
+              }));
+            } else if (Array.isArray(parsed)) {
+              contacts = parsed;
+            } else {
+              contacts = [];
+            }
             contactCount = contacts.length;
             const timestamp = fileName.replace('contacts_backup_', '').replace('.json', '');
             const date = new Date(
@@ -786,9 +801,12 @@ export default function HomeScreen() {
 
       for (const contact of backupData) {
         try {
+          // Support both { phone: '...' } and { phones: [{ number: '...' }] } formats
+          const phoneNumber = contact.phone || contact.phones?.[0]?.number || '';
+          if (!phoneNumber) { failCount++; continue; }
           const contactData: any = {
-            name: contact.name,
-            phoneNumbers: [{ number: contact.phone }],
+            name: contact.name || '',
+            phoneNumbers: [{ number: phoneNumber }],
           };
           if (contact.email) contactData.emails = [{ email: contact.email }];
           if (contact.company) contactData.company = contact.company;
@@ -959,6 +977,20 @@ export default function HomeScreen() {
       Alert.alert('提示', '请先登录');
       return;
     }
+    Alert.alert(
+      '确认云端备份',
+      '确定要将当前通讯录备份到云端吗？',
+      [
+        { text: '取消', style: 'cancel' },
+        {
+          text: '确定备份',
+          onPress: () => executeCloudBackup(),
+        },
+      ]
+    );
+  };
+
+  const executeCloudBackup = async () => {
     setCloudLoading(true);
     setCloudBackupLoading('uploading');
     setCloudProgress('正在生成备份数据...');
@@ -1267,8 +1299,9 @@ export default function HomeScreen() {
     }
   }, [userId]);
 
+  // 健康度 = (总号码 - 确认失效 - 可能失效) / 总号码 × 100%
   const healthPercentage = stats.total > 0
-    ? Math.round((stats.active / stats.total) * 100)
+    ? Math.round(((stats.total - stats.invalid - stats.maybeInvalid) / stats.total) * 100)
     : 100;
 
   return (
@@ -1592,25 +1625,10 @@ export default function HomeScreen() {
         animationType="slide"
         onRequestClose={() => setBackupRecordsVisible(false)}
       >
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' }}>
-          <View style={{
-            backgroundColor: '#FFFFFF',
-            borderTopLeftRadius: 20,
-            borderTopRightRadius: 20,
-            maxHeight: '70%',
-            paddingBottom: 34,
-          }}>
-            <View style={{
-              flexDirection: 'row',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              paddingHorizontal: 20,
-              paddingTop: 20,
-              paddingBottom: 12,
-              borderBottomWidth: 1,
-              borderBottomColor: '#F0F0F0',
-            }}>
-              <Text style={{ fontSize: 17, fontWeight: '700', color: '#303133' }}>备份记录</Text>
+        <View style={styles.cloudModalOverlay}>
+          <View style={[styles.cloudModalContent, { maxHeight: '70%' }]}>
+            <View style={styles.cloudModalHeader}>
+              <Text style={styles.cloudModalTitle}>备份记录</Text>
               <TouchableOpacity onPress={() => setBackupRecordsVisible(false)}>
                 <Ionicons name="close" size={24} color="#909399" />
               </TouchableOpacity>
