@@ -237,10 +237,10 @@ export default function HomeScreen() {
         const fileUri = file.uri;
         const content = await FileSystemLegacy.readAsStringAsync(fileUri);
         
-        if (fileName.endsWith('.json') || fileName.endsWith('.vcf')) {
+        if (fileName.endsWith('.json') || fileName.endsWith('.hbyun') || fileName.endsWith('.vcf')) {
           await importFromContent(content, fileName);
         } else {
-          Alert.alert("提示", "请选择 .vcf 或 .json 格式的文件");
+          Alert.alert("提示", "请选择 .vcf、.json 或 .hbyun 格式的文件");
         }
       } else {
         // Fallback: scan document directory
@@ -268,9 +268,22 @@ export default function HomeScreen() {
   const importFromContent = async (content: string, fileName: string) => {
     try {
       let contacts: Array<{ name: string; phone: string; email?: string; company?: string; jobTitle?: string; note?: string }> = [];
-      if (fileName.endsWith(".json")) {
+      if (fileName.endsWith(".json") || fileName.endsWith(".hbyun")) {
         const parsed = JSON.parse(content);
-        contacts = Array.isArray(parsed) ? parsed : [];
+        // 支持号簿云备份格式 (HAOBUYUN_BACKUP)
+        if (parsed.format === 'HAOBUYUN_BACKUP' && Array.isArray(parsed.contacts)) {
+          contacts = parsed.contacts.map((c: any) => ({
+            name: c.name || '',
+            phone: c.phones?.[0]?.number || '',
+            email: c.emails?.[0]?.email || undefined,
+            company: c.company || undefined,
+            jobTitle: c.jobTitle || undefined,
+            note: c.note || undefined,
+          })).filter((c: any) => c.phone);
+        } else if (Array.isArray(parsed)) {
+          // 兼容旧格式：直接是联系人数组
+          contacts = parsed;
+        }
       } else if (fileName.endsWith(".vcf")) {
         const vcardBlocks = content.split("BEGIN:VCARD");
         for (const block of vcardBlocks) {

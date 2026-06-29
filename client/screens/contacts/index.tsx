@@ -18,6 +18,7 @@ import { useSafeRouter } from '@/hooks/useSafeRouter';
 import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
+import * as FileSystemLegacy from 'expo-file-system/legacy';
 import { supabase } from '@/storage/supabase';
 import * as Contacts from 'expo-contacts';
 import { Crypto } from 'expo-crypto';
@@ -189,9 +190,22 @@ export default function ContactsScreen() {
                     updateData.note = existing.note;
                   }
                   
-                  // 更新头像
+                  // 更新头像 - 需要将base64转换为文件URI
                   if (needsAvatarUpdate && avatarUri) {
-                    updateData.image = { uri: avatarUri };
+                    // 如果是base64格式，先写入临时文件
+                    if (avatarUri.startsWith('data:image')) {
+                      try {
+                        const base64Data = avatarUri.split(',')[1];
+                        const tempFileUri = FileSystemLegacy.cacheDirectory + `avatar_${contact.phone.replace(/\D/g, '')}.jpg`;
+                        await FileSystemLegacy.writeAsStringAsync(tempFileUri, base64Data, { encoding: FileSystemLegacy.EncodingType.Base64 });
+                        updateData.image = { uri: tempFileUri };
+                      } catch (e) {
+                        console.warn(`[Sync] Failed to write avatar file for ${contact.name}:`, e);
+                      }
+                    } else {
+                      // 已经是文件URI，直接使用
+                      updateData.image = { uri: avatarUri };
+                    }
                   }
                   
                   // 保留其他字段
