@@ -7,7 +7,7 @@ export default function TabLayout() {
   const insets = useSafeAreaInsets();
 
   let tabBarStyle: any = {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F5F7FA',
     borderTopWidth: 1,
     borderTopColor: '#E6E8EB',
     paddingTop: 8,
@@ -23,7 +23,6 @@ export default function TabLayout() {
 
   return (
     <Tabs
-      backBehavior="history"
       screenOptions={{
         headerShown: false,
         tabBarStyle,
@@ -34,9 +33,8 @@ export default function TabLayout() {
           fontWeight: '500',
           marginTop: 2,
         },
+        animation: 'none',
       }}
-      // 禁用屏幕分离，防止切换时屏幕闪黑
-      detachInactiveScreens={false}
     >
       <Tabs.Screen
         name="index"
