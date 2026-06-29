@@ -750,13 +750,10 @@ export default function ContactsScreen() {
                 <Text style={styles.cleanupTitle}>管理助手</Text>
               </View>
               <TouchableOpacity
-                style={styles.pillButton}
+                style={styles.recycleBinPill}
                 onPress={() => router.push('/recycle-bin')}
                 activeOpacity={0.8}
-              >
-                <Ionicons name="trash-outline" size={14} color="#fff" style={{ marginRight: 4 }} />
-                <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>回收站</Text>
-              </TouchableOpacity>
+              />
             </View>
             <View style={styles.cleanupStats}>
               <TouchableOpacity
@@ -1094,11 +1091,13 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   syncTextButton: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: '#E8F0FE',
   },
   syncTextButtonText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     color: '#4A90D9',
   },
@@ -1505,20 +1504,19 @@ const styles = StyleSheet.create({
     color: '#EA580C',
   },
   pillButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 12,
-    height: 28,
-    borderRadius: 14,
+    width: 52,
+    height: 26,
+    borderRadius: 13,
     backgroundColor: '#F56C6C',
     shadowColor: '#F56C6C',
     shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.35,
-    shadowRadius: 6,
-    elevation: 5,
+    shadowOpacity: 0.4,
+    shadowRadius: 5,
+    elevation: 6,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.35)',
   },
-  pillLeft: {
+  _pillLeft_unused: {
     flex: 1,
     backgroundColor: '#FBBF24',
   },
