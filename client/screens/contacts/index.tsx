@@ -13,7 +13,6 @@ import {
   Image,
   ScrollView,
   Platform,
-  InteractionManager,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
@@ -589,12 +588,8 @@ export default function ContactsScreen() {
   // Tab切换/返回时刷新联系人列表和清理统计
   useFocusEffect(
     useCallback(() => {
-      // 延迟到过渡动画完成后再执行重度异步操作，防止切换闪屏
-      const handle = InteractionManager.runAfterInteractions(() => {
-        loadContacts();
-        loadContactAvatars();
-      });
-      return () => handle.cancel();
+      loadContacts();
+      loadContactAvatars();
     }, [loadContacts, loadContactAvatars])
   );
 

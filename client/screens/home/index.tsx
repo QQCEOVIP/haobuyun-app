@@ -12,7 +12,6 @@ import {
   Image,
   ScrollView,
   RefreshControl,
-  InteractionManager,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
@@ -1251,11 +1250,7 @@ export default function HomeScreen() {
   // 使用 useFocusEffect 确保Tab切换/返回时刷新统计数据
   useFocusEffect(
     useCallback(() => {
-      // 延迟到过渡动画完成后再执行重度异步操作，防止切换闪屏
-      const handle = InteractionManager.runAfterInteractions(() => {
-        fetchStats();
-      });
-      return () => handle.cancel();
+      fetchStats();
     }, [userId])
   );
 

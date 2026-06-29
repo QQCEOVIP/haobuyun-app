@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   RefreshControl,
   Alert,
-  InteractionManager,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
@@ -50,11 +49,7 @@ export default function CleanupScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      // 延迟到过渡动画完成后再执行重度异步操作，防止切换闪屏
-      const handle = InteractionManager.runAfterInteractions(() => {
-        loadInvalidContacts();
-      });
-      return () => handle.cancel();
+      loadInvalidContacts();
     }, [userId])
   );
 
