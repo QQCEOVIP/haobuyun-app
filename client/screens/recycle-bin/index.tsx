@@ -15,9 +15,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface TrashContact {
-  id: number;
+  id: string;
   name: string;
-  phone_numbers: string;
+  phone: string;
+  status: string;
   deleted_at: string;
 }
 
@@ -26,7 +27,7 @@ export default function RecycleBinScreen() {
   const { user } = useAuth();
   const [trashContacts, setTrashContacts] = useState<TrashContact[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [actionLoading, setActionLoading] = useState(false);
 
   const loadTrash = useCallback(async () => {
@@ -55,7 +56,7 @@ export default function RecycleBinScreen() {
     }, [loadTrash])
   );
 
-  const toggleSelect = (id: number) => {
+  const toggleSelect = (id: string) => {
     setSelectedIds(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -82,14 +83,22 @@ export default function RecycleBinScreen() {
     try {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (user?.id) headers['x-user-id'] = user.id;
-      for (const id of selectedIds) {
-        const response = await fetch(
-          `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/contacts/${id}/restore`,
-          { method: 'POST', headers }
-        );
-        if (!response.ok) throw new Error(`Failed to restore ${id}`);
-      }
-      Alert.alert('完成', `已恢复 ${selectedIds.size} 个号码`);
+      /**
+       * 服务端文件：server/src/routes/contacts.ts
+       * 接口：POST /api/v1/contacts/trash/restore-batch
+       * Body 参数：ids: string[]
+       */
+      const response = await fetch(
+        `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/contacts/trash/restore-batch`,
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ ids: Array.from(selectedIds) }),
+        }
+      );
+      if (!response.ok) throw new Error('Failed to restore');
+      const result = await response.json();
+      Alert.alert('完成', result.message || `已恢复 ${selectedIds.size} 个号码`);
       setSelectedIds(new Set());
       loadTrash();
     } catch (error) {

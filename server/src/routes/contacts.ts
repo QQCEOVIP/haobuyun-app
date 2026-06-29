@@ -4,7 +4,7 @@
  */
 import { Router } from 'express';
 import { db } from '../storage/database';
-import { contacts, backups } from '../storage/database/shared/schema';
+import { contacts, backups, deletedContacts } from '../storage/database/shared/schema';
 import { eq, and, desc, or, isNull, inArray } from 'drizzle-orm';
 import crypto from 'crypto';
 
@@ -268,131 +268,102 @@ router.post('/trash', requireAuth, async (req: any, res: any) => {
 });
 
 /**
- * 批量软删除联系人
+ * 批量删除联系人（搬家到回收站）
  * POST /api/v1/contacts/batch-delete
- * Body: { contactIds: string[] }
+ * Body: { contactIds?: string[], phones?: string[], names?: string[] }
  */
 router.post('/batch-delete', requireAuth, async (req: any, res: any) => {
   try {
     const { contactIds, phones, names } = req.body;
     const userId = (req as any).userId;
     const deletedAt = new Date();
+    let movedCount = 0;
 
-    // Support both contactIds (Supabase IDs) and phones (phone number lookup)
-    let result: { id: string }[] = [];
+    // Helper: move a contact record from contacts → deleted_contacts
+    async function moveToTrash(contact: any) {
+      await db.insert(deletedContacts).values({
+        user_id: contact.user_id,
+        name: contact.name,
+        phone: contact.phone,
+        phone_hash: contact.phone_hash,
+        avatar_url: contact.avatar_url,
+        status: contact.status ?? 'unknown',
+        invalid_reason: contact.invalid_reason,
+        invalid_report_count: contact.invalid_report_count ?? 0,
+        last_contact_date: contact.last_contact_date,
+        notes: contact.notes,
+        deleted_at: deletedAt,
+        created_at: contact.created_at ?? deletedAt,
+      });
+      await db.delete(contacts).where(eq(contacts.id, contact.id));
+      movedCount++;
+    }
 
     if (Array.isArray(contactIds) && contactIds.length > 0) {
-      // Original behavior: soft delete by Supabase record IDs
-      result = await db
-        .update(contacts)
-        .set({ is_deleted: true, deleted_at: deletedAt })
+      const records = await db
+        .select()
+        .from(contacts)
         .where(and(
           inArray(contacts.id, contactIds),
           eq(contacts.user_id, userId)
-        ))
-        .returning({ id: contacts.id });
-    }
-
-    if (Array.isArray(phones) && phones.length > 0) {
-      // Soft delete by phone numbers - first try to update existing non-deleted records
-      const phoneResult = await db
-        .update(contacts)
-        .set({ is_deleted: true, deleted_at: deletedAt })
-        .where(and(
-          inArray(contacts.phone, phones),
-          eq(contacts.user_id, userId),
-          or(isNull(contacts.is_deleted), eq(contacts.is_deleted, false))
-        ))
-        .returning({ id: contacts.id, phone: contacts.phone });
-      result = result.concat(phoneResult);
-
-      // Find which phones were NOT updated (either never existed or already deleted)
-      const updatedPhones = new Set(phoneResult.map(r => r.phone));
-      const missingPhones = phones.filter(p => !updatedPhones.has(p));
-
-      if (missingPhones.length > 0) {
-        // Check which of these phones already have records (including soft-deleted)
-        const existingRecords = await db
-          .select({ phone: contacts.phone })
-          .from(contacts)
-          .where(and(
-            eq(contacts.user_id, userId),
-            inArray(contacts.phone, missingPhones)
-          ));
-        const existingPhones = new Set(existingRecords.map(r => r.phone));
-
-        // Insert new soft-deleted records only for phones with NO existing record
-        const phonesToInsert = missingPhones.filter(p => !existingPhones.has(p));
-        for (let i = 0; i < phonesToInsert.length; i++) {
-          const phone = phonesToInsert[i];
-          if (!phone) continue;
-          const originalIndex = phones.indexOf(phone);
-          const name = Array.isArray(names) && names[originalIndex] ? names[originalIndex] : '';
-          const newRecord = await db
-            .insert(contacts)
-            .values({
-              user_id: userId,
-              phone: phone,
-              name: name,
-              phone_hash: hashPhone(phone),
-              status: 'unknown',
-              is_deleted: true,
-              deleted_at: deletedAt,
-              created_at: deletedAt,
-              updated_at: deletedAt,
-            })
-            .returning({ id: contacts.id });
-          result = result.concat(newRecord);
-        }
-
-        // For phones that already have records but weren't soft-deleted (edge case),
-        // ensure they are now marked as deleted
-        const phonesToUpdate = missingPhones.filter(p => existingPhones.has(p));
-        if (phonesToUpdate.length > 0) {
-          const updateResult = await db
-            .update(contacts)
-            .set({ is_deleted: true, deleted_at: deletedAt })
-            .where(and(
-              eq(contacts.user_id, userId),
-              inArray(contacts.phone, phonesToUpdate),
-              or(isNull(contacts.is_deleted), eq(contacts.is_deleted, false))
-            ))
-            .returning({ id: contacts.id });
-          result = result.concat(updateResult);
-        }
+        ));
+      for (const record of records) {
+        await moveToTrash(record);
       }
     }
 
-    if (result.length === 0 && (!contactIds || contactIds.length === 0) && (!phones || phones.length === 0)) {
-      return res.status(400).json({ error: 'Must provide contactIds or phones' });
+    if (Array.isArray(phones) && phones.length > 0) {
+      const records = await db
+        .select()
+        .from(contacts)
+        .where(and(
+          inArray(contacts.phone, phones),
+          eq(contacts.user_id, userId)
+        ));
+      const foundPhones = new Set(records.map(r => r.phone));
+      for (const record of records) {
+        await moveToTrash(record);
+      }
+
+      for (let i = 0; i < phones.length; i++) {
+        const phone = phones[i];
+        if (!phone || foundPhones.has(phone)) continue;
+        const name = Array.isArray(names) && names[i] ? names[i] : '';
+        await db.insert(deletedContacts).values({
+          user_id: userId,
+          phone,
+          name,
+          phone_hash: hashPhone(phone),
+          status: 'unknown',
+          deleted_at: deletedAt,
+        });
+        movedCount++;
+      }
     }
 
     res.json({
       success: true,
-      deleted: result.length
+      message: `已将 ${movedCount} 个号码移至回收站`,
+      movedCount,
     });
   } catch (error) {
     console.error('Batch delete error:', error);
-    res.status(500).json({ error: 'Failed to batch delete contacts' });
+    res.status(500).json({ error: '批量删除失败' });
   }
 });
 
 /**
- * 获取回收站（已软删除的联系人）
+ * 获取回收站（从 deleted_contacts 表读取）
  * GET /api/v1/contacts/trash
  */
 router.get('/trash', requireAuth, async (req: any, res: any) => {
   try {
     const trashContacts = await db
       .select()
-      .from(contacts)
-      .where(and(
-        eq(contacts.user_id, (req as any).userId),
-        eq(contacts.is_deleted, true)
-      ))
-      .orderBy(desc(contacts.deleted_at));
+      .from(deletedContacts)
+      .where(eq(deletedContacts.user_id, (req as any).userId))
+      .orderBy(desc(deletedContacts.deleted_at));
 
-    // 计算剩余天数
     const now = new Date();
     const data = trashContacts.map(c => {
       const deletedAt = c.deleted_at ? new Date(c.deleted_at) : now;
@@ -413,24 +384,44 @@ router.get('/trash', requireAuth, async (req: any, res: any) => {
 });
 
 /**
- * 恢复联系人（从回收站恢复）
+ * 恢复联系人（从 deleted_contacts 移回 contacts）
  * POST /api/v1/contacts/:id/restore
  */
 router.post('/:id/restore', requireAuth, async (req: any, res: any) => {
   try {
-    const updated = await db
-      .update(contacts)
-      .set({ is_deleted: false, deleted_at: null })
+    const userId = (req as any).userId;
+    const record = await db
+      .select()
+      .from(deletedContacts)
       .where(and(
-        eq(contacts.id, req.params.id),
-        eq(contacts.user_id, (req as any).userId),
-        eq(contacts.is_deleted, true)
+        eq(deletedContacts.id, req.params.id),
+        eq(deletedContacts.user_id, userId)
       ))
-      .returning();
+      .limit(1);
 
-    if (updated.length === 0) {
+    if (record.length === 0) {
       return res.status(404).json({ error: '回收站中未找到该联系人' });
     }
+
+    const c = record[0];
+    // Insert back into contacts
+    await db.insert(contacts).values({
+      user_id: c.user_id as string,
+      name: c.name as string,
+      phone: c.phone as string,
+      phone_hash: c.phone_hash as string,
+      avatar_url: (c.avatar_url ?? undefined) as string | undefined,
+      status: (c.status ?? 'unknown') as string,
+      invalid_reason: (c.invalid_reason ?? undefined) as string | undefined,
+      invalid_report_count: (c.invalid_report_count ?? 0) as number,
+      last_contact_date: (c.last_contact_date ?? undefined) as Date | undefined,
+      notes: (c.notes ?? undefined) as string | undefined,
+      created_at: (c.created_at ?? new Date()) as Date,
+      updated_at: new Date(),
+    });
+
+    // Remove from deleted_contacts
+    await db.delete(deletedContacts).where(eq(deletedContacts.id, c.id));
 
     res.json({
       success: true,
@@ -443,7 +434,7 @@ router.post('/:id/restore', requireAuth, async (req: any, res: any) => {
 });
 
 /**
- * 批量恢复联系人
+ * 批量恢复联系人（从 deleted_contacts 移回 contacts）
  * POST /api/v1/contacts/trash/restore-batch
  */
 router.post('/trash/restore-batch', requireAuth, async (req: any, res: any) => {
@@ -453,18 +444,36 @@ router.post('/trash/restore-batch', requireAuth, async (req: any, res: any) => {
       return res.status(400).json({ error: '请选择要恢复的联系人' });
     }
 
+    const userId = (req as any).userId;
     let restoredCount = 0;
+
     for (const id of ids) {
-      const updated = await db
-        .update(contacts)
-        .set({ is_deleted: false, deleted_at: null })
-        .where(and(
-          eq(contacts.id, id),
-          eq(contacts.user_id, (req as any).userId),
-          eq(contacts.is_deleted, true)
-        ))
-        .returning();
-      if (updated.length > 0) restoredCount++;
+      // Read from deleted_contacts
+      const [record] = await db
+        .select()
+        .from(deletedContacts)
+        .where(and(eq(deletedContacts.id, id), eq(deletedContacts.user_id, userId)))
+        .limit(1);
+
+      if (!record) continue;
+
+      // Insert back into contacts
+      await db.insert(contacts).values({
+        user_id: record.user_id as string,
+        name: record.name as string,
+        phone: record.phone as string,
+        phone_hash: record.phone_hash as string,
+        avatar_url: (record.avatar_url ?? undefined) as string | undefined,
+        status: (record.status ?? 'unknown') as string,
+        invalid_reason: (record.invalid_reason ?? undefined) as string | undefined,
+        invalid_report_count: (record.invalid_report_count ?? 0) as number,
+        last_contact_date: (record.last_contact_date ?? undefined) as Date | undefined,
+        notes: (record.notes ?? undefined) as string | undefined,
+      });
+
+      // Remove from deleted_contacts
+      await db.delete(deletedContacts).where(eq(deletedContacts.id, id));
+      restoredCount++;
     }
 
     res.json({
@@ -478,17 +487,16 @@ router.post('/trash/restore-batch', requireAuth, async (req: any, res: any) => {
 });
 
 /**
- * 永久删除联系人（从回收站彻底删除）
+ * 永久删除联系人（从 deleted_contacts 彻底删除）
  * DELETE /api/v1/contacts/:id/permanent
  */
 router.delete('/:id/permanent', requireAuth, async (req: any, res: any) => {
   try {
     const deleted = await db
-      .delete(contacts)
+      .delete(deletedContacts)
       .where(and(
-        eq(contacts.id, req.params.id),
-        eq(contacts.user_id, (req as any).userId),
-        eq(contacts.is_deleted, true)
+        eq(deletedContacts.id, req.params.id),
+        eq(deletedContacts.user_id, (req as any).userId)
       ))
       .returning();
 

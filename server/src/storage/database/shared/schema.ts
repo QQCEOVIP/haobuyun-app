@@ -29,6 +29,30 @@ export const contacts = pgTable(
   ]
 );
 
+// 回收站表（与 contacts 结构一致，删除操作是"搬家"到此表）
+export const deletedContacts = pgTable(
+  "deleted_contacts",
+  {
+    id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+    user_id: varchar("user_id", { length: 36 }).notNull(),
+    name: varchar("name", { length: 128 }).notNull(),
+    phone: varchar("phone", { length: 20 }).notNull(),
+    phone_hash: varchar("phone_hash", { length: 64 }),
+    avatar_url: varchar("avatar_url", { length: 512 }),
+    status: varchar("status", { length: 20 }).default("unknown").notNull(),
+    invalid_reason: text("invalid_reason"),
+    invalid_report_count: integer("invalid_report_count").default(0).notNull(),
+    last_contact_date: timestamp("last_contact_date", { withTimezone: true }),
+    notes: text("notes"),
+    deleted_at: timestamp("deleted_at", { withTimezone: true }).defaultNow().notNull(),
+    created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("deleted_contacts_user_id_idx").on(table.user_id),
+    index("deleted_contacts_phone_idx").on(table.phone),
+  ]
+);
+
 // 标签表
 export const tags = pgTable(
   "tags",
