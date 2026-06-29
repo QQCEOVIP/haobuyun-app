@@ -274,23 +274,41 @@ router.post('/trash', requireAuth, async (req: any, res: any) => {
  */
 router.post('/batch-delete', requireAuth, async (req: any, res: any) => {
   try {
-    const { contactIds } = req.body;
-    if (!Array.isArray(contactIds) || contactIds.length === 0) {
-      return res.status(400).json({ error: 'Invalid contactIds' });
-    }
-
+    const { contactIds, phones } = req.body;
     const userId = (req as any).userId;
     const deletedAt = new Date();
 
-    // Soft delete: set is_deleted = true and deleted_at
-    const result = await db
-      .update(contacts)
-      .set({ is_deleted: true, deleted_at: deletedAt })
-      .where(and(
-        inArray(contacts.id, contactIds),
-        eq(contacts.user_id, userId)
-      ))
-      .returning({ id: contacts.id });
+    // Support both contactIds (Supabase IDs) and phones (phone number lookup)
+    let result: { id: string }[] = [];
+
+    if (Array.isArray(contactIds) && contactIds.length > 0) {
+      // Original behavior: soft delete by Supabase record IDs
+      result = await db
+        .update(contacts)
+        .set({ is_deleted: true, deleted_at: deletedAt })
+        .where(and(
+          inArray(contacts.id, contactIds),
+          eq(contacts.user_id, userId)
+        ))
+        .returning({ id: contacts.id });
+    }
+
+    if (Array.isArray(phones) && phones.length > 0) {
+      // New behavior: soft delete by phone numbers
+      const phoneResult = await db
+        .update(contacts)
+        .set({ is_deleted: true, deleted_at: deletedAt })
+        .where(and(
+          inArray(contacts.phone, phones),
+          eq(contacts.user_id, userId)
+        ))
+        .returning({ id: contacts.id });
+      result = result.concat(phoneResult);
+    }
+
+    if (result.length === 0 && (!contactIds || contactIds.length === 0) && (!phones || phones.length === 0)) {
+      return res.status(400).json({ error: 'Must provide contactIds or phones' });
+    }
 
     res.json({
       success: true,

@@ -56,6 +56,7 @@ export default function ContactsScreen() {
   const [statusMenuContact, setStatusMenuContact] = useState<Contact | null>(null);
   const [cleanupStats, setCleanupStats] = useState({ duplicate: 0, stopped: 0, suspected: 0 });
   const [communityMarks, setCommunityMarks] = useState<Map<string, { status: NumberStatus; markCount: number }>>(new Map());
+  const [syncLoading, setSyncLoading] = useState(false);
   const [contactAvatars, setContactAvatars] = useState<Record<string, string>>({});
   const [avatarMenuContact, setAvatarMenuContact] = useState<Contact | null>(null);
   const [editModalVisible, setEditModalVisible] = useState(false);
@@ -111,6 +112,58 @@ export default function ContactsScreen() {
   };
 
   // 打开编辑弹窗
+  // 同步本地数据 - 将应用中的联系人状态信息写入设备通讯录备注
+  const handleSync = async () => {
+    setSyncLoading(true);
+    try {
+      const { status: permStatus } = await Contacts.requestPermissionsAsync();
+      if (permStatus !== 'granted') {
+        Alert.alert('权限不足', '需要通讯录权限才能同步');
+        return;
+      }
+
+      let syncCount = 0;
+      // 遍历所有联系人，将状态标签写入设备通讯录备注
+      for (const contact of contacts) {
+        try {
+          const statusLabel = contact.status ? getStatusStyle(contact.status).label : '';
+          const customAvatar = contactAvatars[contact.phone] ? '✓头像' : '';
+          const noteParts = [statusLabel, customAvatar].filter(Boolean);
+          if (noteParts.length === 0) continue;
+
+          const noteText = `[号簿云] ${noteParts.join(' ')}`;
+          // 获取现有联系人数据
+          const existing = await Contacts.getContactByIdAsync(contact.deviceContactId, [
+            Contacts.Fields.Name,
+            Contacts.Fields.PhoneNumbers,
+            Contacts.Fields.Note,
+          ]);
+          if (!existing) continue;
+
+          // 如果备注已包含号簿云标记且内容相同，跳过
+          if (existing.note?.includes('[号簿云]') && existing.note.includes(statusLabel)) continue;
+
+          // 更新联系人备注
+          await Contacts.updateContactAsync({
+            id: existing.id,
+            name: existing.name,
+            firstName: existing.name,
+            phoneNumbers: existing.phoneNumbers?.map(p => ({ number: p.number, label: p.label || 'mobile' })) || [],
+            note: noteText,
+          });
+          syncCount++;
+        } catch (_e) { /* skip failed contact */ }
+      }
+
+      Alert.alert('同步完成', `已同步 ${syncCount} 个联系人的状态信息到设备通讯录`);
+    } catch (error) {
+      console.error('Sync error:', error);
+      Alert.alert('同步失败', '请重试');
+    } finally {
+      setSyncLoading(false);
+    }
+  };
+
   const handleOpenEdit = (contact: Contact) => {
     setStatusMenuContact(null);
     setEditingContact(contact);
@@ -557,6 +610,17 @@ export default function ContactsScreen() {
             <Text style={styles.titleCount}> ({filteredContacts.length})</Text>
           </View>
           <View style={styles.headerButtons}>
+            <TouchableOpacity
+              style={styles.headerButton}
+              onPress={handleSync}
+              disabled={syncLoading}
+            >
+              {syncLoading ? (
+                <Ionicons name="sync" size={22} color="#909399" />
+              ) : (
+                <Ionicons name="sync-outline" size={22} color="#4A90D9" />
+              )}
+            </TouchableOpacity>
             <TouchableOpacity
               style={styles.headerButton}
               onPress={() => setInfoModalVisible(true)}

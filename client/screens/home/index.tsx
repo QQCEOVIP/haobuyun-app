@@ -1188,8 +1188,12 @@ export default function HomeScreen() {
             let successCount = 0;
             for (const contact of backupData.contacts) {
               try {
+                const contactName = contact.name || '';
                 const contactData: any = {
-                  name: contact.name || '',
+                  // 同时设置 name 和 firstName 兼容双平台
+                  // Android 使用 name，iOS 使用 firstName/lastName
+                  name: contactName,
+                  firstName: contactName,
                   phoneNumbers: contact.phones?.map((p: any) => ({ number: p.number, label: p.label || 'mobile' })) || [{ number: '', label: 'mobile' }],
                 };
                 if (contact.emails?.length) {
@@ -1245,17 +1249,12 @@ export default function HomeScreen() {
         const allDevice = await getAllDeviceContacts([Contacts.Fields.PhoneNumbers]);
         console.log('[Home] Total device contacts fetched:', allDevice.length);
         
-        // 统计所有有电话号码的联系人的号码总数
-        let totalPhoneCount = 0;
+        // 统计有电话号码的联系人数量（与手机通讯录应用一致，统计人数而非号码总数）
         const contactsWithPhones = allDevice.filter(c => {
-          if (c.phoneNumbers && c.phoneNumbers.length > 0) {
-            totalPhoneCount += c.phoneNumbers.length;
-            return true;
-          }
-          return false;
+          return c.phoneNumbers && c.phoneNumbers.length > 0;
         });
-        deviceContactsCount = totalPhoneCount > 0 ? totalPhoneCount : contactsWithPhones.length;
-        console.log('[Home] Total phone numbers:', totalPhoneCount, 'Contacts with phones:', contactsWithPhones.length);
+        deviceContactsCount = contactsWithPhones.length;
+        console.log('[Home] Contacts with phones:', contactsWithPhones.length);
         
         // 调试：打印前3个联系人的结构
         if (allDevice.length > 0) {

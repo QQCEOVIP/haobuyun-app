@@ -154,14 +154,14 @@ export default function StoppedContactsScreen() {
               const headers: Record<string, string> = { 'Content-Type': 'application/json' };
               if (user?.id) headers['x-user-id'] = user.id;
 
-              // Batch soft delete via backend API
+              // Batch soft delete via backend API - send phone numbers (not device IDs)
               if (user?.id && toDelete.length > 0) {
-                const contactIds = toDelete.map(c => c.id).filter(id => id && !id.startsWith('@'));
-                if (contactIds.length > 0) {
+                const phones = toDelete.map(c => c.phone).filter(Boolean);
+                if (phones.length > 0) {
                   await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/contacts/batch-delete`, {
                     method: 'POST',
                     headers,
-                    body: JSON.stringify({ contactIds }),
+                    body: JSON.stringify({ phones }),
                   }).catch(() => { /* Silently fail if backend is unavailable */ });
                 }
               }
