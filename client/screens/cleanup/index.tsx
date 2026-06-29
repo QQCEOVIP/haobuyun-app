@@ -102,7 +102,11 @@ export default function CleanupScreen() {
                     'Content-Type': 'application/json',
                     'x-user-id': userId,
                   },
-                  body: JSON.stringify({ contactIds: Array.from(selectedIds) }),
+                  body: JSON.stringify({
+                    contactIds: Array.from(selectedIds),
+                    phones: contacts.filter(c => selectedIds.has(c.id)).map(c => c.phone),
+                    names: contacts.filter(c => selectedIds.has(c.id)).map(c => c.name),
+                  }),
                 }
               );
 

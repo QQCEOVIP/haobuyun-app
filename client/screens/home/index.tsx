@@ -48,10 +48,9 @@ export default function HomeScreen() {
   const [detecting, setDetecting] = useState(false);
   const [detectionResult, setDetectionResult] = useState<any>(null);
   const [cloudBackupVisible, setCloudBackupVisible] = useState(false);
-  const [cloudBackupTab, setCloudBackupTab] = useState<'backup' | 'restore' | 'records' | 'analysis'>('backup');
+  // cloudBackupTab removed - data analysis module removed
   const [backups, setBackups] = useState<any[]>([]);
   const [backupLoading, setBackupLoading] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState<any>(null);
   const [customFileName, setCustomFileName] = useState('');
   const [fileNameModalVisible, setFileNameModalVisible] = useState(false);
   const [userAvatar, setUserAvatar] = useState<string | null>(null);
@@ -468,12 +467,12 @@ export default function HomeScreen() {
       if (Platform.OS === 'android') {
         try {
           const SAF = StorageAccessFramework ?? (FileSystemLegacy as any).StorageAccessFramework;
-          if (SAF && typeof SAF.getDirectoryAsync === 'function') {
+          if (SAF && typeof SAF.requestDirectoryPermissionsAsync === 'function') {
             // 先让用户选择保存目录
-            const dirUri = await SAF.getDirectoryAsync();
-            if (dirUri) {
-              // createFileAsync(parentUri, mimeType, fileName)
-              const fileUri = await SAF.createFileAsync(dirUri, 'application/json', defaultFileName);
+            const permission = await SAF.requestDirectoryPermissionsAsync();
+            if (permission.granted && permission.directoryUri) {
+              // SAF API: createFileAsync(parentUri, fileName, mimeType)
+              const fileUri = await SAF.createFileAsync(permission.directoryUri, defaultFileName, 'application/json');
               await SAF.writeAsStringAsync(fileUri, backupContent);
               Alert.alert('导出成功', `已备份 ${contactCount} 个联系人（含标签状态）\n仅号簿云可恢复此格式`);
               return;
@@ -616,12 +615,12 @@ export default function HomeScreen() {
       if (Platform.OS === 'android') {
         try {
           const SAF = StorageAccessFramework ?? (FileSystemLegacy as any).StorageAccessFramework;
-          if (SAF && typeof SAF.getDirectoryAsync === 'function') {
+          if (SAF && typeof SAF.requestDirectoryPermissionsAsync === 'function') {
             // 先让用户选择保存目录
-            const dirUri = await SAF.getDirectoryAsync();
-            if (dirUri) {
-              // createFileAsync(parentUri, mimeType, fileName)
-              const fileUri = await SAF.createFileAsync(dirUri, 'text/vcard', defaultFileName);
+            const permission = await SAF.requestDirectoryPermissionsAsync();
+            if (permission.granted && permission.directoryUri) {
+              // SAF API: createFileAsync(parentUri, fileName, mimeType)
+              const fileUri = await SAF.createFileAsync(permission.directoryUri, defaultFileName, 'text/vcard');
               await SAF.writeAsStringAsync(fileUri, vcardContent);
               Alert.alert('备份成功', `已备份 ${contactCount} 个联系人`);
               setBackupLoading(false);
@@ -799,124 +798,6 @@ export default function HomeScreen() {
     }
   };
 
-  const analyzeBackups = async () => {
-    try {
-      let latest: any = null;
-      let previous: any = null;
-      let latestDate = '';
-      let previousDate = '';
-
-      // 1. 先尝试从本地备份读取
-      const dirInfo = await FileSystemLegacy.getInfoAsync(LOCAL_BACKUP_DIR).catch(() => null);
-      if (dirInfo?.exists) {
-        const files = await FileSystemLegacy.readDirectoryAsync(LOCAL_BACKUP_DIR);
-        const jsonFiles = (files || []).filter((f: string) => f.endsWith('.json')).sort().reverse();
-        if (jsonFiles.length >= 2) {
-          const latestContent = await FileSystemLegacy.readAsStringAsync(LOCAL_BACKUP_DIR + jsonFiles[0]);
-          const previousContent = await FileSystemLegacy.readAsStringAsync(LOCAL_BACKUP_DIR + jsonFiles[1]);
-          latest = JSON.parse(latestContent);
-          previous = JSON.parse(previousContent);
-          latestDate = latest.exportedAt || jsonFiles[0];
-          previousDate = previous.exportedAt || jsonFiles[1];
-        }
-      }
-
-      // 2. 如果本地备份不够，尝试从云端备份下载
-      if (!latest || !previous) {
-        if (!userId || cloudBackups.length < 2) {
-          setAnalysisResult({ error: '至少需要2次备份才能进行对比分析，请先进行云端备份' });
-          return;
-        }
-        // 下载最近2个云端备份
-        setCloudProgress('正在下载备份数据进行对比...');
-        try {
-          const latestFileName = cloudBackups[0].name;
-          const previousFileName = cloudBackups[1].name;
-
-          const latestResp = await fetch(
-            `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/backup/cloud/download?fileName=${encodeURIComponent(latestFileName)}`,
-            { headers: { 'x-user-id': userId } }
-          );
-          const latestResult = await latestResp.json();
-          if (!latestResp.ok || !latestResult.success) throw new Error('下载最新备份失败');
-          latest = JSON.parse(latestResult.content);
-
-          const prevResp = await fetch(
-            `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/backup/cloud/download?fileName=${encodeURIComponent(previousFileName)}`,
-            { headers: { 'x-user-id': userId } }
-          );
-          const prevResult = await prevResp.json();
-          if (!prevResp.ok || !prevResult.success) throw new Error('下载历史备份失败');
-          previous = JSON.parse(prevResult.content);
-
-          latestDate = latest.exportedAt || latestFileName;
-          previousDate = previous.exportedAt || previousFileName;
-        } catch (dlError) {
-          setAnalysisResult({ error: '下载云端备份失败，请检查网络后重试' });
-          return;
-        }
-      }
-
-      const latestContacts = latest.contacts || [];
-      const previousContacts = previous.contacts || [];
-
-      // Build phone->name maps (use ALL phones, not just first)
-      const latestPhoneMap = new Map<string, string>();
-      latestContacts.forEach((c: any) => {
-        const phones = c.phones || [];
-        const name = c.name || '';
-        phones.forEach((p: any) => {
-          if (p.number) latestPhoneMap.set(p.number, name);
-        });
-      });
-      const previousPhoneMap = new Map<string, string>();
-      previousContacts.forEach((c: any) => {
-        const phones = c.phones || [];
-        const name = c.name || '';
-        phones.forEach((p: any) => {
-          if (p.number) previousPhoneMap.set(p.number, name);
-        });
-      });
-
-      const latestPhones = new Set(latestPhoneMap.keys());
-      const previousPhones = new Set(previousPhoneMap.keys());
-
-      // 新增联系人: in latest but not in previous
-      const added: any[] = [];
-      latestPhoneMap.forEach((name, phone) => {
-        if (!previousPhones.has(phone)) added.push({ name, phone });
-      });
-
-      // 删除联系人: in previous but not in latest
-      const deleted: any[] = [];
-      previousPhoneMap.forEach((name, phone) => {
-        if (!latestPhones.has(phone)) deleted.push({ name, phone });
-      });
-
-      // 姓名变更: same phone, different name
-      const modified: any[] = [];
-      latestPhoneMap.forEach((newName, phone) => {
-        const oldName = previousPhoneMap.get(phone);
-        if (oldName && oldName !== newName) {
-          modified.push({ phone, oldName, newName });
-        }
-      });
-
-      setAnalysisResult({
-        latestDate,
-        previousDate,
-        added: added.length,
-        deleted: deleted.length,
-        modified: modified.length,
-        details: { added, deleted, modified },
-      });
-      setAnalysisExpanded({ added: false, deleted: false, modified: false });
-    } catch (err) {
-      console.warn('Analyze backups error:', err);
-      setAnalysisResult({ error: '分析失败，请重试' });
-    }
-  };
-
   // ========== Supabase Storage 云端备份/恢复 ==========
   const [cloudBackups, setCloudBackups] = useState<any[]>([]);
   const [cloudLoading, setCloudLoading] = useState(false);
@@ -924,7 +805,6 @@ export default function HomeScreen() {
   const [cloudBackupLoading, setCloudBackupLoading] = useState<'uploading' | 'downloading' | null>(null);
   const [restoreSelectVisible, setRestoreSelectVisible] = useState(false);
   const [backupRecordsVisible, setBackupRecordsVisible] = useState(false);
-  const [analysisExpanded, setAnalysisExpanded] = useState<{ added: boolean; deleted: boolean; modified: boolean }>({ added: false, deleted: false, modified: false });
 
   // ========== Helper functions for backup ==========
   const getDeviceModel = (): string => {
@@ -1608,123 +1488,8 @@ export default function HomeScreen() {
                   <Text style={styles.cloudButtonText}>备份记录</Text>
                 </TouchableOpacity>
 
-                {/* 数据分析 */}
-                <TouchableOpacity
-                  style={styles.cloudButtonItem}
-                  onPress={() => {
-                    analyzeBackups();
-                    setCloudBackupTab('analysis');
-                  }}
-                >
-                  <View style={[styles.cloudButtonIcon, { backgroundColor: 'rgba(144, 105, 217, 0.12)' }]}>
-                    <Ionicons name="analytics" size={24} color="#9069D9" />
-                  </View>
-                  <Text style={styles.cloudButtonText}>数据分析</Text>
-                </TouchableOpacity>
+
               </View>
-
-              {/* 数据分析详情 */}
-              {cloudBackupTab === 'analysis' && analysisResult && (
-                <View style={styles.recordsContainer}>
-                  {analysisResult.error ? (
-                    <Text style={styles.noBackupText}>{analysisResult.error}</Text>
-                  ) : (
-                    <>
-                      <Text style={{ fontSize: 13, color: '#606266', marginBottom: 10, fontWeight: '600' }}>
-                        统计概览
-                      </Text>
-                      <View style={styles.analysisRow}>
-                        <Text style={styles.analysisLabel}>新增联系人</Text>
-                        <Text style={[styles.analysisValue, { color: '#67C23A' }]}>+{analysisResult.added} 人</Text>
-                      </View>
-                      <View style={styles.analysisRow}>
-                        <Text style={styles.analysisLabel}>删除联系人</Text>
-                        <Text style={[styles.analysisValue, { color: '#F56C6C' }]}>-{analysisResult.deleted} 人</Text>
-                      </View>
-                      <View style={styles.analysisRow}>
-                        <Text style={styles.analysisLabel}>修改联系人</Text>
-                        <Text style={[styles.analysisValue, { color: '#E6A23C' }]}>~{analysisResult.modified} 人</Text>
-                      </View>
-
-                      <Text style={{ fontSize: 13, color: '#606266', marginTop: 16, marginBottom: 8, fontWeight: '600' }}>
-                        详细列表
-                      </Text>
-
-                      {/* 新增详情 */}
-                      {analysisResult.added > 0 && (
-                        <TouchableOpacity
-                          style={{ marginBottom: 6 }}
-                          onPress={() => setAnalysisExpanded(prev => ({ ...prev, added: !prev.added }))}
-                        >
-                          <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 12, backgroundColor: 'rgba(103,194,58,0.08)', borderRadius: 8 }}>
-                            <Ionicons name={analysisExpanded.added ? 'chevron-down' : 'chevron-forward'} size={14} color="#67C23A" />
-                            <Text style={{ fontSize: 13, color: '#67C23A', fontWeight: '600', marginLeft: 6 }}>
-                              新增 +{analysisResult.added}
-                            </Text>
-                          </View>
-                          {analysisExpanded.added && (
-                            <View style={{ paddingLeft: 20, paddingTop: 4 }}>
-                              {analysisResult.details?.added?.map((item: any, i: number) => (
-                                <Text key={i} style={{ fontSize: 12, color: '#606266', paddingVertical: 2 }}>
-                                  {item.name} · {item.phone}
-                                </Text>
-                              ))}
-                            </View>
-                          )}
-                        </TouchableOpacity>
-                      )}
-
-                      {/* 删除详情 */}
-                      {analysisResult.deleted > 0 && (
-                        <TouchableOpacity
-                          style={{ marginBottom: 6 }}
-                          onPress={() => setAnalysisExpanded(prev => ({ ...prev, deleted: !prev.deleted }))}
-                        >
-                          <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 12, backgroundColor: 'rgba(245,108,108,0.08)', borderRadius: 8 }}>
-                            <Ionicons name={analysisExpanded.deleted ? 'chevron-down' : 'chevron-forward'} size={14} color="#F56C6C" />
-                            <Text style={{ fontSize: 13, color: '#F56C6C', fontWeight: '600', marginLeft: 6 }}>
-                              删除 -{analysisResult.deleted}
-                            </Text>
-                          </View>
-                          {analysisExpanded.deleted && (
-                            <View style={{ paddingLeft: 20, paddingTop: 4 }}>
-                              {analysisResult.details?.deleted?.map((item: any, i: number) => (
-                                <Text key={i} style={{ fontSize: 12, color: '#606266', paddingVertical: 2 }}>
-                                  {item.name} · {item.phone}
-                                </Text>
-                              ))}
-                            </View>
-                          )}
-                        </TouchableOpacity>
-                      )}
-
-                      {/* 修改详情 */}
-                      {analysisResult.modified > 0 && (
-                        <TouchableOpacity
-                          style={{ marginBottom: 6 }}
-                          onPress={() => setAnalysisExpanded(prev => ({ ...prev, modified: !prev.modified }))}
-                        >
-                          <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 12, backgroundColor: 'rgba(230,162,60,0.08)', borderRadius: 8 }}>
-                            <Ionicons name={analysisExpanded.modified ? 'chevron-down' : 'chevron-forward'} size={14} color="#E6A23C" />
-                            <Text style={{ fontSize: 13, color: '#E6A23C', fontWeight: '600', marginLeft: 6 }}>
-                              修改 ~{analysisResult.modified}
-                            </Text>
-                          </View>
-                          {analysisExpanded.modified && (
-                            <View style={{ paddingLeft: 20, paddingTop: 4 }}>
-                              {analysisResult.details?.modified?.map((item: any, i: number) => (
-                                <Text key={i} style={{ fontSize: 12, color: '#606266', paddingVertical: 2 }}>
-                                  {item.phone}: {item.oldName} → {item.newName}
-                                </Text>
-                              ))}
-                            </View>
-                          )}
-                        </TouchableOpacity>
-                      )}
-                    </>
-                  )}
-                </View>
-              )}
             </View>
           </View>
         </View>
@@ -2125,8 +1890,9 @@ const styles = StyleSheet.create({
   cloudModalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     alignItems: 'center',
+    paddingTop: 80,
   },
   cloudModalBody: {
     marginTop: 4,
@@ -2224,23 +1990,6 @@ const styles = StyleSheet.create({
     color: '#909399',
     textAlign: 'center',
     paddingVertical: 20,
-  },
-  analysisRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E6E8EB',
-  },
-  analysisLabel: {
-    fontSize: 14,
-    color: '#606266',
-  },
-  analysisValue: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#303133',
   },
   // File name modal styles
   fileNameModalContent: {

@@ -117,7 +117,7 @@ export default function ContactsScreen() {
     // 二次确认
     Alert.alert(
       '确认同步',
-      '确认要将APP中的标签数据同步到本地通讯录吗？\n\n同步后，每个联系人的备注字段将写入对应的标签信息。',
+      '确认要将APP中的标签数据和头像同步到本地通讯录吗？\n\n同步后，每个联系人的备注字段将写入标签信息，头像也会同步更新。',
       [
         { text: '取消', style: 'cancel' },
         {
@@ -134,18 +134,22 @@ export default function ContactsScreen() {
               let syncCount = 0;
               let skipCount = 0;
               let failCount = 0;
-              // 遍历所有联系人，将状态标签写入设备通讯录备注
+              // 遍历所有联系人，将状态标签和头像写入设备通讯录
               for (const contact of contacts) {
                 try {
                   const statusLabel = contact.status ? getStatusStyle(contact.status).label : '';
-                  const customAvatar = contactAvatars[contact.phone] ? '✓头像' : '';
-                  const noteParts = [statusLabel, customAvatar].filter(Boolean);
-                  if (noteParts.length === 0) {
+                  const avatarUri = contactAvatars[contact.phone];
+                  const hasAvatar = !!avatarUri;
+                  const noteParts = [statusLabel, hasAvatar ? '✓头像' : ''].filter(Boolean);
+                  
+                  // 如果没有标签也没有头像，跳过
+                  if (noteParts.length === 0 && !hasAvatar) {
                     skipCount++;
                     continue;
                   }
 
-                  const noteText = `[号簿云] ${noteParts.join(' ')}`;
+                  const noteText = noteParts.length > 0 ? `[号簿云] ${noteParts.join(' ')}` : undefined;
+                  
                   // 获取现有联系人完整数据（包含所有字段）
                   const existing = await Contacts.getContactByIdAsync(contact.deviceContactId, [
                     Contacts.Fields.Name,
@@ -154,26 +158,42 @@ export default function ContactsScreen() {
                     Contacts.Fields.Note,
                     Contacts.Fields.Company,
                     Contacts.Fields.JobTitle,
+                    Contacts.Fields.Image,
                   ]);
                   if (!existing) {
                     failCount++;
                     continue;
                   }
 
-                  // 如果备注已包含号簿云标记且内容相同，跳过
-                  if (existing.note?.includes('[号簿云]') && existing.note.includes(statusLabel)) {
+                  // 如果备注已包含号簿云标记且内容相同，且没有头像需要同步，跳过
+                  const needsNoteUpdate = noteText && (!existing.note?.includes('[号簿云]') || !existing.note?.includes(statusLabel));
+                  const needsAvatarUpdate = hasAvatar && avatarUri;
+                  
+                  if (!needsNoteUpdate && !needsAvatarUpdate) {
                     skipCount++;
                     continue;
                   }
 
-                  // 构建更新数据 - 保留所有现有字段，只修改 note
+                  // 构建更新数据 - 保留所有现有字段
                   const updateData: any = {
                     id: existing.id,
                     name: existing.name,
                     firstName: existing.name,
                     phoneNumbers: existing.phoneNumbers?.map(p => ({ number: p.number, label: p.label || 'mobile' })) || [],
-                    note: noteText,
                   };
+                  
+                  // 更新备注
+                  if (needsNoteUpdate && noteText) {
+                    updateData.note = noteText;
+                  } else if (existing.note) {
+                    updateData.note = existing.note;
+                  }
+                  
+                  // 更新头像
+                  if (needsAvatarUpdate && avatarUri) {
+                    updateData.image = { uri: avatarUri };
+                  }
+                  
                   // 保留其他字段
                   if (existing.emails && existing.emails.length > 0) {
                     updateData.emails = existing.emails.map(e => ({ email: e.email, label: e.label || 'home' }));
