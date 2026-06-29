@@ -208,23 +208,49 @@ router.put('/:id', requireAuth, async (req: any, res: any) => {
 });
 
 /**
- * 删除联系人（软删除 - 移入回收站，60天后自动清理）
+ * 删除联系人（搬家模式 - 移入 deleted_contacts 回收站）
  * DELETE /api/v1/contacts/:id
  */
 router.delete('/:id', requireAuth, async (req: any, res: any) => {
   try {
-    const updated = await db
-      .update(contacts)
-      .set({ is_deleted: true, deleted_at: new Date() })
-      .where(and(
-        eq(contacts.id, req.params.id),
-        eq(contacts.user_id, (req as any).userId)
-      ))
-      .returning();
+    const userId = (req as any).userId;
+    const contactId = req.params.id;
 
-    if (updated.length === 0) {
+    // Find the contact
+    const existing = await db
+      .select()
+      .from(contacts)
+      .where(and(
+        eq(contacts.id, contactId),
+        eq(contacts.user_id, userId)
+      ))
+      .limit(1);
+
+    if (existing.length === 0) {
       return res.status(404).json({ error: '联系人不存在' });
     }
+
+    const contact = existing[0];
+    const deletedAt = new Date();
+
+    // Move to deleted_contacts
+    await db.insert(deletedContacts).values({
+      user_id: contact.user_id,
+      name: contact.name,
+      phone: contact.phone,
+      phone_hash: contact.phone_hash,
+      avatar_url: contact.avatar_url,
+      status: contact.status ?? 'unknown',
+      invalid_reason: contact.invalid_reason,
+      invalid_report_count: contact.invalid_report_count ?? 0,
+      last_contact_date: contact.last_contact_date,
+      notes: contact.notes,
+      deleted_at: deletedAt,
+      created_at: contact.created_at ?? deletedAt,
+    });
+
+    // Remove from contacts
+    await db.delete(contacts).where(eq(contacts.id, contactId));
 
     res.json({
       success: true,
@@ -237,30 +263,61 @@ router.delete('/:id', requireAuth, async (req: any, res: any) => {
 });
 
 /**
- * 记录删除的联系人到回收站
+ * 记录删除的联系人到回收站（搬家模式）
  * POST /api/v1/contacts/trash
  * Body: { name: string, phone: string }
  */
 router.post('/trash', requireAuth, async (req: any, res: any) => {
   try {
     const { name, phone } = req.body;
-    if (!name || !phone) {
-      return res.status(400).json({ error: 'Missing name or phone' });
+    if (!phone) {
+      return res.status(400).json({ error: 'Missing phone' });
     }
 
+    const userId = (req as any).userId;
     const phoneHash = hashPhone(phone);
-    const newContact = {
-      user_id: (req as any).userId,
-      name,
-      phone,
-      phone_hash: phoneHash,
-      is_deleted: true,
-      deleted_at: new Date(),
-      status: 'unknown',
-    };
+    const deletedAt = new Date();
 
-    const [created] = await db.insert(contacts).values(newContact).returning();
-    res.json({ success: true, data: created });
+    // First try to find and move from contacts table
+    const existing = await db
+      .select()
+      .from(contacts)
+      .where(and(
+        eq(contacts.phone, phone),
+        eq(contacts.user_id, userId)
+      ))
+      .limit(1);
+
+    if (existing.length > 0) {
+      const contact = existing[0];
+      await db.insert(deletedContacts).values({
+        user_id: contact.user_id,
+        name: contact.name || name || '',
+        phone: contact.phone,
+        phone_hash: contact.phone_hash,
+        avatar_url: contact.avatar_url,
+        status: contact.status ?? 'unknown',
+        invalid_reason: contact.invalid_reason,
+        invalid_report_count: contact.invalid_report_count ?? 0,
+        last_contact_date: contact.last_contact_date,
+        notes: contact.notes,
+        deleted_at: deletedAt,
+        created_at: contact.created_at ?? deletedAt,
+      });
+      await db.delete(contacts).where(eq(contacts.id, contact.id));
+    } else {
+      // Contact not in contacts table, just record in deleted_contacts
+      await db.insert(deletedContacts).values({
+        user_id: userId,
+        name: name || '',
+        phone,
+        phone_hash: phoneHash,
+        status: 'unknown',
+        deleted_at: deletedAt,
+      });
+    }
+
+    res.json({ success: true, message: '已移入回收站' });
   } catch (error) {
     console.error('记录回收站失败:', error);
     res.status(500).json({ error: '记录回收站失败' });

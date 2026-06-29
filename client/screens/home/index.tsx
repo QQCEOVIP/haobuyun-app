@@ -21,6 +21,7 @@ import * as Contacts from 'expo-contacts';
 import * as FileSystemLegacy from 'expo-file-system/legacy';
 import { StorageAccessFramework } from 'expo-file-system/legacy';
 import Constants from 'expo-constants';
+import { useFocusEffect } from 'expo-router';
 
 
 import * as DocumentPicker from 'expo-document-picker';
@@ -226,7 +227,8 @@ export default function HomeScreen() {
           type: ['text/vcard', 'application/json', '*/*'],
           copyToCacheDirectory: true,
         });
-        if (result.canceled) return;
+        // User canceled - just return silently
+        if (result.canceled || !result.assets || result.assets.length === 0) return;
         const file = result.assets[0];
         if (!file) return;
         
@@ -258,8 +260,13 @@ export default function HomeScreen() {
         );
       }
     } catch (error) {
+      // User canceled - don't show error
+      const errMsg = (error as any)?.message || '';
+      if (errMsg.includes('cancel') || errMsg.includes('Cancel') || errMsg.includes('canceled') || errMsg.includes('User canceled')) {
+        return;
+      }
       console.error("导入失败:", error);
-      Alert.alert("错误", "导入失败: " + ((error as any)?.message || '请重试'));
+      Alert.alert("错误", "导入失败: " + (errMsg || '请重试'));
     }
   };
 
@@ -558,8 +565,13 @@ export default function HomeScreen() {
         (global as any).__pendingVcardDefaultName = defaultFileName;
       }
     } catch (error) {
+      // User canceled - don't show error
+      const errMsg = (error as any)?.message || '';
+      if (errMsg.includes('cancel') || errMsg.includes('Cancel') || errMsg.includes('canceled') || errMsg.includes('User canceled')) {
+        return;
+      }
       console.error("导出失败:", error);
-      Alert.alert("错误", "导出失败: " + ((error as any)?.message || '请重试'));
+      Alert.alert("错误", "导出失败: " + (errMsg || '请重试'));
     }
   };
 
@@ -1360,10 +1372,12 @@ export default function HomeScreen() {
     }
   };
 
-  // 初始加载统计数据（仅挂载时，Tab切换不重新加载以避免闪屏）
-  useEffect(() => {
-    fetchStats();
-  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
+  // 每次页面获得焦点时刷新统计数据（确保从其他页面返回后数据更新）
+  useFocusEffect(
+    useCallback(() => {
+      fetchStats();
+    }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  );
 
   // 下拉刷新处理函数
   const handleRefresh = useCallback(async () => {

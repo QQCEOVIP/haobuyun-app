@@ -13,6 +13,7 @@ import { useSafeRouter } from '@/hooks/useSafeRouter';
 import { Ionicons } from '@expo/vector-icons';
 import * as Contacts from 'expo-contacts';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface DuplicateGroup {
   phone: string;
@@ -24,6 +25,7 @@ const DISMISS_KEY_PREFIX = '@duplicate_dismissed_';
 
 export default function DuplicatesScreen() {
   const router = useSafeRouter();
+  const { user } = useAuth();
   const [duplicateGroups, setDuplicateGroups] = useState<DuplicateGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set());
@@ -159,6 +161,8 @@ export default function DuplicatesScreen() {
           onPress: async () => {
             try {
               let totalDeleted = 0;
+              const deletedPhones: string[] = [];
+              const deletedNames: string[] = [];
               for (const group of duplicateGroups) {
                 if (!selectedGroups.has(group.phone)) continue;
                 // Determine which entry to keep (user-selected or recommended)
@@ -170,15 +174,27 @@ export default function DuplicatesScreen() {
                   try {
                     // Actually delete from device contacts
                     await Contacts.removeContactAsync(entry.id);
+                    deletedPhones.push(entry.phone);
+                    deletedNames.push(entry.name);
                     totalDeleted++;
                   } catch (removeErr) {
                     console.warn('Failed to delete contact:', entry.name, removeErr);
                   }
                 }
               }
+              // Also move to cloud recycle bin
+              if (user?.id && deletedPhones.length > 0) {
+                const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+                headers['x-user-id'] = user.id;
+                await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/contacts/batch-delete`, {
+                  method: 'POST',
+                  headers,
+                  body: JSON.stringify({ phones: deletedPhones, names: deletedNames }),
+                }).catch(() => { /* Silently fail if backend is unavailable */ });
+              }
               setSelectedGroups(new Set());
               loadDuplicates();
-              Alert.alert('完成', `已从通讯录删除 ${totalDeleted} 个重复条目`);
+              Alert.alert('完成', `已从通讯录删除 ${totalDeleted} 个重复条目，可在回收站恢复`);
             } catch (error) {
               console.error('Batch delete failed:', error);
             }
