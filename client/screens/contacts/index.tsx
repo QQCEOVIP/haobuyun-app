@@ -16,7 +16,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
-import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
 import * as FileSystemLegacy from 'expo-file-system/legacy';
@@ -585,13 +584,11 @@ export default function ContactsScreen() {
     }
   }, [contacts]);
 
-  // Tab切换/返回时刷新联系人列表和清理统计
-  useFocusEffect(
-    useCallback(() => {
-      loadContacts();
-      loadContactAvatars();
-    }, [loadContacts, loadContactAvatars])
-  );
+  // 初始加载联系人列表（仅挂载时，Tab切换不重新加载以避免闪屏）
+  useEffect(() => {
+    loadContacts();
+    loadContactAvatars();
+  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const onRefresh = async () => {
     setRefreshing(true);

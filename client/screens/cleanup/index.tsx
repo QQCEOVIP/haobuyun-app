@@ -9,7 +9,6 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/storage/supabase';
@@ -47,11 +46,10 @@ export default function CleanupScreen() {
     }
   };
 
-  useFocusEffect(
-    useCallback(() => {
-      loadInvalidContacts();
-    }, [userId])
-  );
+  // 初始加载（仅挂载时，Tab切换不重新加载以避免闪屏）
+  useEffect(() => {
+    loadInvalidContacts();
+  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const onRefresh = async () => {
     setRefreshing(true);

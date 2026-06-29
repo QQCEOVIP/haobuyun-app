@@ -14,7 +14,6 @@ import {
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from 'expo-router';
 import Svg, { Circle } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import * as Contacts from 'expo-contacts';
@@ -59,17 +58,15 @@ export default function HomeScreen() {
   const userId = (user as any)?.id;
   const userEmail = (user as any)?.email || '';
 
-  // Load user avatar from AsyncStorage on focus
-  useFocusEffect(
-    useCallback(() => {
-      (async () => {
-        try {
-          const savedAvatar = await AsyncStorage.getItem('@user_avatar');
-          if (savedAvatar) setUserAvatar(savedAvatar);
-        } catch (_e) { /* ignore */ }
-      })();
-    }, [])
-  );
+  // Load user avatar from AsyncStorage on mount only
+  useEffect(() => {
+    (async () => {
+      try {
+        const savedAvatar = await AsyncStorage.getItem('@user_avatar');
+        if (savedAvatar) setUserAvatar(savedAvatar);
+      } catch (_e) { /* ignore */ }
+    })();
+  }, []);
 
   // 获取所有设备联系人（分页获取，与通讯录页面使用相同方法确保一致性）
   const getAllDeviceContacts = async (fields: Contacts.Field[]) => {
@@ -1279,12 +1276,10 @@ export default function HomeScreen() {
     }
   };
 
-  // 使用 useFocusEffect 确保Tab切换/返回时刷新统计数据
-  useFocusEffect(
-    useCallback(() => {
-      fetchStats();
-    }, [userId])
-  );
+  // 初始加载统计数据（仅挂载时，Tab切换不重新加载以避免闪屏）
+  useEffect(() => {
+    fetchStats();
+  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
   // 下拉刷新处理函数
   const handleRefresh = useCallback(async () => {

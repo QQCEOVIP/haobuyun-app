@@ -53,7 +53,7 @@ export default function RootLayout() {
             <Stack.Screen name="index" options={{ title: "" }} />
             <Stack.Screen name="login" options={{ title: "登录" }} />
             <Stack.Screen name="onboarding" options={{ title: "引导" }} />
-            <Stack.Screen name="(tabs)" options={{ animation: 'none' }} />
+            <Stack.Screen name="(tabs)" options={{ animation: 'none', contentStyle: { backgroundColor: '#F5F7FA' } }} />
             <Stack.Screen name="points" options={{ title: "我的积分" }} />
             <Stack.Screen name="shop" options={{ title: "积分商城" }} />
             <Stack.Screen name="shopExchanges" options={{ title: "兑换记录" }} />

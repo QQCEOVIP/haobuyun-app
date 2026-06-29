@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
@@ -49,11 +48,10 @@ export default function ProfileScreen() {
   const [uploading, setUploading] = useState(false);
 
   // Load profile on focus
-  useFocusEffect(
-    useCallback(() => {
-      loadProfile();
-    }, [user?.id])
-  );
+  // 初始加载（仅挂载时，Tab切换不重新加载以避免闪屏）
+  useEffect(() => {
+    loadProfile();
+  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadProfile = async () => {
     if (!user?.id) return;
