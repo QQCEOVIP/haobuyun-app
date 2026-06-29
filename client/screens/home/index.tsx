@@ -310,26 +310,54 @@ export default function HomeScreen() {
       }
       let successCount = 0;
       let failCount = 0;
+      let skipCount = 0;
+
+      // 加载设备已有联系人用于去重
+      const existingPhones = new Set<string>();
+      try {
+        const existing = await Contacts.getContactsAsync({
+          fields: [Contacts.Fields.PhoneNumbers],
+          pageSize: 9999,
+        });
+        for (const c of existing.data) {
+          if (c.phoneNumbers) {
+            for (const p of c.phoneNumbers) {
+              if (p.number) existingPhones.add(p.number.replace(/\D/g, ''));
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('获取已有联系人失败:', e);
+      }
+
       for (const contact of contacts) {
         try {
+          const phone = contact.phone || contact.phones?.[0]?.number || '';
+          if (!phone) { failCount++; continue; }
+
+          // 去重
+          const normalized = phone.replace(/\D/g, '');
+          if (existingPhones.has(normalized)) { skipCount++; continue; }
+
           const contactData: any = {
-            name: contact.name,
-            phoneNumbers: [{ number: contact.phone }],
+            name: contact.name || '',
+            phoneNumbers: [{ number: phone }],
           };
           if (contact.email) contactData.emails = [{ email: contact.email }];
           if (contact.company) contactData.company = contact.company;
           if (contact.jobTitle) contactData.jobTitle = contact.jobTitle;
           if (contact.note) contactData.note = contact.note;
           await Contacts.addContactAsync(contactData);
+          existingPhones.add(normalized);
           successCount++;
         } catch (e) {
           failCount++;
         }
       }
-      Alert.alert(
-        "导入完成",
-        `成功导入 ${successCount} 个联系人${failCount > 0 ? `，${failCount} 个失败` : ''}`
-      );
+      let msg = `成功导入 ${successCount} 个联系人`;
+      if (skipCount > 0) msg += `，跳过 ${skipCount} 个已存在`;
+      if (failCount > 0) msg += `，${failCount} 个失败`;
+      Alert.alert("导入完成", msg);
     } catch (error) {
       console.error("导入失败:", error);
       Alert.alert("错误", "导入失败: " + ((error as any)?.message || '请重试'));
@@ -343,7 +371,21 @@ export default function HomeScreen() {
       let contacts: Array<{ name: string; phone: string; email?: string; company?: string; jobTitle?: string; note?: string }> = [];
       if (fileName.endsWith(".json")) {
         const parsed = JSON.parse(content);
-        contacts = Array.isArray(parsed) ? parsed : [];
+        if (Array.isArray(parsed)) {
+          contacts = parsed;
+        } else if (parsed && parsed.format === 'HAOBUYUN_BACKUP' && Array.isArray(parsed.contacts)) {
+          // 处理 HAOBUYUN_BACKUP 格式
+          contacts = parsed.contacts.map((c: any) => ({
+            name: c.name || '',
+            phone: c.phones?.[0]?.number || c.phone || '',
+            email: c.emails?.[0]?.email || c.email || undefined,
+            company: c.company || undefined,
+            jobTitle: c.jobTitle || undefined,
+            note: c.note || undefined,
+          }));
+        } else {
+          contacts = [];
+        }
       } else if (fileName.endsWith(".vcf")) {
         const vcardBlocks = content.split("BEGIN:VCARD");
         for (const block of vcardBlocks) {
@@ -803,12 +845,42 @@ export default function HomeScreen() {
 
       let successCount = 0;
       let failCount = 0;
+      let skipCount = 0;
+
+      // 先加载设备上已有的联系人，用于去重
+      const existingPhones = new Set<string>();
+      try {
+        const existing = await Contacts.getContactsAsync({
+          fields: [Contacts.Fields.PhoneNumbers],
+          pageSize: 9999,
+        });
+        for (const c of existing.data) {
+          if (c.phoneNumbers) {
+            for (const p of c.phoneNumbers) {
+              if (p.number) {
+                existingPhones.add(p.number.replace(/\D/g, ''));
+              }
+            }
+          }
+        }
+      } catch (e) {
+        // 如果获取失败，继续恢复但不去重
+        console.warn('获取已有联系人失败，跳过去重:', e);
+      }
 
       for (const contact of backupData) {
         try {
           // Support both { phone: '...' } and { phones: [{ number: '...' }] } formats
           const phoneNumber = contact.phone || contact.phones?.[0]?.number || '';
           if (!phoneNumber) { failCount++; continue; }
+
+          // 去重检查：如果设备上已有相同号码，跳过
+          const normalizedPhone = phoneNumber.replace(/\D/g, '');
+          if (existingPhones.has(normalizedPhone)) {
+            skipCount++;
+            continue;
+          }
+
           const contactData: any = {
             name: contact.name || '',
             phoneNumbers: [{ number: phoneNumber }],
@@ -818,13 +890,17 @@ export default function HomeScreen() {
           if (contact.jobTitle) contactData.jobTitle = contact.jobTitle;
           if (contact.note) contactData.note = contact.note;
           await Contacts.addContactAsync(contactData);
+          existingPhones.add(normalizedPhone); // 防止备份中有重复号码
           successCount++;
         } catch (e) {
           failCount++;
         }
       }
 
-      Alert.alert('恢复完成', `成功导入 ${successCount} 个联系人${failCount > 0 ? `，失败 ${failCount} 个` : ''}`);
+      let msg = `成功导入 ${successCount} 个联系人`;
+      if (skipCount > 0) msg += `，跳过 ${skipCount} 个已存在`;
+      if (failCount > 0) msg += `，失败 ${failCount} 个`;
+      Alert.alert('恢复完成', msg);
       fetchStats();
     } catch (error) {
       console.error('恢复失败:', error);
