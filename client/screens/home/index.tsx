@@ -72,46 +72,45 @@ export default function HomeScreen() {
     }, [])
   );
 
-  // 获取所有设备联系人（不分页，一次性获取全部）
+  // 获取所有设备联系人（分页获取，与通讯录页面使用相同方法确保一致性）
   const getAllDeviceContacts = async (fields: Contacts.Field[]) => {
-    // 过滤掉 null/undefined 的字段值，防止原生模块崩溃
     const safeFields = fields.filter((f): f is Contacts.Field => f != null && f !== undefined);
     if (safeFields.length === 0) return [];
 
-    // 方法1：尝试 getAllContactsAsync
+    // 使用分页 getContactsAsync（与通讯录页面 loadContacts 一致的方法）
     try {
-      const result = await Contacts.getAllContactsAsync({ fields: safeFields });
-      console.log('[Home] getAllContactsAsync result type:', typeof result, Array.isArray(result) ? 'array' : '', 'length:', Array.isArray(result) ? result.length : 'N/A');
-      // Handle both API formats: { data } or { contacts } or direct array
-      if (Array.isArray(result)) return result;
-      if ((result as any)?.data) return (result as any).data;
-      if ((result as any)?.contacts) return (result as any).contacts;
-    } catch (error1) {
-      console.warn('[Home] getAllContactsAsync failed, trying fallback:', error1);
-    }
-
-    // 方法2：fallback - 使用分页 getContactsAsync
-    try {
-      console.log('[Home] Trying fallback: getContactsAsync with pagination');
+      console.log('[Home] Fetching contacts with getContactsAsync pagination...');
       let allContacts: any[] = [];
-      let offset = 0;
+      let pageOffset = 0;
       const pageSize = 500;
       while (true) {
-        const { data: pageContacts } = await Contacts.getContactsAsync({
+        const result = await Contacts.getContactsAsync({
           fields: safeFields,
           pageSize,
-          pageOffset: offset,
+          pageOffset,
         });
-        if (!pageContacts || pageContacts.length === 0) break;
+        const pageContacts = result?.data || [];
+        console.log('[Home] Page offset:', pageOffset, 'got:', pageContacts.length, 'contacts');
+        if (pageContacts.length === 0) break;
         allContacts = allContacts.concat(pageContacts);
-        offset += pageContacts.length;
+        pageOffset += pageContacts.length;
         if (pageContacts.length < pageSize) break;
       }
-      console.log('[Home] Fallback getContactsAsync got', allContacts.length, 'contacts');
+      console.log('[Home] Total contacts fetched via pagination:', allContacts.length);
       return allContacts;
-    } catch (error2) {
-      console.error('[Home] Fallback getContactsAsync also failed:', error2);
-      return [];
+    } catch (error) {
+      console.error('[Home] getContactsAsync pagination failed:', error);
+      // Last resort fallback: try getAllContactsAsync
+      try {
+        console.log('[Home] Last resort: trying getAllContactsAsync...');
+        const result = await Contacts.getAllContactsAsync({ fields: safeFields });
+        if (Array.isArray(result)) return result;
+        if ((result as any)?.data) return (result as any).data;
+        return [];
+      } catch (error2) {
+        console.error('[Home] getAllContactsAsync also failed:', error2);
+        return [];
+      }
     }
   };
 
@@ -1246,13 +1245,17 @@ export default function HomeScreen() {
         const allDevice = await getAllDeviceContacts([Contacts.Fields.PhoneNumbers]);
         console.log('[Home] Total device contacts fetched:', allDevice.length);
         
-        // 统计有电话号码的联系人
+        // 统计所有有电话号码的联系人的号码总数
+        let totalPhoneCount = 0;
         const contactsWithPhones = allDevice.filter(c => {
-          const hasPhones = c.phoneNumbers && c.phoneNumbers.length > 0;
-          return hasPhones;
+          if (c.phoneNumbers && c.phoneNumbers.length > 0) {
+            totalPhoneCount += c.phoneNumbers.length;
+            return true;
+          }
+          return false;
         });
-        deviceContactsCount = contactsWithPhones.length;
-        console.log('[Home] Contacts with phone numbers:', deviceContactsCount);
+        deviceContactsCount = totalPhoneCount > 0 ? totalPhoneCount : contactsWithPhones.length;
+        console.log('[Home] Total phone numbers:', totalPhoneCount, 'Contacts with phones:', contactsWithPhones.length);
         
         // 调试：打印前3个联系人的结构
         if (allDevice.length > 0) {

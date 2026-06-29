@@ -44,7 +44,7 @@ export default function PrivacyScreen() {
         <Text style={styles.paragraph}>号簿云不面向未满14周岁的儿童提供服务。我们不会故意收集儿童的个人信息。如果我们发现在未获可证监护人同意的情况下收集了儿童的个人信息，我们会尽快删除相关数据。</Text>
 
         <Text style={styles.sectionTitle}>八、联系我们</Text>
-        <Text style={styles.paragraph}>如您对本隐私政策有任何疑问、意见或建议，可通过应用内反馈功能与我们联系。</Text>
+        <Text style={styles.paragraph}>如您对本隐私政策有任何疑问、意见或建议，可通过应用内反馈功能反馈，或者通过以下邮箱地址进行反馈。</Text>
         <Text style={styles.paragraph}>联系邮箱：vip2012@vip.qq.com</Text>
       </ScrollView>
     </SafeAreaView>

@@ -165,27 +165,15 @@ export default function ContactsScreen() {
         label: 'mobile' as const,
       }));
 
-      // Update device contact - cross-platform approach
-      // First get the existing contact to preserve platform-specific fields
-      const existingContact = await Contacts.getContactByIdAsync(editingContact.deviceContactId);
-      const updateData: any = {
+      // Update device contact directly - pass both name formats for cross-platform compatibility
+      console.log('[Contacts] Updating contact:', editingContact.deviceContactId, 'name:', editName.trim(), 'phones:', updatedPhones.length);
+      await Contacts.updateContactAsync({
         id: editingContact.deviceContactId,
+        name: editName.trim(),
+        firstName: editName.trim(),
+        lastName: '',
         phoneNumbers: updatedPhones,
-      };
-      // On iOS, use firstName/lastName; on Android, use name
-      if (existingContact) {
-        if ('firstName' in existingContact) {
-          updateData.firstName = editName.trim();
-          updateData.lastName = '';
-        } else {
-          updateData.name = editName.trim();
-        }
-      } else {
-        updateData.name = editName.trim();
-        updateData.firstName = editName.trim();
-        updateData.lastName = '';
-      }
-      await Contacts.updateContactAsync(updateData);
+      });
 
       // Update local state
       const newPrimaryPhone = validPhones[0];
@@ -515,13 +503,13 @@ export default function ContactsScreen() {
             <Text style={styles.contactPhone}>{item.phone}</Text>
           )}
         </View>
+        <TouchableOpacity
+          style={styles.editIconButton}
+          onPress={() => handleOpenEdit(item)}
+        >
+          <Ionicons name="create-outline" size={20} color="#4A90D9" />
+        </TouchableOpacity>
         <View style={styles.badgeContainer}>
-          <TouchableOpacity
-            style={styles.editButton}
-            onPress={() => handleOpenEdit(item)}
-          >
-            <Ionicons name="create-outline" size={16} color="#4A90D9" />
-          </TouchableOpacity>
           {communityStyle ? (
             <>
               <TouchableOpacity
@@ -566,9 +554,7 @@ export default function ContactsScreen() {
         <View style={styles.titleRow}>
           <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
             <Text style={styles.title}>通讯录</Text>
-            {contacts.length > 0 && (
-              <Text style={styles.titleCount}> ({contacts.length})</Text>
-            )}
+            <Text style={styles.titleCount}> ({filteredContacts.length})</Text>
           </View>
           <View style={styles.headerButtons}>
             <TouchableOpacity
@@ -1075,6 +1061,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(74, 144, 217, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  editIconButton: {
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 4,
   },
   editAvatarSection: {
     alignItems: 'center',

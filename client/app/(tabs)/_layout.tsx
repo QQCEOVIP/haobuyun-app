@@ -7,7 +7,7 @@ export default function TabLayout() {
   const insets = useSafeAreaInsets();
 
   let tabBarStyle: any = {
-    backgroundColor: '#F5F7FA',
+    backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: '#E6E8EB',
     paddingTop: 8,
@@ -35,6 +35,7 @@ export default function TabLayout() {
           marginTop: 2,
         },
         animation: 'none',
+        freezeOnBlur: false,
       }}
     >
       <Tabs.Screen
