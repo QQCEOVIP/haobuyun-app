@@ -468,14 +468,16 @@ export default function HomeScreen() {
       if (Platform.OS === 'android') {
         try {
           const SAF = StorageAccessFramework ?? (FileSystemLegacy as any).StorageAccessFramework;
-          if (SAF && typeof SAF.createFileAsync === 'function') {
-            const fileUri = await SAF.createFileAsync(
-              'application/json',
-              defaultFileName
-            );
-            await SAF.writeAsStringAsync(fileUri, backupContent);
-            Alert.alert('导出成功', `已备份 ${contactCount} 个联系人（含标签状态）\n仅号簿云可恢复此格式`);
-            return;
+          if (SAF && typeof SAF.getDirectoryAsync === 'function') {
+            // 先让用户选择保存目录
+            const dirUri = await SAF.getDirectoryAsync();
+            if (dirUri) {
+              // createFileAsync(parentUri, mimeType, fileName)
+              const fileUri = await SAF.createFileAsync(dirUri, 'application/json', defaultFileName);
+              await SAF.writeAsStringAsync(fileUri, backupContent);
+              Alert.alert('导出成功', `已备份 ${contactCount} 个联系人（含标签状态）\n仅号簿云可恢复此格式`);
+              return;
+            }
           }
         } catch (safError) {
           console.warn('SAF export failed, falling back to Sharing:', safError);
@@ -614,15 +616,17 @@ export default function HomeScreen() {
       if (Platform.OS === 'android') {
         try {
           const SAF = StorageAccessFramework ?? (FileSystemLegacy as any).StorageAccessFramework;
-          if (SAF && typeof SAF.createFileAsync === 'function') {
-            const fileUri = await SAF.createFileAsync(
-              'text/vcard',
-              defaultFileName
-            );
-            await SAF.writeAsStringAsync(fileUri, vcardContent);
-            Alert.alert('备份成功', `已备份 ${contactCount} 个联系人`);
-            setBackupLoading(false);
-            return;
+          if (SAF && typeof SAF.getDirectoryAsync === 'function') {
+            // 先让用户选择保存目录
+            const dirUri = await SAF.getDirectoryAsync();
+            if (dirUri) {
+              // createFileAsync(parentUri, mimeType, fileName)
+              const fileUri = await SAF.createFileAsync(dirUri, 'text/vcard', defaultFileName);
+              await SAF.writeAsStringAsync(fileUri, vcardContent);
+              Alert.alert('备份成功', `已备份 ${contactCount} 个联系人`);
+              setBackupLoading(false);
+              return;
+            }
           }
         } catch (safError) {
           console.warn('SAF backup failed, falling back:', safError);
@@ -797,36 +801,81 @@ export default function HomeScreen() {
 
   const analyzeBackups = async () => {
     try {
+      let latest: any = null;
+      let previous: any = null;
+      let latestDate = '';
+      let previousDate = '';
+
+      // 1. 先尝试从本地备份读取
       const dirInfo = await FileSystemLegacy.getInfoAsync(LOCAL_BACKUP_DIR).catch(() => null);
-      if (!dirInfo?.exists) {
-        setAnalysisResult({ error: '暂无本地备份记录，请先进行云端备份' });
-        return;
-      }
-      const files = await FileSystemLegacy.readDirectoryAsync(LOCAL_BACKUP_DIR);
-      const jsonFiles = (files || []).filter((f: string) => f.endsWith('.json')).sort().reverse();
-      if (jsonFiles.length < 2) {
-        setAnalysisResult({ error: '至少需要2次备份才能进行对比分析' });
-        return;
+      if (dirInfo?.exists) {
+        const files = await FileSystemLegacy.readDirectoryAsync(LOCAL_BACKUP_DIR);
+        const jsonFiles = (files || []).filter((f: string) => f.endsWith('.json')).sort().reverse();
+        if (jsonFiles.length >= 2) {
+          const latestContent = await FileSystemLegacy.readAsStringAsync(LOCAL_BACKUP_DIR + jsonFiles[0]);
+          const previousContent = await FileSystemLegacy.readAsStringAsync(LOCAL_BACKUP_DIR + jsonFiles[1]);
+          latest = JSON.parse(latestContent);
+          previous = JSON.parse(previousContent);
+          latestDate = latest.exportedAt || jsonFiles[0];
+          previousDate = previous.exportedAt || jsonFiles[1];
+        }
       }
 
-      const latestContent = await FileSystemLegacy.readAsStringAsync(LOCAL_BACKUP_DIR + jsonFiles[0]);
-      const previousContent = await FileSystemLegacy.readAsStringAsync(LOCAL_BACKUP_DIR + jsonFiles[1]);
-      const latest = JSON.parse(latestContent);
-      const previous = JSON.parse(previousContent);
+      // 2. 如果本地备份不够，尝试从云端备份下载
+      if (!latest || !previous) {
+        if (!userId || cloudBackups.length < 2) {
+          setAnalysisResult({ error: '至少需要2次备份才能进行对比分析，请先进行云端备份' });
+          return;
+        }
+        // 下载最近2个云端备份
+        setCloudProgress('正在下载备份数据进行对比...');
+        try {
+          const latestFileName = cloudBackups[0].name;
+          const previousFileName = cloudBackups[1].name;
+
+          const latestResp = await fetch(
+            `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/backup/cloud/download?fileName=${encodeURIComponent(latestFileName)}`,
+            { headers: { 'x-user-id': userId } }
+          );
+          const latestResult = await latestResp.json();
+          if (!latestResp.ok || !latestResult.success) throw new Error('下载最新备份失败');
+          latest = JSON.parse(latestResult.content);
+
+          const prevResp = await fetch(
+            `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/backup/cloud/download?fileName=${encodeURIComponent(previousFileName)}`,
+            { headers: { 'x-user-id': userId } }
+          );
+          const prevResult = await prevResp.json();
+          if (!prevResp.ok || !prevResult.success) throw new Error('下载历史备份失败');
+          previous = JSON.parse(prevResult.content);
+
+          latestDate = latest.exportedAt || latestFileName;
+          previousDate = previous.exportedAt || previousFileName;
+        } catch (dlError) {
+          setAnalysisResult({ error: '下载云端备份失败，请检查网络后重试' });
+          return;
+        }
+      }
 
       const latestContacts = latest.contacts || [];
       const previousContacts = previous.contacts || [];
 
-      // Build phone->name maps
+      // Build phone->name maps (use ALL phones, not just first)
       const latestPhoneMap = new Map<string, string>();
       latestContacts.forEach((c: any) => {
-        const phone = c.phones?.[0]?.number || '';
-        if (phone) latestPhoneMap.set(phone, c.name || '');
+        const phones = c.phones || [];
+        const name = c.name || '';
+        phones.forEach((p: any) => {
+          if (p.number) latestPhoneMap.set(p.number, name);
+        });
       });
       const previousPhoneMap = new Map<string, string>();
       previousContacts.forEach((c: any) => {
-        const phone = c.phones?.[0]?.number || '';
-        if (phone) previousPhoneMap.set(phone, c.name || '');
+        const phones = c.phones || [];
+        const name = c.name || '';
+        phones.forEach((p: any) => {
+          if (p.number) previousPhoneMap.set(p.number, name);
+        });
       });
 
       const latestPhones = new Set(latestPhoneMap.keys());
@@ -854,8 +903,8 @@ export default function HomeScreen() {
       });
 
       setAnalysisResult({
-        latestDate: latest.exportedAt,
-        previousDate: previous.exportedAt,
+        latestDate,
+        previousDate,
         added: added.length,
         deleted: deleted.length,
         modified: modified.length,

@@ -274,7 +274,7 @@ router.post('/trash', requireAuth, async (req: any, res: any) => {
  */
 router.post('/batch-delete', requireAuth, async (req: any, res: any) => {
   try {
-    const { contactIds, phones } = req.body;
+    const { contactIds, phones, names } = req.body;
     const userId = (req as any).userId;
     const deletedAt = new Date();
 
@@ -294,7 +294,7 @@ router.post('/batch-delete', requireAuth, async (req: any, res: any) => {
     }
 
     if (Array.isArray(phones) && phones.length > 0) {
-      // New behavior: soft delete by phone numbers
+      // Soft delete by phone numbers - first try to update existing records
       const phoneResult = await db
         .update(contacts)
         .set({ is_deleted: true, deleted_at: deletedAt })
@@ -304,6 +304,42 @@ router.post('/batch-delete', requireAuth, async (req: any, res: any) => {
         ))
         .returning({ id: contacts.id });
       result = result.concat(phoneResult);
+
+      // For phones that weren't found (not in DB), insert new records with is_deleted=true
+      const updatedPhones = new Set(phoneResult.map(r => r.id));
+      // We need to find which phones were NOT updated
+      // Since we can't easily map IDs back to phones, insert all phones that might not exist
+      // Use a simpler approach: insert any phone that doesn't already have a record
+      for (let i = 0; i < phones.length; i++) {
+        const phone = phones[i];
+        if (!phone) continue;
+        // Check if this phone already has a record for this user
+        const existing = await db
+          .select({ id: contacts.id })
+          .from(contacts)
+          .where(and(eq(contacts.user_id, userId), eq(contacts.phone, phone)))
+          .limit(1);
+        
+        if (existing.length === 0) {
+          // Insert a new soft-deleted record
+          const name = Array.isArray(names) && names[i] ? names[i] : '';
+          const newRecord = await db
+            .insert(contacts)
+            .values({
+              user_id: userId,
+              phone: phone,
+              name: name,
+              phone_hash: hashPhone(phone),
+              status: 'unknown',
+              is_deleted: true,
+              deleted_at: deletedAt,
+              created_at: deletedAt,
+              updated_at: deletedAt,
+            })
+            .returning({ id: contacts.id });
+          result = result.concat(newRecord);
+        }
+      }
     }
 
     if (result.length === 0 && (!contactIds || contactIds.length === 0) && (!phones || phones.length === 0)) {

@@ -114,54 +114,92 @@ export default function ContactsScreen() {
   // 打开编辑弹窗
   // 同步本地数据 - 将应用中的联系人状态信息写入设备通讯录备注
   const handleSync = async () => {
-    setSyncLoading(true);
-    try {
-      const { status: permStatus } = await Contacts.requestPermissionsAsync();
-      if (permStatus !== 'granted') {
-        Alert.alert('权限不足', '需要通讯录权限才能同步');
-        return;
-      }
+    // 二次确认
+    Alert.alert(
+      '确认同步',
+      '确认要将APP中的标签数据同步到本地通讯录吗？\n\n同步后，每个联系人的备注字段将写入对应的标签信息。',
+      [
+        { text: '取消', style: 'cancel' },
+        {
+          text: '确认同步',
+          onPress: async () => {
+            setSyncLoading(true);
+            try {
+              const { status: permStatus } = await Contacts.requestPermissionsAsync();
+              if (permStatus !== 'granted') {
+                Alert.alert('权限不足', '需要通讯录权限才能同步');
+                return;
+              }
 
-      let syncCount = 0;
-      // 遍历所有联系人，将状态标签写入设备通讯录备注
-      for (const contact of contacts) {
-        try {
-          const statusLabel = contact.status ? getStatusStyle(contact.status).label : '';
-          const customAvatar = contactAvatars[contact.phone] ? '✓头像' : '';
-          const noteParts = [statusLabel, customAvatar].filter(Boolean);
-          if (noteParts.length === 0) continue;
+              let syncCount = 0;
+              let skipCount = 0;
+              let failCount = 0;
+              // 遍历所有联系人，将状态标签写入设备通讯录备注
+              for (const contact of contacts) {
+                try {
+                  const statusLabel = contact.status ? getStatusStyle(contact.status).label : '';
+                  const customAvatar = contactAvatars[contact.phone] ? '✓头像' : '';
+                  const noteParts = [statusLabel, customAvatar].filter(Boolean);
+                  if (noteParts.length === 0) {
+                    skipCount++;
+                    continue;
+                  }
 
-          const noteText = `[号簿云] ${noteParts.join(' ')}`;
-          // 获取现有联系人数据
-          const existing = await Contacts.getContactByIdAsync(contact.deviceContactId, [
-            Contacts.Fields.Name,
-            Contacts.Fields.PhoneNumbers,
-            Contacts.Fields.Note,
-          ]);
-          if (!existing) continue;
+                  const noteText = `[号簿云] ${noteParts.join(' ')}`;
+                  // 获取现有联系人完整数据（包含所有字段）
+                  const existing = await Contacts.getContactByIdAsync(contact.deviceContactId, [
+                    Contacts.Fields.Name,
+                    Contacts.Fields.PhoneNumbers,
+                    Contacts.Fields.Emails,
+                    Contacts.Fields.Note,
+                    Contacts.Fields.Company,
+                    Contacts.Fields.JobTitle,
+                  ]);
+                  if (!existing) {
+                    failCount++;
+                    continue;
+                  }
 
-          // 如果备注已包含号簿云标记且内容相同，跳过
-          if (existing.note?.includes('[号簿云]') && existing.note.includes(statusLabel)) continue;
+                  // 如果备注已包含号簿云标记且内容相同，跳过
+                  if (existing.note?.includes('[号簿云]') && existing.note.includes(statusLabel)) {
+                    skipCount++;
+                    continue;
+                  }
 
-          // 更新联系人备注
-          await Contacts.updateContactAsync({
-            id: existing.id,
-            name: existing.name,
-            firstName: existing.name,
-            phoneNumbers: existing.phoneNumbers?.map(p => ({ number: p.number, label: p.label || 'mobile' })) || [],
-            note: noteText,
-          });
-          syncCount++;
-        } catch (_e) { /* skip failed contact */ }
-      }
+                  // 构建更新数据 - 保留所有现有字段，只修改 note
+                  const updateData: any = {
+                    id: existing.id,
+                    name: existing.name,
+                    firstName: existing.name,
+                    phoneNumbers: existing.phoneNumbers?.map(p => ({ number: p.number, label: p.label || 'mobile' })) || [],
+                    note: noteText,
+                  };
+                  // 保留其他字段
+                  if (existing.emails && existing.emails.length > 0) {
+                    updateData.emails = existing.emails.map(e => ({ email: e.email, label: e.label || 'home' }));
+                  }
+                  if (existing.company) updateData.company = existing.company;
+                  if (existing.jobTitle) updateData.jobTitle = existing.jobTitle;
 
-      Alert.alert('同步完成', `已同步 ${syncCount} 个联系人的状态信息到设备通讯录`);
-    } catch (error) {
-      console.error('Sync error:', error);
-      Alert.alert('同步失败', '请重试');
-    } finally {
-      setSyncLoading(false);
-    }
+                  await Contacts.updateContactAsync(updateData);
+                  syncCount++;
+                } catch (e) {
+                  failCount++;
+                  console.warn('Sync contact error:', contact.phone, (e as any)?.message);
+                }
+              }
+
+              Alert.alert('同步完成', `成功: ${syncCount} 个\n跳过: ${skipCount} 个\n失败: ${failCount} 个`);
+            } catch (error) {
+              console.error('Sync error:', error);
+              Alert.alert('同步失败', '请重试');
+            } finally {
+              setSyncLoading(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleOpenEdit = (contact: Contact) => {
@@ -284,11 +322,12 @@ export default function ContactsScreen() {
       setHasPermission(status === 'granted');
 
       if (status === 'granted') {
-        // 分页获取所有设备联系人
+        // 分页获取所有设备联系人 - 使用更稳健的分页逻辑
         let allDeviceContacts: Contacts.Contact[] = [];
         let offset = 0;
-        const devicePageSize = 1000;
-        while (true) {
+        const devicePageSize = 2000;
+        let hasMore = true;
+        while (hasMore) {
           const { data: deviceContacts } = await Contacts.getContactsAsync({
             fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name].filter(
               (f): f is Contacts.Field => f != null && f !== undefined
@@ -296,17 +335,24 @@ export default function ContactsScreen() {
             pageSize: devicePageSize,
             pageOffset: offset,
           });
-          if (!deviceContacts || deviceContacts.length === 0) break;
+          if (!deviceContacts || deviceContacts.length === 0) {
+            hasMore = false;
+            break;
+          }
           allDeviceContacts = allDeviceContacts.concat(deviceContacts);
           offset += deviceContacts.length;
-          if (deviceContacts.length < devicePageSize) break;
+          if (deviceContacts.length < devicePageSize) {
+            hasMore = false;
+          }
         }
 
         const mappedContacts: Contact[] = allDeviceContacts
           .filter(c => c.phoneNumbers && c.phoneNumbers.length > 0)
           .map(c => {
-            const allPhones = c.phoneNumbers!.map(p => p.number || '').filter(n => n);
+            // 保留所有有效号码，不过滤空字符串以外的格式
+            const allPhones = c.phoneNumbers!.map(p => (p.number || '').trim()).filter(n => n.length > 0);
             const phone = allPhones[0] || '';
+            if (!phone) return null; // 跳过完全没有有效号码的联系人
             const localData = allLocalContacts?.find((lc: any) => lc.phone === phone);
             return {
               id: c.id,
@@ -317,7 +363,8 @@ export default function ContactsScreen() {
               status: localData?.status || null,
               lastContactDate: localData?.last_contact_date,
             };
-          });
+          })
+          .filter((c): c is Contact => c !== null);
 
         // Load locally persisted status overrides from AsyncStorage
         const allKeys = await AsyncStorage.getAllKeys();

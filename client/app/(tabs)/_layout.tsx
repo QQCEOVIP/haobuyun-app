@@ -34,7 +34,6 @@ export default function TabLayout() {
           fontWeight: '500',
           marginTop: 2,
         },
-        // 使用默认动画避免切换闪屏
       }}
     >
       <Tabs.Screen
