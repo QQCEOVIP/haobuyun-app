@@ -48,7 +48,7 @@ export default function HomeScreen() {
   const [detecting, setDetecting] = useState(false);
   const [detectionResult, setDetectionResult] = useState<any>(null);
   const [cloudBackupVisible, setCloudBackupVisible] = useState(false);
-  // cloudBackupTab removed - data analysis module removed
+
   const [backups, setBackups] = useState<any[]>([]);
   const [backupLoading, setBackupLoading] = useState(false);
   const [customFileName, setCustomFileName] = useState('');
@@ -1161,7 +1161,6 @@ export default function HomeScreen() {
   // 打开云端备份弹窗时加载列表
   const openCloudBackupModal = () => {
     setCloudBackupVisible(true);
-    setCloudBackupTab('backup');
     loadCloudBackups();
   };
 
@@ -1260,7 +1259,7 @@ export default function HomeScreen() {
     : 100;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: '#F5F7FA' }]}>
       <ScrollView
         style={styles.content}
         contentContainerStyle={styles.scrollContent}

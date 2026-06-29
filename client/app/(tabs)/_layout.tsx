@@ -35,6 +35,8 @@ export default function TabLayout() {
           marginTop: 2,
         },
       }}
+      // 禁用屏幕分离，防止切换时屏幕闪黑
+      detachInactiveScreens={false}
     >
       <Tabs.Screen
         name="index"

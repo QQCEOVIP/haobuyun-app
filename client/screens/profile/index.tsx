@@ -168,7 +168,7 @@ export default function ProfileScreen() {
   const userName = userEmail.split('@')[0] || '用户';
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: '#F5F7FA' }]}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
           <Text style={styles.title}>我的</Text>

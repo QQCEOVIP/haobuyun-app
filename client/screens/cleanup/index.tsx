@@ -171,7 +171,7 @@ export default function CleanupScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: '#F5F7FA' }]}>
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>清理失效号码</Text>

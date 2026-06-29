@@ -669,7 +669,7 @@ export default function ContactsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: '#F5F7FA' }]}>
       <View style={styles.header}>
         <View style={styles.titleRow}>
           <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
