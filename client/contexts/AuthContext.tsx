@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/storage/supabase';
 
 interface AuthContextType {
@@ -19,6 +20,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  /**
+   * Fetch user profile from backend and cache avatar URL to AsyncStorage.
+   * Called after login so other screens can display the avatar immediately.
+   */
+  const fetchAndCacheAvatar = async (userId: string) => {
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      headers['x-user-id'] = userId;
+      const response = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/profile`, { headers });
+      if (response.ok) {
+        const result = await response.json();
+        if (result.profile?.avatar_url) {
+          await AsyncStorage.setItem('@user_avatar', result.profile.avatar_url);
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to cache avatar on login:', error);
+    }
+  };
+
   useEffect(() => {
     // 获取初始 session
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -33,6 +54,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(session);
         setUser(session?.user ?? null);
         setIsLoading(false);
+
+        // When user signs in, fetch and cache avatar from backend
+        if (event === 'SIGNED_IN' && session?.user) {
+          fetchAndCacheAvatar(session.user.id);
+        }
+        // When user signs out, clear cached avatar
+        if (event === 'SIGNED_OUT') {
+          AsyncStorage.removeItem('@user_avatar').catch(() => { /* ignore */ });
+        }
       }
     );
 

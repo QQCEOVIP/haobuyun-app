@@ -80,13 +80,29 @@ router.get('/', async (req, res) => {
     }
 
     const metadata = userData.user.user_metadata || {};
+
+    // Regenerate presigned URL from avatar_key to avoid expired URLs
+    let avatarUrl: string | null = null;
+    if (metadata.avatar_key) {
+      try {
+        avatarUrl = await storage.generatePresignedUrl({
+          key: metadata.avatar_key,
+          expireTime: 2592000, // 30 days
+        });
+      } catch (urlError: any) {
+        console.warn('Failed to generate presigned URL:', urlError?.message);
+        // Fallback to stored URL if regeneration fails
+        avatarUrl = metadata.avatar_url || null;
+      }
+    }
+
     res.json({
       success: true,
       profile: {
         id: userData.user.id,
         email: userData.user.email,
         nickname: metadata.nickname || '',
-        avatar_url: metadata.avatar_url || null,
+        avatar_url: avatarUrl,
         avatar_key: metadata.avatar_key || null,
       },
     });
