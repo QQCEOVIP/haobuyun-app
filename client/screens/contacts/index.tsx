@@ -26,6 +26,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { CONSENSUS, type NumberStatus } from '@/constants/numberStatus';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ContactAvatar from '@/components/ContactAvatar';
+import { LinearGradient } from 'expo-linear-gradient';
 
 interface Contact {
   id: string;
@@ -750,10 +751,21 @@ export default function ContactsScreen() {
                 <Text style={styles.cleanupTitle}>管理助手</Text>
               </View>
               <TouchableOpacity
-                style={styles.recycleBinPill}
                 onPress={() => router.push('/recycle-bin')}
                 activeOpacity={0.8}
-              />
+                style={styles.recycleBinPillWrapper}
+              >
+                <LinearGradient
+                  colors={['#FBBF24', '#F59E0B', '#EF4444', '#DC2626']}
+                  locations={[0, 0.42, 0.58, 1]}
+                  start={[0, 0.5]}
+                  end={[1, 0.5]}
+                  style={styles.recycleBinPill}
+                >
+                  {/* Top highlight reflection */}
+                  <View style={styles.recycleBinPillHighlight} />
+                </LinearGradient>
+              </TouchableOpacity>
             </View>
             <View style={styles.cleanupStats}>
               <TouchableOpacity
@@ -1516,18 +1528,34 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: 'rgba(255,255,255,0.35)',
   },
-  recycleBinPill: {
-    width: 52,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: '#F56C6C',
-    shadowColor: '#F56C6C',
+  // 3D Capsule Recycle Bin Button Styles
+  recycleBinPillWrapper: {
+    width: 56,
+    height: 28,
+    borderRadius: 14,
+    shadowColor: '#EF4444',
     shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.4,
-    shadowRadius: 5,
+    shadowOpacity: 0.35,
+    shadowRadius: 4,
     elevation: 6,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.35)',
+  },
+  recycleBinPill: {
+    width: 56,
+    height: 28,
+    borderRadius: 14,
+    overflow: 'hidden',
+    borderWidth: 0.5,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  recycleBinPillHighlight: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '50%',
+    backgroundColor: 'rgba(255,255,255,0.35)',
+    borderTopLeftRadius: 14,
+    borderTopRightRadius: 14,
   },
   _pillLeft_unused: {
     flex: 1,
