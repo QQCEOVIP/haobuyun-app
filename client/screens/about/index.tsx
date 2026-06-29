@@ -51,8 +51,10 @@ export default function AboutScreen() {
         <Text style={styles.paragraph}>3. 导入导出：支持VCF格式通讯录的批量导入与导出，方便数据迁移。</Text>
         <Text style={styles.paragraph}>4. 状态管理：为联系人添加状态标签，快速筛选和管理联系人。</Text>
 
-        <Text style={styles.sectionTitle}>技术支持</Text>
-        <Text style={styles.paragraph}>如您在使用过程中遇到任何问题，欢迎通过应用内反馈功能联系我们，我们将尽快为您解决。</Text>
+        <Text style={styles.sectionTitle}>联系我们</Text>
+        <Text style={styles.paragraph}>如您在使用过程中遇到任何问题，欢迎通过以下方式联系我们：</Text>
+        <Text style={styles.paragraph}>联系邮箱：vip2012@vip.qq.com</Text>
+        <Text style={styles.paragraph}>我们将在收到反馈后尽快为您解决。</Text>
 
         <Text style={styles.sectionTitle}>版权声明</Text>
         <Text style={styles.paragraph}>号簿云应用的所有内容，包括但不限于软件代码、界面设计、图标、文字等，均受版权法保护。未经授权不得转载或使用。</Text>
