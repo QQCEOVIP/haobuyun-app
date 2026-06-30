@@ -931,7 +931,7 @@ export default function ContactsScreen() {
                 style={styles.recycleBinPillWrapper}
               >
                 <Image
-                  source={require('@/assets/pill.jpg')}
+                  source={require('@/assets/trash_pill.jpg')}
                   style={styles.recycleBinPillImage}
                   resizeMode="cover"
                 />

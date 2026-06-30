@@ -1546,6 +1546,11 @@ export default function HomeScreen() {
     ? Math.round(((stats.total - stats.invalid - stats.maybeInvalid) / stats.total) * 100)
     : 100;
 
+  // Debug logging for health percentage
+  console.log('[Health] Stats:', JSON.stringify(stats));
+  console.log('[Health] Calculation: total=', stats.total, 'invalid=', stats.invalid, 'maybeInvalid=', stats.maybeInvalid);
+  console.log('[Health] Percentage:', healthPercentage);
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: '#F5F7FA' }]}>
       <ScrollView
