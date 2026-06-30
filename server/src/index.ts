@@ -64,6 +64,7 @@ app.get('/api/v1/debug/env-check', async (req, res) => {
     envSupabaseUrl: process.env.COZE_SUPABASE_URL || 'NOT SET (using hardcoded)',
     hasServiceRoleKey: !!process.env.COZE_SUPABASE_SERVICE_ROLE_KEY,
     serviceRoleKeyLength: (process.env.COZE_SUPABASE_SERVICE_ROLE_KEY || '').length,
+    anonKeyValue: process.env.COZE_SUPABASE_ANON_KEY,
     allEnvKeys: Object.keys(process.env).filter(k => k.includes('SUPABASE') || k.includes('COZE')),
     dbTest: {
       success: !testError,
