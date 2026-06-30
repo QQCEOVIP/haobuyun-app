@@ -8,6 +8,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
 } from 'react-native';
 import { Screen } from '@/components/Screen';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
@@ -21,11 +22,17 @@ export default function ForgotPasswordScreen() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<string[]>([]);
+
+  const addDebug = (msg: string) => {
+    console.log(msg);
+    setDebugInfo(prev => [...prev, msg]);
+  };
 
   const handleVerify = async () => {
-    console.log('[ForgotPassword] handleVerify called');
-    console.log('[ForgotPassword] Phone:', phone);
-    console.log('[ForgotPassword] ID Card:', idCard);
+    addDebug('=== VERIFY START ===');
+    addDebug(`Phone: ${phone}`);
+    addDebug(`ID Card: ${idCard}`);
     
     if (!phone.trim()) {
       Alert.alert('提示', '请输入手机号');
@@ -45,10 +52,9 @@ export default function ForgotPasswordScreen() {
         idCard: idCard.trim(),
       };
       
-      console.log('[ForgotPassword] === VERIFY REQUEST ===');
-      console.log('[ForgotPassword] EXPO_PUBLIC_BACKEND_BASE_URL:', baseUrl);
-      console.log('[ForgotPassword] Full URL:', url);
-      console.log('[ForgotPassword] Request body:', JSON.stringify(requestBody));
+      addDebug(`EXPO_PUBLIC_BACKEND_BASE_URL: ${baseUrl}`);
+      addDebug(`Full URL: ${url}`);
+      addDebug(`Request: ${JSON.stringify(requestBody)}`);
       
       const response = await fetch(url, {
         method: 'POST',
@@ -56,25 +62,21 @@ export default function ForgotPasswordScreen() {
         body: JSON.stringify(requestBody),
       });
 
-      console.log('[ForgotPassword] === VERIFY RESPONSE ===');
-      console.log('[ForgotPassword] response.status:', response.status);
-      console.log('[ForgotPassword] response.ok:', response.ok);
+      addDebug(`Response status: ${response.status}`);
+      addDebug(`Response ok: ${response.ok}`);
       
       const result = await response.json();
-      console.log('[ForgotPassword] result (full):', JSON.stringify(result));
-      console.log('[ForgotPassword] result.success:', result.success);
-      console.log('[ForgotPassword] result.error:', result.error);
+      addDebug(`Response body: ${JSON.stringify(result)}`);
 
       if (response.ok && result.success) {
-        console.log('[ForgotPassword] Verification SUCCESS, moving to reset step');
+        addDebug('SUCCESS - moving to reset step');
         setStep('reset');
       } else {
-        console.log('[ForgotPassword] Verification FAILED');
+        addDebug(`FAILED - error: ${result.error || '信息不匹配'}`);
         Alert.alert('验证失败', result.error || '信息不匹配');
       }
     } catch (error) {
-      console.error('[ForgotPassword] === VERIFY ERROR ===');
-      console.error('[ForgotPassword] Error:', error);
+      addDebug(`ERROR: ${error}`);
       Alert.alert('错误', '网络错误，请重试');
     } finally {
       setLoading(false);
@@ -82,6 +84,9 @@ export default function ForgotPasswordScreen() {
   };
 
   const handleReset = async () => {
+    addDebug('=== RESET START ===');
+    addDebug(`New password length: ${newPassword.length}`);
+    
     if (!newPassword || newPassword.length < 6) {
       Alert.alert('提示', '密码长度至少6位');
       return;
@@ -101,9 +106,9 @@ export default function ForgotPasswordScreen() {
         newPassword: newPassword,
       };
       
-      console.log('[ForgotPassword] === RESET REQUEST ===');
-      console.log('[ForgotPassword] Full URL:', url);
-      console.log('[ForgotPassword] Request body:', JSON.stringify({ ...requestBody, newPassword: '***' }));
+      addDebug(`EXPO_PUBLIC_BACKEND_BASE_URL: ${baseUrl}`);
+      addDebug(`Full URL: ${url}`);
+      addDebug(`Request: phone=${phone.trim()}, idCard=${idCard.trim()}, newPassword length=${newPassword.length}`);
       
       const response = await fetch(url, {
         method: 'POST',
@@ -111,25 +116,23 @@ export default function ForgotPasswordScreen() {
         body: JSON.stringify(requestBody),
       });
 
-      console.log('[ForgotPassword] === RESET RESPONSE ===');
-      console.log('[ForgotPassword] response.status:', response.status);
-      console.log('[ForgotPassword] response.ok:', response.ok);
+      addDebug(`Response status: ${response.status}`);
+      addDebug(`Response ok: ${response.ok}`);
       
       const result = await response.json();
-      console.log('[ForgotPassword] result (full):', JSON.stringify(result));
+      addDebug(`Response body: ${JSON.stringify(result)}`);
 
       if (response.ok && result.success) {
-        console.log('[ForgotPassword] Reset SUCCESS');
+        addDebug('SUCCESS - password reset complete');
         Alert.alert('成功', '密码重置成功，请使用新密码登录', [
           { text: '确定', onPress: () => router.replace('/login') },
         ]);
       } else {
-        console.log('[ForgotPassword] Reset FAILED');
+        addDebug(`FAILED - error: ${result.error || '重置密码失败'}`);
         Alert.alert('失败', result.error || '重置密码失败');
       }
     } catch (error) {
-      console.error('[ForgotPassword] === RESET ERROR ===');
-      console.error('[ForgotPassword] Error:', error);
+      addDebug(`ERROR: ${error}`);
       Alert.alert('错误', '网络错误，请重试');
     } finally {
       setLoading(false);
