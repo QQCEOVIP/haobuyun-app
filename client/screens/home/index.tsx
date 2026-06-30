@@ -17,6 +17,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from 'expo-router';
 import * as Contacts from 'expo-contacts';
 import * as FileSystemLegacy from 'expo-file-system/legacy';
 import { StorageAccessFramework } from 'expo-file-system/legacy';
@@ -39,7 +40,7 @@ interface ContactStats {
 }
 
 export default function HomeScreen() {
-  const { user, session } = useAuth();
+  const { user, session, avatarUrl } = useAuth();
   const [stats, setStats] = useState<ContactStats>({
     total: 0,
     active: 0,
@@ -55,22 +56,11 @@ export default function HomeScreen() {
   const [backupLoading, setBackupLoading] = useState(false);
   const [customFileName, setCustomFileName] = useState('');
   const [fileNameModalVisible, setFileNameModalVisible] = useState(false);
-  const [userAvatar, setUserAvatar] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [initialLoaded, setInitialLoaded] = useState(false);
 
   const userId = (user as any)?.id;
   const userEmail = (user as any)?.email || '';
-
-  // Load user avatar from AsyncStorage on mount only
-  useEffect(() => {
-    (async () => {
-      try {
-        const savedAvatar = await AsyncStorage.getItem('@user_avatar');
-        if (savedAvatar) setUserAvatar(savedAvatar);
-      } catch (_e) { /* ignore */ }
-    })();
-  }, []);
 
   // 首次加载：使用 useEffect 只在挂载时执行
   useEffect(() => {
@@ -80,7 +70,57 @@ export default function HomeScreen() {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 数据刷新依赖下拉刷新，不再使用 useFocusEffect 避免 Tab 切换闪屏
+  // Lightweight refresh: only re-read AsyncStorage status counts when page gains focus
+  // This avoids the heavy device contacts read that caused black screen issues
+  useFocusEffect(
+    useCallback(() => {
+      if (!initialLoaded || !userId) return;
+      // Only refresh status counts, not device contacts
+      (async () => {
+        try {
+          const allKeys = await AsyncStorage.getAllKeys();
+          const statusKeys = allKeys.filter(k => k.startsWith('@contact_status_'));
+          
+          // Get current total from existing stats
+          const currentTotal = stats.total;
+          
+          const contactStats: ContactStats = {
+            total: currentTotal, // Keep total from initial load
+            active: 0,
+            maybeInvalid: 0,
+            invalid: 0,
+            unknown: Math.max(0, currentTotal - statusKeys.length),
+          };
+
+          if (statusKeys.length > 0) {
+            const statusEntries = await AsyncStorage.multiGet(statusKeys);
+            for (const [, value] of statusEntries) {
+              switch (value) {
+                case 'normal':
+                  contactStats.active++;
+                  contactStats.unknown = Math.max(0, contactStats.unknown - 1);
+                  break;
+                case 'suspected_stopped':
+                  contactStats.maybeInvalid++;
+                  contactStats.unknown = Math.max(0, contactStats.unknown - 1);
+                  break;
+                case 'stopped':
+                  contactStats.invalid++;
+                  contactStats.unknown = Math.max(0, contactStats.unknown - 1);
+                  break;
+                default:
+                  break;
+              }
+            }
+          }
+
+          setStats(contactStats);
+        } catch (error) {
+          console.warn('[Home] Failed to refresh status counts:', error);
+        }
+      })();
+    }, [initialLoaded, userId, stats.total])
+  );
 
   // 获取所有设备联系人（分页获取，与通讯录页面使用相同方法确保一致性）
   const getAllDeviceContacts = async (fields: Contacts.Fields[]) => {
@@ -1494,7 +1534,6 @@ export default function HomeScreen() {
     setRefreshing(true);
     try {
       await fetchStats();
-      await loadUserAvatar();
     } catch (error) {
       console.error('Refresh failed:', error);
     } finally {
@@ -1522,8 +1561,8 @@ export default function HomeScreen() {
           {/* 用户头像在左上角 */}
           <View style={styles.avatarContainer}>
             <View style={styles.avatar}>
-              {userAvatar ? (
-                <Image source={{ uri: userAvatar }} style={styles.avatarImage} />
+              {avatarUrl ? (
+                <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
               ) : (
                 <Text style={styles.avatarText}>
                   {userEmail.split('@')[0]?.[0]?.toUpperCase() || 'U'}

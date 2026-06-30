@@ -8,6 +8,7 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  avatarUrl: string | null;
   signInWithEmail: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUpWithEmail: (email: string, password: string, metadata?: Record<string, any>) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -19,9 +20,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   /**
    * Fetch user profile from backend and cache avatar URL to AsyncStorage.
+   * Also updates the avatarUrl state so consumers can subscribe directly.
    * Called after login so other screens can display the avatar immediately.
    */
   const fetchAndCacheAvatar = async (userId: string) => {
@@ -33,15 +36,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       if (response.ok) {
         const result = await response.json();
-        const avatarUrl = result.profile?.avatar_url;
+        const url = result.profile?.avatar_url;
         
-        if (avatarUrl) {
+        if (url) {
           // Validate URL format
-          if (avatarUrl.startsWith('http://') || avatarUrl.startsWith('https://')) {
-            await AsyncStorage.setItem('@user_avatar', avatarUrl);
-            console.log('[Avatar] Cached avatar URL:', avatarUrl.substring(0, 50) + '...');
+          if (url.startsWith('http://') || url.startsWith('https://')) {
+            await AsyncStorage.setItem('@user_avatar', url);
+            setAvatarUrl(url); // Also update state for immediate consumption
+            console.log('[Avatar] Cached avatar URL:', url.substring(0, 50) + '...');
           } else {
-            console.warn('[Avatar] Invalid avatar URL format:', avatarUrl);
+            console.warn('[Avatar] Invalid avatar URL format:', url);
           }
         } else {
           console.log('[Avatar] No avatar URL in profile');
@@ -76,6 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // When user signs out, clear cached avatar
         if (event === 'SIGNED_OUT') {
           AsyncStorage.removeItem('@user_avatar').catch(() => { /* ignore */ });
+          setAvatarUrl(null);
         }
       }
     );
@@ -110,6 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user,
     isLoading,
     isAuthenticated: !!session && !!user,
+    avatarUrl,
     signInWithEmail,
     signUpWithEmail,
     signOut,

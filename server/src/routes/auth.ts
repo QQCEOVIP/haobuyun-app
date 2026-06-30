@@ -1,5 +1,5 @@
 import express, { type Router, type Request, type Response } from 'express';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type User } from '@supabase/supabase-js';
 
 const router: Router = express.Router();
 
@@ -8,6 +8,68 @@ const supabaseAdmin = createClient(
   process.env.COZE_SUPABASE_URL || '',
   process.env.COZE_SUPABASE_SERVICE_ROLE_KEY || ''
 );
+
+/**
+ * Helper: Find user by email with pagination support
+ * Supabase listUsers is paginated, so we need to iterate through all pages
+ */
+async function findUserByEmail(email: string): Promise<User | null> {
+  let page = 1;
+  const perPage = 1000;
+  
+  while (true) {
+    const { data, error } = await supabaseAdmin.auth.admin.listUsers({ 
+      page, 
+      perPage 
+    });
+    
+    if (error) {
+      console.error('List users error:', error);
+      throw error;
+    }
+    
+    const users = data?.users || [];
+    const targetUser = users.find(u => u.email === email);
+    
+    if (targetUser) {
+      return targetUser;
+    }
+    
+    // If we got fewer users than perPage, we've reached the end
+    if (users.length < perPage) {
+      break;
+    }
+    
+    page++;
+    
+    // Safety limit to prevent infinite loops
+    if (page > 100) {
+      console.warn('findUserByEmail: Reached page limit, stopping search');
+      break;
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Helper: Compare ID card numbers
+ * Supports both full match and last-4-digits match
+ */
+function compareIdCard(inputIdCard: string, storedIdCard: string): boolean {
+  if (!inputIdCard || !storedIdCard) return false;
+  
+  // Full match
+  if (inputIdCard === storedIdCard) return true;
+  
+  // Last 4 digits match (user might enter only last 4 digits)
+  const inputLast4 = inputIdCard.length >= 4 ? inputIdCard.slice(-4) : inputIdCard;
+  const storedLast4 = storedIdCard.length >= 4 ? storedIdCard.slice(-4) : storedIdCard;
+  
+  if (inputLast4 === storedLast4) return true;
+  
+  return false;
+}
 
 /**
  * POST /api/v1/auth/verify-identity
@@ -26,20 +88,21 @@ router.post('/verify-identity', async (req, res) => {
     }
 
     const email = `${phone}@haobuyun.app`;
-    const { data: users, error: listError } = await supabaseAdmin.auth.admin.listUsers();
     
-    if (listError) {
-      console.error('List users error:', listError);
+    let targetUser: User | null;
+    try {
+      targetUser = await findUserByEmail(email);
+    } catch (error) {
+      console.error('Find user error:', error);
       return res.status(500).json({ success: false, error: '查询用户失败' });
     }
-
-    const targetUser = users?.users?.find(u => u.email === email);
+    
     if (!targetUser) {
       return res.status(404).json({ success: false, error: '该手机号未注册' });
     }
 
     const userIdCard = targetUser.user_metadata?.id_card;
-    if (!userIdCard || userIdCard !== idCard) {
+    if (!compareIdCard(idCard, userIdCard)) {
       return res.status(401).json({ success: false, error: '信息不匹配，请检查手机号和身份证号' });
     }
 
@@ -76,19 +139,17 @@ router.post('/forgot-password', async (req, res) => {
     // Construct email from phone
     const email = `${phone}@haobuyun.app`;
 
-    // Find user by email using Admin API
-    const { data: users, error: listError } = await supabaseAdmin.auth.admin.listUsers();
-    
-    if (listError) {
-      console.error('List users error:', listError);
+    // Find user by email with pagination support
+    let targetUser: User | null;
+    try {
+      targetUser = await findUserByEmail(email);
+    } catch (error) {
+      console.error('Find user error:', error);
       return res.status(500).json({ 
         success: false, 
         error: '查询用户失败' 
       });
     }
-
-    // Find user with matching email
-    const targetUser = users?.users?.find(u => u.email === email);
 
     if (!targetUser) {
       return res.status(404).json({ 
@@ -100,7 +161,7 @@ router.post('/forgot-password', async (req, res) => {
     // Verify ID card number from user metadata
     const userIdCard = targetUser.user_metadata?.id_card;
     
-    if (!userIdCard || userIdCard !== idCard) {
+    if (!compareIdCard(idCard, userIdCard)) {
       return res.status(401).json({ 
         success: false, 
         error: '信息不匹配，请检查手机号和身份证号' 

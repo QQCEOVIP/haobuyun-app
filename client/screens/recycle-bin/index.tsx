@@ -100,11 +100,16 @@ export default function RecycleBinScreen() {
       if (!response.ok) throw new Error('Failed to restore');
       const result = await response.json();
 
-      // 请求通讯录权限并添加联系人到设备
-      const selectedContacts = contacts.filter(c => selectedIds.has(c.id));
+      // Request contacts permission and add contacts to device
+      const selectedContacts = trashContacts.filter(c => selectedIds.has(c.id));
+      let addedToDevice = 0;
+      let failedToAdd = 0;
+      
       if (selectedContacts.length > 0) {
         try {
           const { status } = await Contacts.requestPermissionsAsync();
+          console.log('[RecycleBin] Contacts permission status:', status);
+          
           if (status === 'granted') {
             for (const contact of selectedContacts) {
               try {
@@ -113,17 +118,36 @@ export default function RecycleBinScreen() {
                   name: contact.name || '',
                   phoneNumbers: contact.phone ? [{ number: contact.phone, label: 'main' }] : [],
                 });
+                addedToDevice++;
               } catch (e) {
-                console.warn('Failed to add contact to device:', contact.name, e);
+                console.warn('[RecycleBin] Failed to add contact to device:', contact.name, e);
+                failedToAdd++;
               }
             }
+          } else {
+            // Permission denied - show clear error but still complete the cloud restore
+            Alert.alert(
+              '权限不足',
+              '无法添加到设备通讯录，但已在云端恢复。请授予通讯录权限后重试。',
+              [{ text: '确定' }]
+            );
           }
         } catch (e) {
-          console.warn('Failed to add contacts to device:', e);
+          console.warn('[RecycleBin] Failed to add contacts to device:', e);
+          failedToAdd = selectedContacts.length;
         }
       }
 
-      Alert.alert('完成', result.message || `已恢复 ${selectedIds.size} 个号码`);
+      // Show result message
+      let message = result.message || `已恢复 ${selectedIds.size} 个号码`;
+      if (addedToDevice > 0) {
+        message += `\n已添加 ${addedToDevice} 个到设备通讯录`;
+      }
+      if (failedToAdd > 0) {
+        message += `\n${failedToAdd} 个添加失败`;
+      }
+      
+      Alert.alert('完成', message);
       setSelectedIds(new Set());
       loadTrash();
     } catch (error) {
