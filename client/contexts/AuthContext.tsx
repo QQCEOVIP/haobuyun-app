@@ -9,6 +9,7 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   avatarUrl: string | null;
+  setAvatarUrl: (url: string | null) => void;
   signInWithEmail: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUpWithEmail: (email: string, password: string, metadata?: Record<string, any>) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -116,6 +117,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isLoading,
     isAuthenticated: !!session && !!user,
     avatarUrl,
+    setAvatarUrl,
     signInWithEmail,
     signUpWithEmail,
     signOut,

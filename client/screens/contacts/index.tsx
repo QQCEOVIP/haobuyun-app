@@ -930,16 +930,11 @@ export default function ContactsScreen() {
                 activeOpacity={0.8}
                 style={styles.recycleBinPillWrapper}
               >
-                <LinearGradient
-                  colors={['#FBBF24', '#F59E0B', '#EF4444', '#DC2626']}
-                  locations={[0, 0.42, 0.58, 1]}
-                  start={[0, 0.5]}
-                  end={[1, 0.5]}
-                  style={styles.recycleBinPill}
-                >
-                  {/* Top highlight reflection */}
-                  <View style={styles.recycleBinPillHighlight} />
-                </LinearGradient>
+                <Image
+                  source={require('@/assets/pill.jpg')}
+                  style={styles.recycleBinPillImage}
+                  resizeMode="cover"
+                />
               </TouchableOpacity>
             </View>
             <View style={styles.cleanupStats}>
@@ -1787,23 +1782,10 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 6,
   },
-  recycleBinPill: {
+  recycleBinPillImage: {
     width: 56,
     height: 28,
     borderRadius: 14,
-    overflow: 'hidden',
-    borderWidth: 0.5,
-    borderColor: 'rgba(255,255,255,0.3)',
-  },
-  recycleBinPillHighlight: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: '50%',
-    backgroundColor: 'rgba(255,255,255,0.35)',
-    borderTopLeftRadius: 14,
-    borderTopRightRadius: 14,
   },
   _pillLeft_unused: {
     flex: 1,

@@ -80,6 +80,7 @@ export default function RecycleBinScreen() {
       return;
     }
 
+    console.log('[RecycleBin] Starting restore, selectedIds:', Array.from(selectedIds));
     setActionLoading(true);
     try {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -89,6 +90,7 @@ export default function RecycleBinScreen() {
        * 接口：POST /api/v1/contacts/trash/restore-batch
        * Body 参数：ids: string[]
        */
+      console.log('[RecycleBin] Calling restore-batch API with ids:', Array.from(selectedIds));
       const response = await fetch(
         `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/contacts/trash/restore-batch`,
         {
@@ -97,11 +99,21 @@ export default function RecycleBinScreen() {
           body: JSON.stringify({ ids: Array.from(selectedIds) }),
         }
       );
-      if (!response.ok) throw new Error('Failed to restore');
+      
+      console.log('[RecycleBin] API response status:', response.status);
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[RecycleBin] API error:', errorText);
+        throw new Error('Failed to restore');
+      }
       const result = await response.json();
+      console.log('[RecycleBin] API result:', result);
 
       // Request contacts permission and add contacts to device
       const selectedContacts = trashContacts.filter(c => selectedIds.has(c.id));
+      console.log('[RecycleBin] Selected contacts to add to device:', selectedContacts.length);
+      console.log('[RecycleBin] Contact details:', selectedContacts.map(c => ({ name: c.name, phone: c.phone })));
+      
       let addedToDevice = 0;
       let failedToAdd = 0;
       
@@ -113,31 +125,36 @@ export default function RecycleBinScreen() {
           if (status === 'granted') {
             for (const contact of selectedContacts) {
               try {
-                await Contacts.addContactAsync({
+                console.log('[RecycleBin] Adding contact to device:', contact.name, contact.phone);
+                const result = await Contacts.addContactAsync({
                   firstName: contact.name || '',
                   name: contact.name || '',
                   phoneNumbers: contact.phone ? [{ number: contact.phone, label: 'main' }] : [],
                 });
+                console.log('[RecycleBin] Contact added successfully, id:', result);
                 addedToDevice++;
-              } catch (e) {
-                console.warn('[RecycleBin] Failed to add contact to device:', contact.name, e);
+              } catch (e: any) {
+                console.warn('[RecycleBin] Failed to add contact to device:', contact.name, e?.message || e);
                 failedToAdd++;
               }
             }
           } else {
             // Permission denied - show clear error but still complete the cloud restore
+            console.warn('[RecycleBin] Contacts permission denied');
             Alert.alert(
               '权限不足',
               '无法添加到设备通讯录，但已在云端恢复。请授予通讯录权限后重试。',
               [{ text: '确定' }]
             );
           }
-        } catch (e) {
-          console.warn('[RecycleBin] Failed to add contacts to device:', e);
+        } catch (e: any) {
+          console.warn('[RecycleBin] Failed to add contacts to device:', e?.message || e);
           failedToAdd = selectedContacts.length;
         }
       }
 
+      console.log('[RecycleBin] Restore complete. Added:', addedToDevice, 'Failed:', failedToAdd);
+      
       // Show result message
       let message = result.message || `已恢复 ${selectedIds.size} 个号码`;
       if (addedToDevice > 0) {
@@ -151,7 +168,7 @@ export default function RecycleBinScreen() {
       setSelectedIds(new Set());
       loadTrash();
     } catch (error) {
-      console.error('Failed to restore:', error);
+      console.error('[RecycleBin] Failed to restore:', error);
       Alert.alert('错误', '恢复失败，请重试');
     } finally {
       setActionLoading(false);

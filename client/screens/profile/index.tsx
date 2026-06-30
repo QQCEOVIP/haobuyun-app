@@ -43,9 +43,12 @@ function MenuItem({ name, color, title, subtitle, badge, onPress }: MenuItemProp
 
 export default function ProfileScreen() {
   const router = useSafeRouter();
-  const { user, signOut } = useAuth();
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const { user, signOut, avatarUrl: contextAvatarUrl, setAvatarUrl: setContextAvatarUrl } = useAuth();
+  const [localAvatarUrl, setLocalAvatarUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+
+  // Use context avatarUrl as primary source, fallback to local state
+  const avatarUrl = contextAvatarUrl || localAvatarUrl;
 
   // Load profile on focus
   // 初始加载（仅挂载时，Tab切换不重新加载以避免闪屏）
@@ -56,20 +59,24 @@ export default function ProfileScreen() {
   const loadProfile = async () => {
     if (!user?.id) return;
     try {
-      // First check AsyncStorage for cached avatar
-      const cachedAvatar = await AsyncStorage.getItem('@user_avatar');
-      if (cachedAvatar) {
-        setAvatarUrl(cachedAvatar);
+      // First check AsyncStorage for cached avatar (fallback if context is empty)
+      if (!contextAvatarUrl) {
+        const cachedAvatar = await AsyncStorage.getItem('@user_avatar');
+        if (cachedAvatar) {
+          setLocalAvatarUrl(cachedAvatar);
+        }
       }
 
-      // Then try to fetch from backend
+      // Then try to fetch from backend to get fresh URL
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (user.id) headers['x-user-id'] = user.id;
       const response = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/profile`, { headers });
       if (response.ok) {
         const result = await response.json();
         if (result.profile?.avatar_url) {
-          setAvatarUrl(result.profile.avatar_url);
+          setLocalAvatarUrl(result.profile.avatar_url);
+          // Also update context for other screens
+          setContextAvatarUrl(result.profile.avatar_url);
           // Cache to AsyncStorage
           await AsyncStorage.setItem('@user_avatar', result.profile.avatar_url);
         }
@@ -132,7 +139,9 @@ export default function ProfileScreen() {
       if (!response.ok) throw new Error('Upload failed');
       const result = await response.json();
       if (result.avatarUrl) {
-        setAvatarUrl(result.avatarUrl);
+        setLocalAvatarUrl(result.avatarUrl);
+        // Also update context so other screens can access it immediately
+        setContextAvatarUrl(result.avatarUrl);
         // Sync avatar URL to AsyncStorage so other screens can access it
         await AsyncStorage.setItem('@user_avatar', result.avatarUrl);
         Alert.alert('成功', '头像已更新');
