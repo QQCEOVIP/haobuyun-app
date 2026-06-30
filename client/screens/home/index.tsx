@@ -41,6 +41,7 @@ interface ContactStats {
 
 export default function HomeScreen() {
   const { user, session, avatarUrl } = useAuth();
+  console.log('[Home] avatarUrl from context:', avatarUrl);
   const [stats, setStats] = useState<ContactStats>({
     total: 0,
     active: 0,

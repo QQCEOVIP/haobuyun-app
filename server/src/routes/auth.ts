@@ -114,7 +114,8 @@ function compareIdCard(inputIdCard: string, storedIdCard: string): boolean {
 router.post('/verify-identity', async (req, res) => {
   try {
     const { phone, idCard } = req.body;
-    console.log('[Auth] verify-identity: phone=', phone, 'idCard length=', idCard?.length);
+    console.log('[verify-identity] Request:', { phone, idCard: idCard ? idCard.substring(0, 4) + '****' : null });
+    console.log('[verify-identity] Query condition:', { email: `${phone}@haobuyun.app` });
 
     if (!phone || !idCard) {
       return res.status(400).json({ 
@@ -124,31 +125,43 @@ router.post('/verify-identity', async (req, res) => {
     }
 
     const email = `${phone}@haobuyun.app`;
-    console.log('[Auth] verify-identity: searching for email:', email);
     
     let targetUser: User | null;
     try {
       targetUser = await findUserByEmail(email);
     } catch (error) {
-      console.error('[Auth] Find user error:', error);
+      console.error('[verify-identity] Find user error:', error);
       return res.status(500).json({ success: false, error: '查询用户失败' });
     }
     
     if (!targetUser) {
-      console.log('[Auth] verify-identity: user not found for email:', email);
+      console.log('[verify-identity] User not found for email:', email);
+      // List all registered users for debugging
+      const { data: allUsers } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 100 });
+      console.log('[verify-identity] All registered users:', allUsers?.users?.map(u => ({
+        email: u.email,
+        phone: u.user_metadata?.phone,
+        id_card: u.user_metadata?.id_card ? '****' + u.user_metadata.id_card.slice(-4) : null
+      })));
       return res.status(404).json({ success: false, error: '该手机号未注册' });
     }
 
     console.log('[Auth] verify-identity: found user, checking id_card');
     const userIdCard = targetUser.user_metadata?.id_card;
-    console.log('[Auth] verify-identity: stored id_card length=', userIdCard?.length);
+    console.log('[verify-identity] Match check:', {
+      inputIdCard: idCard,
+      dbIdCard: userIdCard,
+      fullMatch: idCard === userIdCard,
+      last4Match: idCard?.slice(-4) === userIdCard?.slice(-4),
+      compareIdCardResult: compareIdCard(idCard, userIdCard)
+    });
     
     if (!compareIdCard(idCard, userIdCard)) {
-      console.log('[Auth] verify-identity: id_card mismatch');
+      console.log('[verify-identity] id_card mismatch');
       return res.status(401).json({ success: false, error: '信息不匹配，请检查手机号和身份证号' });
     }
 
-    console.log('[Auth] verify-identity: success');
+    console.log('[verify-identity] success');
     res.json({ success: true, message: '验证通过' });
   } catch (error) {
     console.error('[Auth] Verify identity error:', error);

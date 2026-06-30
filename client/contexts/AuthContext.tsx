@@ -29,33 +29,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    * Called after login so other screens can display the avatar immediately.
    */
   const fetchAndCacheAvatar = async (userId: string) => {
+    console.log('[fetchAndCacheAvatar] Called for userId:', userId);
     try {
-      console.log('[Avatar] Fetching profile for user:', userId);
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       headers['x-user-id'] = userId;
-      const response = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/profile`, { headers });
+      const apiUrl = `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/profile`;
+      console.log('[fetchAndCacheAvatar] API URL:', apiUrl);
+      console.log('[fetchAndCacheAvatar] Headers:', { 'x-user-id': userId });
+      
+      const response = await fetch(apiUrl, { headers });
+      console.log('[fetchAndCacheAvatar] API response status:', response.status);
       
       if (response.ok) {
         const result = await response.json();
+        console.log('[fetchAndCacheAvatar] API response data:', JSON.stringify(result));
         const url = result.profile?.avatar_url;
+        console.log('[fetchAndCacheAvatar] Avatar URL from API:', url);
         
         if (url) {
           // Validate URL format
           if (url.startsWith('http://') || url.startsWith('https://')) {
             await AsyncStorage.setItem('@user_avatar', url);
             setAvatarUrl(url); // Also update state for immediate consumption
-            console.log('[Avatar] Cached avatar URL:', url.substring(0, 50) + '...');
+            console.log('[fetchAndCacheAvatar] setAvatarUrl called with:', url);
           } else {
-            console.warn('[Avatar] Invalid avatar URL format:', url);
+            console.warn('[fetchAndCacheAvatar] Invalid avatar URL format:', url);
           }
         } else {
-          console.log('[Avatar] No avatar URL in profile');
+          console.log('[fetchAndCacheAvatar] No avatar URL in profile');
         }
       } else {
-        console.warn('[Avatar] Profile fetch failed with status:', response.status);
+        const errorText = await response.text();
+        console.warn('[fetchAndCacheAvatar] Profile fetch failed with status:', response.status, 'error:', errorText);
       }
     } catch (error) {
-      console.warn('[Avatar] Failed to cache avatar on login:', error);
+      console.warn('[fetchAndCacheAvatar] Failed to cache avatar on login:', error);
     }
   };
 
