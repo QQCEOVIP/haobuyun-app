@@ -759,7 +759,7 @@ export default function ContactsScreen() {
   const getCommunityVoteStyle = (communityStatus: string | null) => {
     switch (communityStatus) {
       case 'confirmed_stopped':
-        return { bg: '#FEF0F0', text: '#F56C6C', label: '确认停机' };
+        return { bg: '#FEF0F0', text: '#F56C6C', label: '停机' };
       case 'maybe_stopped':
         return { bg: '#FFF8E6', text: '#E6A23C', label: '疑似停机' };
       default:
@@ -829,7 +829,7 @@ export default function ContactsScreen() {
                 <Text style={styles.badgeLabel}>社区</Text>
                 <View style={[styles.statusBadge, { backgroundColor: communityVoteStyle.bg }]}>
                   <Text style={[styles.statusText, { color: communityVoteStyle.text }]}>
-                    {totalCount}人标记
+                    {totalCount}人标记{communityVoteStyle.label}
                   </Text>
                 </View>
               </TouchableOpacity>

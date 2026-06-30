@@ -259,7 +259,7 @@ export default function HomeScreen() {
       if (communityCount > 0) {
         Alert.alert(
           '检测完成',
-          `检测 ${result.total} 个号码\n发现 ${result.invalid} 个确认停机、${result.maybeInvalid} 个疑似停机\n（参考了 ${communityCount} 个社区投票）`
+          `检测 ${result.total} 个号码\n发现 ${result.invalid} 个停机、${result.maybeInvalid} 个疑似停机\n（参考了 ${communityCount} 个社区投票）`
         );
       }
     } catch (error) {
