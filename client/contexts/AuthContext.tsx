@@ -15,6 +15,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   avatarUrl: string | null;
   setAvatarUrl: (url: string | null) => void;
+  refreshAvatar: () => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUpWithEmail: (email: string, password: string, metadata?: Record<string, any>) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -146,6 +147,67 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: null };
   };
 
+  /**
+   * Fetch avatar URL directly from Supabase storage using public URL.
+   * This is a fallback method when backend API is not available.
+   */
+  const fetchAvatar = async (userId: string): Promise<string | null> => {
+    try {
+      const { data: publicUrlData } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(`${userId}/avatar.png`);
+      
+      const url = publicUrlData?.publicUrl;
+      if (url) {
+        console.log('[fetchAvatar] Got public URL from Supabase storage:', url);
+        return url;
+      }
+      return null;
+    } catch (error) {
+      console.warn('[fetchAvatar] Failed to get avatar from storage:', error);
+      return null;
+    }
+  };
+
+  /**
+   * Refresh avatar for current user - re-fetches from backend and updates state.
+   * Call this after uploading a new avatar to update the UI immediately.
+   */
+  const refreshAvatar = async () => {
+    if (!user) return;
+    console.log('[refreshAvatar] Refreshing avatar for user:', user.id);
+    
+    // Try backend API first
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      headers['x-user-id'] = user.id;
+      const apiUrl = `${getBackendBaseUrl()}/api/v1/profile`;
+      
+      const response = await fetch(apiUrl, { headers });
+      if (response.ok) {
+        const result = await response.json();
+        const url = result.profile?.avatar_url;
+        
+        if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+          await AsyncStorage.setItem('@user_avatar', url);
+          setAvatarUrl(url);
+          console.log('[refreshAvatar] Updated avatar from backend:', url);
+          return;
+        }
+      }
+    } catch (error) {
+      console.warn('[refreshAvatar] Backend API failed, trying storage fallback:', error);
+    }
+    
+    // Fallback to Supabase storage
+    const storageUrl = await fetchAvatar(user.id);
+    if (storageUrl) {
+      await AsyncStorage.setItem('@user_avatar', storageUrl);
+      setAvatarUrl(storageUrl);
+      console.log('[refreshAvatar] Updated avatar from storage:', storageUrl);
+    }
+  };
+
   const signOut = async () => {
     await supabase.auth.signOut();
   };
@@ -157,6 +219,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isAuthenticated: !!session && !!user,
     avatarUrl,
     setAvatarUrl,
+    refreshAvatar,
     signInWithEmail,
     signUpWithEmail,
     signOut,

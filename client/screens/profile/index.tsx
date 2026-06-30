@@ -48,7 +48,7 @@ function MenuItem({ name, color, title, subtitle, badge, onPress }: MenuItemProp
 
 export default function ProfileScreen() {
   const router = useSafeRouter();
-  const { user, signOut, avatarUrl: contextAvatarUrl, setAvatarUrl: setContextAvatarUrl } = useAuth();
+  const { user, signOut, avatarUrl: contextAvatarUrl, setAvatarUrl: setContextAvatarUrl, refreshAvatar } = useAuth();
   const [localAvatarUrl, setLocalAvatarUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
 
@@ -147,6 +147,8 @@ export default function ProfileScreen() {
         setLocalAvatarUrl(result.avatarUrl);
         // Also update context so other screens can access it immediately
         setContextAvatarUrl(result.avatarUrl);
+        // Call refreshAvatar to ensure context is updated
+        await refreshAvatar();
         // Sync avatar URL to AsyncStorage so other screens can access it
         await AsyncStorage.setItem('@user_avatar', result.avatarUrl);
         Alert.alert('成功', '头像已更新');
