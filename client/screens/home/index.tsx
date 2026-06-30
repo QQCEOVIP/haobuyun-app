@@ -21,7 +21,7 @@ import * as Contacts from 'expo-contacts';
 import * as FileSystemLegacy from 'expo-file-system/legacy';
 import { StorageAccessFramework } from 'expo-file-system/legacy';
 import Constants from 'expo-constants';
-import { useFocusEffect } from 'expo-router';
+
 
 
 import * as DocumentPicker from 'expo-document-picker';
@@ -79,15 +79,7 @@ export default function HomeScreen() {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 后续聚焦：使用 useFocusEffect 刷新数据，但不触发 loading 状态
-  useFocusEffect(
-    useCallback(() => {
-      if (initialLoaded) {
-        // 静默刷新，不显示 loading
-        fetchStats();
-      }
-    }, [initialLoaded]) // eslint-disable-line react-hooks/exhaustive-deps
-  );
+  // 数据刷新依赖下拉刷新，不再使用 useFocusEffect 避免 Tab 切换闪屏
 
   // 获取所有设备联系人（分页获取，与通讯录页面使用相同方法确保一致性）
   const getAllDeviceContacts = async (fields: Contacts.Field[]) => {

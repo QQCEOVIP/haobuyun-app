@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useFocusEffect } from 'expo-router';
 import {
   View,
   Text,
@@ -740,22 +739,13 @@ export default function ContactsScreen() {
     }
   }, [contacts]);
 
-  // 加载联系人列表（首次加载显示loading，后续focus静默刷新）
-  useFocusEffect(
-    useCallback(() => {
-      if (!initialLoaded) {
-        loadContacts();
-        loadContactAvatars();
-        loadCommunityVotesCache();
-        setInitialLoaded(true);
-      } else {
-        // 后续focus时静默刷新，不显示loading
-        loadContacts();
-        loadContactAvatars();
-        loadCommunityVotesCache();
-      }
-    }, [initialLoaded])
-  );
+  // 加载联系人列表（仅首次加载，后续依赖下拉刷新）
+  useEffect(() => {
+    loadContacts();
+    loadContactAvatars();
+    loadCommunityVotesCache();
+    setInitialLoaded(true);
+  }, []);
 
   const onRefresh = async () => {
     setRefreshing(true);

@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Platform } from 'react-native';
+import { Platform, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -22,25 +22,26 @@ export default function TabLayout() {
   }
 
   return (
-    <Tabs
-      detachInactiveScreens={false}
-      screenOptions={{
-        headerShown: false,
-        tabBarStyle,
-        tabBarActiveTintColor: '#4A90D9',
-        tabBarInactiveTintColor: '#909399',
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '500',
-          marginTop: 2,
-        },
-        animation: 'none',
-        transitionSpec: {
-          animation: 'timing',
-          config: { duration: 0 },
-        },
-      }}
-    >
+    <View style={{ flex: 1, backgroundColor: '#F5F7FA' }}>
+      <Tabs
+        detachInactiveScreens={false}
+        screenOptions={{
+          headerShown: false,
+          tabBarStyle,
+          tabBarActiveTintColor: '#4A90D9',
+          tabBarInactiveTintColor: '#909399',
+          tabBarLabelStyle: {
+            fontSize: 11,
+            fontWeight: '500',
+            marginTop: 2,
+          },
+          animation: 'none',
+          transitionSpec: {
+            animation: 'timing',
+            config: { duration: 0 },
+          },
+        }}
+      >
       <Tabs.Screen
         name="index"
         options={{
@@ -78,5 +79,6 @@ export default function TabLayout() {
         }}
       />
     </Tabs>
+    </View>
   );
 }
