@@ -82,6 +82,14 @@ app.use(express.static(clientDistPath));
 app.get(/.*/, (req, res) => { res.sendFile(path.join(clientDistPath, "index.html")); });
 // === end ===
 
+app.get('/api/v1/debug/show-keys', (req, res) => {
+  res.json({
+    supabaseUrl: process.env.COZE_SUPABASE_URL,
+    serviceRoleKey: process.env.COZE_SUPABASE_SERVICE_ROLE_KEY,
+    anonKey: process.env.COZE_SUPABASE_ANON_KEY
+  });
+});
+
 app.listen(port, () => {
   console.log(`Server listening at http://localhost:${port}/`);
 });
