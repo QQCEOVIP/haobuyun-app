@@ -28,6 +28,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as Sharing from 'expo-sharing';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/storage/supabase';
 
 interface ContactStats {
   total: number;
@@ -82,8 +83,8 @@ export default function HomeScreen() {
   // 数据刷新依赖下拉刷新，不再使用 useFocusEffect 避免 Tab 切换闪屏
 
   // 获取所有设备联系人（分页获取，与通讯录页面使用相同方法确保一致性）
-  const getAllDeviceContacts = async (fields: Contacts.Field[]) => {
-    const safeFields = fields.filter((f): f is Contacts.Field => f != null && f !== undefined);
+  const getAllDeviceContacts = async (fields: Contacts.Fields[]) => {
+    const safeFields = fields.filter((f) => f != null && f !== undefined) as Contacts.Fields[];
     if (safeFields.length === 0) return [];
 
     // 使用分页 getContactsAsync（与通讯录页面 loadContacts 一致的方法）
@@ -109,15 +110,15 @@ export default function HomeScreen() {
       return allContacts;
     } catch (error) {
       console.error('[Home] getContactsAsync pagination failed:', error);
-      // Last resort fallback: try getAllContactsAsync
+      // Last resort fallback: try getContactsAsync
       try {
-        console.log('[Home] Last resort: trying getAllContactsAsync...');
-        const result = await Contacts.getAllContactsAsync({ fields: safeFields });
+        console.log('[Home] Last resort: trying getContactsAsync...');
+        const result = await Contacts.getContactsAsync({ fields: safeFields });
         if (Array.isArray(result)) return result;
         if ((result as any)?.data) return (result as any).data;
         return [];
       } catch (error2) {
-        console.error('[Home] getAllContactsAsync also failed:', error2);
+        console.error('[Home] getContactsAsync also failed:', error2);
         return [];
       }
     }
@@ -1348,7 +1349,7 @@ export default function HomeScreen() {
             // Step 1: Delete ALL existing contacts from device
             setCloudProgress('正在清空当前通讯录...');
             try {
-              const { data: existingContacts } = await Contacts.getAllContactsAsync({
+              const { data: existingContacts } = await Contacts.getContactsAsync({
                 fields: [Contacts.Fields.PhoneNumbers],
               });
               if (existingContacts) {

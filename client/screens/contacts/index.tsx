@@ -21,7 +21,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import * as FileSystemLegacy from 'expo-file-system/legacy';
 import { supabase } from '@/storage/supabase';
 import * as Contacts from 'expo-contacts';
-import { Crypto } from 'expo-crypto';
+import * as Crypto from 'expo-crypto';
 import * as ImagePicker from 'expo-image-picker';
 import { CONSENSUS, type NumberStatus } from '@/constants/numberStatus';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -508,8 +508,8 @@ export default function ContactsScreen() {
         while (hasMore) {
           const { data: deviceContacts } = await Contacts.getContactsAsync({
             fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name].filter(
-              (f): f is Contacts.Field => f != null && f !== undefined
-            ),
+              (f) => f != null && f !== undefined
+            ) as Contacts.Fields[],
             pageSize: devicePageSize,
             pageOffset: offset,
           });
