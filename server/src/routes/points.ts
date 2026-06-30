@@ -7,8 +7,8 @@ import crypto from "crypto";
 
 const router: any = Router();
 
-// Hardcoded correct Supabase URL
-const SUPABASE_URL = 'https://br-jolly-cat-a3661c04.supabase2.aidap-global.cn-beijing.volces.com';
+// Use environment variable for Supabase URL
+const SUPABASE_URL = process.env.COZE_SUPABASE_URL || '';
 
 // 获取 Supabase Admin Client
 const getSupabaseAdmin = () => createClient(
