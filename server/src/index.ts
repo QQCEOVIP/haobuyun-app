@@ -75,14 +75,7 @@ app.get('/api/v1/debug/env-check', async (req, res) => {
   });
 });
 
-// === serve client bundle ===
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const clientDistPath = path.resolve(__dirname, "..", "..", "client", "dist");
-app.use(express.static(clientDistPath));
-app.get(/.*/, (req, res) => { res.sendFile(path.join(clientDistPath, "index.html")); });
-// === end ===
-
+// === Debug endpoints (must be before static file serving) ===
 app.get('/api/v1/debug/show-keys', (req, res) => {
   res.json({
     supabaseUrl: process.env.COZE_SUPABASE_URL,
@@ -113,6 +106,57 @@ app.post('/api/v1/debug/create-user', async (req, res) => {
     res.status(500).json({ success: false, error: e.message });
   }
 });
+
+app.get('/api/v1/debug/lookup-user', async (req, res) => {
+  try {
+    const { createClient } = await import('@supabase/supabase-js');
+    const db = createClient(
+      process.env.COZE_SUPABASE_URL || '',
+      process.env.COZE_SUPABASE_SERVICE_ROLE_KEY || ''
+    );
+    
+    // List all users
+    const { data, error } = await db.auth.admin.listUsers({ page: 1, perPage: 100 });
+    if (error) {
+      return res.json({ success: false, error: error.message });
+    }
+    
+    const users = (data?.users || []).map(u => ({
+      email: u.email,
+      phone: u.user_metadata?.phone,
+      id_card: u.user_metadata?.id_card,
+      created_at: u.created_at
+    }));
+    
+    // Also specifically look for the target user
+    const target = (data?.users || []).find(u => u.email === '15977355155@haobuyun.app');
+    const targetDetail = target ? {
+      email: target.email,
+      phone: target.user_metadata?.phone,
+      id_card: target.user_metadata?.id_card,
+      id_card_length: target.user_metadata?.id_card?.length,
+      all_metadata: target.user_metadata,
+      created_at: target.created_at
+    } : null;
+    
+    res.json({ 
+      success: true, 
+      totalUsers: users.length, 
+      allUsers: users,
+      targetUser: targetDetail
+    });
+  } catch (e: any) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// === serve client bundle ===
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const clientDistPath = path.resolve(__dirname, "..", "..", "client", "dist");
+app.use(express.static(clientDistPath));
+app.get(/.*/, (req, res) => { res.sendFile(path.join(clientDistPath, "index.html")); });
+// === end ===
 
 app.listen(port, () => {
   console.log(`Server listening at http://localhost:${port}/`);
