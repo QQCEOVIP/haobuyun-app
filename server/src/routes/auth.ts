@@ -4,7 +4,7 @@ import { createClient, type User } from '@supabase/supabase-js';
 const router: Router = express.Router();
 
 // Hardcoded correct Supabase URL
-const SUPABASE_URL = 'https://br-jolly-cat-a3661c04.supabase2.aidap-global.cn-beijing.volces.com';
+const SUPABASE_URL = process.env.COZE_SUPABASE_URL || '';
 
 // Supabase Admin client (using service role key to bypass RLS)
 const supabaseAdmin = createClient(
