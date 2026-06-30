@@ -23,6 +23,10 @@ export default function ForgotPasswordScreen() {
   const [loading, setLoading] = useState(false);
 
   const handleVerify = async () => {
+    console.log('[ForgotPassword] handleVerify called');
+    console.log('[ForgotPassword] Phone:', phone);
+    console.log('[ForgotPassword] ID Card:', idCard);
+    
     if (!phone.trim()) {
       Alert.alert('提示', '请输入手机号');
       return;
@@ -34,8 +38,12 @@ export default function ForgotPasswordScreen() {
 
     setLoading(true);
     try {
+      const url = `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/auth/verify-identity`;
+      console.log('[ForgotPassword] Request URL:', url);
+      console.log('[ForgotPassword] EXPO_PUBLIC_BACKEND_BASE_URL:', process.env.EXPO_PUBLIC_BACKEND_BASE_URL);
+      
       const response = await fetch(
-        `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/auth/verify-identity`,
+        url,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -46,7 +54,9 @@ export default function ForgotPasswordScreen() {
         }
       );
 
+      console.log('[ForgotPassword] Response status:', response.status);
       const result = await response.json();
+      console.log('[ForgotPassword] Response result:', JSON.stringify(result));
 
       if (response.ok && result.success) {
         // Verification successful, move to reset step
@@ -55,6 +65,7 @@ export default function ForgotPasswordScreen() {
         Alert.alert('验证失败', result.error || '信息不匹配');
       }
     } catch (error) {
+      console.error('[ForgotPassword] Error:', error);
       Alert.alert('错误', '网络错误，请重试');
     } finally {
       setLoading(false);
