@@ -1551,6 +1551,7 @@ export default function HomeScreen() {
   console.log('[Health] Stats:', JSON.stringify(stats));
   console.log('[Health] Calculation: total=', stats.total, 'invalid=', stats.invalid, 'maybeInvalid=', stats.maybeInvalid);
   console.log('[Health] Percentage:', healthPercentage);
+  console.log('[Health] Will render:', `${healthPercentage}%`);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: '#F5F7FA' }]}>
