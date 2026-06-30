@@ -150,6 +150,52 @@ app.get('/api/v1/debug/lookup-user', async (req, res) => {
   }
 });
 
+// Debug endpoint: test verify-identity logic
+app.post('/api/v1/debug/test-verify', async (req, res) => {
+  try {
+    const { createClient } = await import('@supabase/supabase-js');
+    const db = createClient(
+      process.env.COZE_SUPABASE_URL || '',
+      process.env.COZE_SUPABASE_SERVICE_ROLE_KEY || ''
+    );
+    
+    // Try the exact same thing findUserByEmail does
+    const email = '15977355155@haobuyun.app';
+    
+    let page = 1;
+    let found = null;
+    let allEmails = [];
+    
+    while (page <= 5) {
+      const { data, error } = await db.auth.admin.listUsers({ page, perPage: 100 });
+      if (error) {
+        return res.json({ success: false, error: error.message, step: 'listUsers', page });
+      }
+      const users = data?.users || [];
+      allEmails.push(...users.map(u => u.email));
+      
+      const match = users.find(u => u.email === email);
+      if (match) {
+        found = { email: match.email, id_card: match.user_metadata?.id_card, phone: match.user_metadata?.phone };
+        break;
+      }
+      if (users.length < 100) break;
+      page++;
+    }
+    
+    res.json({
+      success: true,
+      email,
+      found: !!found,
+      foundUser: found,
+      totalEmails: allEmails.length,
+      allEmails
+    });
+  } catch (e: any) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // === serve client bundle ===
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
