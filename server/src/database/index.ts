@@ -5,7 +5,8 @@
 
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = process.env.COZE_SUPABASE_URL || process.env.SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL || ''
+// Hardcoded correct Supabase URL
+const supabaseUrl = 'https://br-jolly-cat-a3661c04.supabase2.aidap-global.cn-beijing.volces.com'
 const supabaseKey = process.env.COZE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || ''
 
 if (!supabaseUrl || !supabaseKey) {

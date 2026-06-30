@@ -50,10 +50,11 @@ app.use('/api/v1/votes', votesRouter);
 // app.use('/api/v1/games', gameRouter); // 小游戏接口
 
 // === Debug endpoint for environment check ===
+const HARDCODED_SUPABASE_URL = 'https://br-jolly-cat-a3661c04.supabase2.aidap-global.cn-beijing.volces.com';
 app.get('/api/v1/debug/env-check', (req, res) => {
   res.json({
-    hasSupabaseUrl: !!process.env.COZE_SUPABASE_URL,
-    supabaseUrl: process.env.COZE_SUPABASE_URL || 'NOT SET',
+    hardcodedSupabaseUrl: HARDCODED_SUPABASE_URL,
+    envSupabaseUrl: process.env.COZE_SUPABASE_URL || 'NOT SET (using hardcoded)',
     hasServiceRoleKey: !!process.env.COZE_SUPABASE_SERVICE_ROLE_KEY,
     serviceRoleKeyLength: (process.env.COZE_SUPABASE_SERVICE_ROLE_KEY || '').length,
     allEnvKeys: Object.keys(process.env).filter(k => k.includes('SUPABASE') || k.includes('COZE'))

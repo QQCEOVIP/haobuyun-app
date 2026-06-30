@@ -4,8 +4,11 @@ import nodemailer from 'nodemailer';
 
 const router: RouterType = Router();
 
+// Hardcoded correct Supabase URL
+const SUPABASE_URL = 'https://br-jolly-cat-a3661c04.supabase2.aidap-global.cn-beijing.volces.com';
+
 const getSupabaseAdmin = () => createClient(
-  process.env.COZE_SUPABASE_URL || process.env.SUPABASE_URL || '',
+  SUPABASE_URL,
   process.env.COZE_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 );
 

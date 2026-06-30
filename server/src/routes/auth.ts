@@ -3,9 +3,12 @@ import { createClient, type User } from '@supabase/supabase-js';
 
 const router: Router = express.Router();
 
+// Hardcoded correct Supabase URL
+const SUPABASE_URL = 'https://br-jolly-cat-a3661c04.supabase2.aidap-global.cn-beijing.volces.com';
+
 // Supabase Admin client (using service role key to bypass RLS)
 const supabaseAdmin = createClient(
-  process.env.COZE_SUPABASE_URL || '',
+  SUPABASE_URL,
   process.env.COZE_SUPABASE_SERVICE_ROLE_KEY || ''
 );
 
@@ -116,7 +119,7 @@ router.post('/verify-identity', async (req, res) => {
     const { phone, idCard } = req.body;
     console.log('[verify-identity] Request:', { phone, idCard: idCard ? idCard.substring(0, 4) + '****' : null });
     console.log('[verify-identity] Query condition:', { email: `${phone}@haobuyun.app` });
-    console.log('[verify-identity] SUPABASE_URL:', process.env.COZE_SUPABASE_URL);
+    console.log('[verify-identity] SUPABASE_URL:', SUPABASE_URL);
     console.log('[verify-identity] SERVICE_ROLE_KEY length:', (process.env.COZE_SUPABASE_SERVICE_ROLE_KEY || '').length);
 
     if (!phone || !idCard) {
