@@ -13,6 +13,7 @@ import { useFocusEffect } from 'expo-router';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
+import * as Contacts from 'expo-contacts';
 
 interface TrashContact {
   id: string;
@@ -98,6 +99,30 @@ export default function RecycleBinScreen() {
       );
       if (!response.ok) throw new Error('Failed to restore');
       const result = await response.json();
+
+      // 请求通讯录权限并添加联系人到设备
+      const selectedContacts = contacts.filter(c => selectedIds.has(c.id));
+      if (selectedContacts.length > 0) {
+        try {
+          const { status } = await Contacts.requestPermissionsAsync();
+          if (status === 'granted') {
+            for (const contact of selectedContacts) {
+              try {
+                await Contacts.addContactAsync({
+                  firstName: contact.name || '',
+                  name: contact.name || '',
+                  phoneNumbers: contact.phone ? [{ number: contact.phone, label: 'main' }] : [],
+                });
+              } catch (e) {
+                console.warn('Failed to add contact to device:', contact.name, e);
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('Failed to add contacts to device:', e);
+        }
+      }
+
       Alert.alert('完成', result.message || `已恢复 ${selectedIds.size} 个号码`);
       setSelectedIds(new Set());
       loadTrash();

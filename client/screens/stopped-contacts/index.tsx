@@ -134,14 +134,16 @@ export default function StoppedContactsScreen() {
   };
 
   const handleDeleteSelected = () => {
-    if (selectedIds.size === 0) {
-      Alert.alert('提示', '请先选择要删除的号码');
+    // 逻辑反转：选中的保留，未选中的删除
+    const unselectedCount = contacts.length - selectedIds.size;
+    if (unselectedCount === 0) {
+      Alert.alert('提示', '所有号码都已选中保留，没有要删除的号码');
       return;
     }
 
     Alert.alert(
       '确认删除',
-      `将从设备通讯录中删除 ${selectedIds.size} 个${label}号码？此操作不可撤销。`,
+      `将保留 ${selectedIds.size} 个号码，删除其余 ${unselectedCount} 个${label}号码？此操作不可撤销。`,
       [
         { text: '取消', style: 'cancel' },
         {
@@ -149,7 +151,8 @@ export default function StoppedContactsScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              const toDelete = contacts.filter(c => selectedIds.has(c.id));
+              // 反转逻辑：删除未选中的号码
+              const toDelete = contacts.filter(c => !selectedIds.has(c.id));
               let successCount = 0;
               const headers: Record<string, string> = { 'Content-Type': 'application/json' };
               if (user?.id) headers['x-user-id'] = user.id;
@@ -181,7 +184,7 @@ export default function StoppedContactsScreen() {
                   console.warn('Failed to delete contact:', contact.name, itemError);
                 }
               }
-              Alert.alert('完成', `已删除 ${successCount} 个${label}号码`);
+              Alert.alert('完成', `已保留 ${selectedIds.size} 个，删除 ${successCount} 个${label}号码`);
               setSelectedIds(new Set());
               loadContacts();
             } catch (error) {
@@ -257,11 +260,11 @@ export default function StoppedContactsScreen() {
         />
       )}
 
-      {selectedIds.size > 0 && (
+      {contacts.length - selectedIds.size > 0 && (
         <View style={styles.bottomBar}>
           <TouchableOpacity style={[styles.actionBtn, { backgroundColor: color }]} onPress={handleDeleteSelected}>
             <Ionicons name="trash-outline" size={18} color="#fff" />
-            <Text style={styles.actionBtnText}>删除已选 ({selectedIds.size})</Text>
+            <Text style={styles.actionBtnText}>删除未选中的 ({contacts.length - selectedIds.size})</Text>
           </TouchableOpacity>
         </View>
       )}

@@ -72,6 +72,9 @@ export default function ContactsScreen() {
   const [votePanelVisible, setVotePanelVisible] = useState(false);
   const [votePanelContact, setVotePanelContact] = useState<Contact | null>(null);
 
+  // 首次加载标记：防止Tab切换时闪屏
+  const [initialLoaded, setInitialLoaded] = useState(false);
+
   const userId = (user as any)?.id;
 
   // 阈值配置（与服务端保持一致）
@@ -135,9 +138,15 @@ export default function ContactsScreen() {
 
   // 上传投票到服务端
   const uploadVote = async (phone: string, vote: 'stopped' | 'valid') => {
-    // 新用户检查
+    // 新用户检查：注册未满7天不能投票
     if (isUserNew()) {
-      Alert.alert('提示', '注册满7天后可参与号码状态共享');
+      // 检查是否已显示过提示
+      const tipShown = await AsyncStorage.getItem('@new_user_vote_tip_shown');
+      if (!tipShown) {
+        Alert.alert('提示', '注册满7天后可参与号码状态共享');
+        await AsyncStorage.setItem('@new_user_vote_tip_shown', '1');
+      }
+      // 无论是否显示过提示，都不上传投票
       return;
     }
 
@@ -730,12 +739,22 @@ export default function ContactsScreen() {
     }
   }, [contacts]);
 
-  // 初始加载联系人列表（仅挂载时，Tab切换不重新加载以避免闪屏）
-  useEffect(() => {
-    loadContacts();
-    loadContactAvatars();
-    loadCommunityVotesCache();
-  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
+  // 加载联系人列表（首次加载显示loading，后续focus静默刷新）
+  useFocusEffect(
+    useCallback(() => {
+      if (!initialLoaded) {
+        loadContacts();
+        loadContactAvatars();
+        loadCommunityVotesCache();
+        setInitialLoaded(true);
+      } else {
+        // 后续focus时静默刷新，不显示loading
+        loadContacts();
+        loadContactAvatars();
+        loadCommunityVotesCache();
+      }
+    }, [initialLoaded])
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);

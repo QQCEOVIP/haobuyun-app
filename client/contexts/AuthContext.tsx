@@ -26,17 +26,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    */
   const fetchAndCacheAvatar = async (userId: string) => {
     try {
+      console.log('[Avatar] Fetching profile for user:', userId);
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       headers['x-user-id'] = userId;
       const response = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/profile`, { headers });
+      
       if (response.ok) {
         const result = await response.json();
-        if (result.profile?.avatar_url) {
-          await AsyncStorage.setItem('@user_avatar', result.profile.avatar_url);
+        const avatarUrl = result.profile?.avatar_url;
+        
+        if (avatarUrl) {
+          // Validate URL format
+          if (avatarUrl.startsWith('http://') || avatarUrl.startsWith('https://')) {
+            await AsyncStorage.setItem('@user_avatar', avatarUrl);
+            console.log('[Avatar] Cached avatar URL:', avatarUrl.substring(0, 50) + '...');
+          } else {
+            console.warn('[Avatar] Invalid avatar URL format:', avatarUrl);
+          }
+        } else {
+          console.log('[Avatar] No avatar URL in profile');
         }
+      } else {
+        console.warn('[Avatar] Profile fetch failed with status:', response.status);
       }
     } catch (error) {
-      console.warn('Failed to cache avatar on login:', error);
+      console.warn('[Avatar] Failed to cache avatar on login:', error);
     }
   };
 

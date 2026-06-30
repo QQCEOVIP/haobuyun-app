@@ -56,6 +56,7 @@ export default function HomeScreen() {
   const [fileNameModalVisible, setFileNameModalVisible] = useState(false);
   const [userAvatar, setUserAvatar] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [initialLoaded, setInitialLoaded] = useState(false);
 
   const userId = (user as any)?.id;
   const userEmail = (user as any)?.email || '';
@@ -69,6 +70,24 @@ export default function HomeScreen() {
       } catch (_e) { /* ignore */ }
     })();
   }, []);
+
+  // 首次加载：使用 useEffect 只在挂载时执行
+  useEffect(() => {
+    if (!initialLoaded) {
+      fetchStats();
+      setInitialLoaded(true);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 后续聚焦：使用 useFocusEffect 刷新数据，但不触发 loading 状态
+  useFocusEffect(
+    useCallback(() => {
+      if (initialLoaded) {
+        // 静默刷新，不显示 loading
+        fetchStats();
+      }
+    }, [initialLoaded]) // eslint-disable-line react-hooks/exhaustive-deps
+  );
 
   // 获取所有设备联系人（分页获取，与通讯录页面使用相同方法确保一致性）
   const getAllDeviceContacts = async (fields: Contacts.Field[]) => {
@@ -1476,13 +1495,6 @@ export default function HomeScreen() {
       setStats(prev => prev);
     }
   };
-
-  // 每次页面获得焦点时刷新统计数据（确保从其他页面返回后数据更新）
-  useFocusEffect(
-    useCallback(() => {
-      fetchStats();
-    }, []) // eslint-disable-line react-hooks/exhaustive-deps
-  );
 
   // 下拉刷新处理函数
   const handleRefresh = useCallback(async () => {
