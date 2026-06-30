@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
+import { createClient } from '@supabase/supabase-js';
 import pointsRouter from "./routes/points";
 import contactsRouter from "./routes/contacts";
 import profileRouter from "./routes/profile";
@@ -51,13 +52,25 @@ app.use('/api/v1/votes', votesRouter);
 
 // === Debug endpoint for environment check ===
 const HARDCODED_SUPABASE_URL = 'https://br-jolly-cat-a3661c04.supabase2.aidap-global.cn-beijing.volces.com';
-app.get('/api/v1/debug/env-check', (req, res) => {
+app.get('/api/v1/debug/env-check', async (req, res) => {
+  const testClient = createClient(
+    HARDCODED_SUPABASE_URL,
+    process.env.COZE_SUPABASE_SERVICE_ROLE_KEY || ''
+  );
+  const { data: testResult, error: testError } = await testClient.auth.admin.listUsers({ page: 1, perPage: 5 });
+  
   res.json({
     hardcodedSupabaseUrl: HARDCODED_SUPABASE_URL,
     envSupabaseUrl: process.env.COZE_SUPABASE_URL || 'NOT SET (using hardcoded)',
     hasServiceRoleKey: !!process.env.COZE_SUPABASE_SERVICE_ROLE_KEY,
     serviceRoleKeyLength: (process.env.COZE_SUPABASE_SERVICE_ROLE_KEY || '').length,
-    allEnvKeys: Object.keys(process.env).filter(k => k.includes('SUPABASE') || k.includes('COZE'))
+    allEnvKeys: Object.keys(process.env).filter(k => k.includes('SUPABASE') || k.includes('COZE')),
+    dbTest: {
+      success: !testError,
+      error: testError?.message || null,
+      userCount: testResult?.users?.length || 0,
+      userEmails: testResult?.users?.map(u => u.email) || []
+    }
   });
 });
 
