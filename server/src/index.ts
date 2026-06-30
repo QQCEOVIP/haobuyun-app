@@ -236,6 +236,58 @@ app.post('/api/v1/debug/seed-user', async (req, res) => {
   }
 });
 
+// Debug endpoint: backup info
+app.get('/api/v1/debug/backup-info', async (req, res) => {
+  try {
+    const { createClient } = await import('@supabase/supabase-js');
+    const db = createClient(
+      process.env.COZE_SUPABASE_URL || '',
+      process.env.COZE_SUPABASE_SERVICE_ROLE_KEY || ''
+    );
+    
+    // List all storage buckets
+    const { data: buckets, error: bucketError } = await db.storage.listBuckets();
+    
+    // List files in backups bucket
+    let backupFiles = [];
+    if (!bucketError) {
+      const backupsBucket = buckets?.find(b => b.name === 'backups');
+      if (backupsBucket) {
+        // List top-level folders (user IDs)
+        const { data: folders } = await db.storage.from('backups').list('', { limit: 100 });
+        if (folders) {
+          for (const folder of folders.slice(0, 5)) {
+            const { data: files } = await db.storage.from('backups').list(folder.name, { limit: 10 });
+            backupFiles.push({ userId: folder.name, files: files || [] });
+          }
+        }
+      }
+    }
+    
+    // Check backups table
+    let tableData = null;
+    const { data: rows, error: tableError } = await db
+      .from('backups')
+      .select('id, user_id, contact_count, backup_type, created_at')
+      .limit(20);
+    if (!tableError) {
+      tableData = { count: rows?.length || 0, rows };
+    } else {
+      tableData = { error: tableError.message };
+    }
+    
+    res.json({
+      supabaseUrl: process.env.COZE_SUPABASE_URL,
+      buckets: buckets?.map(b => ({ name: b.name, public: b.public })) || [],
+      bucketError: bucketError?.message,
+      backupFiles,
+      backupsTable: tableData
+    });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // === serve client bundle ===
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
