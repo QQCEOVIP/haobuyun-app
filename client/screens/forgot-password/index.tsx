@@ -45,14 +45,16 @@ export default function ForgotPasswordScreen() {
 
     setLoading(true);
     try {
-      const baseUrl = process.env.EXPO_PUBLIC_BACKEND_BASE_URL;
+      // Fallback URL if environment variable is not set
+      const baseUrl = process.env.EXPO_PUBLIC_BACKEND_BASE_URL || 'https://69c51756-21d9-48e1-ba9b-9e1473300950.dev.coze.site';
       const url = `${baseUrl}/api/v1/auth/verify-identity`;
       const requestBody = {
         phone: phone.trim(),
         idCard: idCard.trim(),
       };
       
-      addDebug(`EXPO_PUBLIC_BACKEND_BASE_URL: ${baseUrl}`);
+      addDebug(`EXPO_PUBLIC_BACKEND_BASE_URL: ${process.env.EXPO_PUBLIC_BACKEND_BASE_URL || '(not set)'}`);
+      addDebug(`Using baseUrl: ${baseUrl}`);
       addDebug(`Full URL: ${url}`);
       addDebug(`Request: ${JSON.stringify(requestBody)}`);
       
@@ -98,7 +100,8 @@ export default function ForgotPasswordScreen() {
 
     setLoading(true);
     try {
-      const baseUrl = process.env.EXPO_PUBLIC_BACKEND_BASE_URL;
+      // Fallback URL if environment variable is not set
+      const baseUrl = process.env.EXPO_PUBLIC_BACKEND_BASE_URL || 'https://69c51756-21d9-48e1-ba9b-9e1473300950.dev.coze.site';
       const url = `${baseUrl}/api/v1/auth/forgot-password`;
       const requestBody = {
         phone: phone.trim(),
@@ -106,7 +109,8 @@ export default function ForgotPasswordScreen() {
         newPassword: newPassword,
       };
       
-      addDebug(`EXPO_PUBLIC_BACKEND_BASE_URL: ${baseUrl}`);
+      addDebug(`EXPO_PUBLIC_BACKEND_BASE_URL: ${process.env.EXPO_PUBLIC_BACKEND_BASE_URL || '(not set)'}`);
+      addDebug(`Using baseUrl: ${baseUrl}`);
       addDebug(`Full URL: ${url}`);
       addDebug(`Request: phone=${phone.trim()}, idCard=${idCard.trim()}, newPassword length=${newPassword.length}`);
       

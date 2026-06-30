@@ -23,6 +23,11 @@ import * as FileSystemLegacy from 'expo-file-system/legacy';
 import { StorageAccessFramework } from 'expo-file-system/legacy';
 import Constants from 'expo-constants';
 
+// Helper function to get backend base URL with fallback
+const getBackendBaseUrl = () => {
+  return process.env.EXPO_PUBLIC_BACKEND_BASE_URL || 'https://69c51756-21d9-48e1-ba9b-9e1473300950.dev.coze.site';
+};
+
 
 
 import * as DocumentPicker from 'expo-document-picker';
@@ -230,7 +235,7 @@ export default function HomeScreen() {
       const communityVotesMap = new Map<string, { stoppedCount: number; communityStatus: string | null }>();
       try {
         const EXPO_PUBLIC_BACKEND_BASE_URL = process.env.EXPO_PUBLIC_BACKEND_BASE_URL;
-        const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/votes/batch-query`, {
+        const response = await fetch(`${getBackendBaseUrl()}/api/v1/votes/batch-query`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ phones: allPhones.slice(0, 500) }), // 限制单次查询数量
@@ -964,7 +969,7 @@ export default function HomeScreen() {
       // If no local backups, fall back to cloud backups
       if (backupList.length === 0 && user?.id) {
         try {
-          const response = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/backups`, {
+          const response = await fetch(`${getBackendBaseUrl()}/api/v1/backups`, {
             headers: { 'x-user-id': user.id },
           });
           if (response.ok) {
@@ -1263,7 +1268,7 @@ export default function HomeScreen() {
        * Headers: x-user-id: string
        * Body: { fileName: string, content: string }
        */
-      const response = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/backup/cloud`, {
+      const response = await fetch(`${getBackendBaseUrl()}/api/v1/backup/cloud`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1297,7 +1302,7 @@ export default function HomeScreen() {
        * 接口：GET /api/v1/backup/cloud
        * Headers: x-user-id: string
        */
-      const response = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/backup/cloud`, {
+      const response = await fetch(`${getBackendBaseUrl()}/api/v1/backup/cloud`, {
         headers: { 'x-user-id': userId },
       });
       const result = await response.json();
@@ -1327,7 +1332,7 @@ export default function HomeScreen() {
              * Headers: x-user-id: string
              * Body: { fileName: string }
              */
-            const response = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/backup/cloud`, {
+            const response = await fetch(`${getBackendBaseUrl()}/api/v1/backup/cloud`, {
               method: 'DELETE',
               headers: { 'Content-Type': 'application/json', 'x-user-id': userId || '' },
               body: JSON.stringify({ fileName }),
@@ -1371,7 +1376,7 @@ export default function HomeScreen() {
              * Headers: x-user-id: string
              */
             const response = await fetch(
-              `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/backup/cloud/download?fileName=${encodeURIComponent(fileName)}`,
+              `${getBackendBaseUrl()}/api/v1/backup/cloud/download?fileName=${encodeURIComponent(fileName)}`,
               { headers: { 'x-user-id': userId } }
             );
             const result = await response.json();

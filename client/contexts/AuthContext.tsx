@@ -31,9 +31,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const fetchAndCacheAvatar = async (userId: string) => {
     console.log('[fetchAndCacheAvatar] Called for userId:', userId);
     try {
+      // Fallback URL if environment variable is not set
+      const baseUrl = process.env.EXPO_PUBLIC_BACKEND_BASE_URL || 'https://69c51756-21d9-48e1-ba9b-9e1473300950.dev.coze.site';
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       headers['x-user-id'] = userId;
-      const apiUrl = `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/profile`;
+      const apiUrl = `${baseUrl}/api/v1/profile`;
+      console.log('[fetchAndCacheAvatar] EXPO_PUBLIC_BACKEND_BASE_URL:', process.env.EXPO_PUBLIC_BACKEND_BASE_URL || '(not set)');
+      console.log('[fetchAndCacheAvatar] Using baseUrl:', baseUrl);
       console.log('[fetchAndCacheAvatar] API URL:', apiUrl);
       console.log('[fetchAndCacheAvatar] Headers:', { 'x-user-id': userId });
       
