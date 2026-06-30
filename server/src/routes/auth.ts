@@ -117,9 +117,10 @@ function compareIdCard(inputIdCard: string, storedIdCard: string): boolean {
 router.post('/verify-identity', async (req, res) => {
   try {
     const { phone, idCard } = req.body;
+    const usedUrl = process.env.COZE_SUPABASE_URL;
     console.log('[verify-identity] Request:', { phone, idCard: idCard ? idCard.substring(0, 4) + '****' : null });
     console.log('[verify-identity] Query condition:', { email: `${phone}@haobuyun.app` });
-    console.log('[verify-identity] SUPABASE_URL:', SUPABASE_URL);
+    console.log('[verify-identity] SUPABASE_URL:', usedUrl);
     console.log('[verify-identity] SERVICE_ROLE_KEY length:', (process.env.COZE_SUPABASE_SERVICE_ROLE_KEY || '').length);
 
     if (!phone || !idCard) {
@@ -131,24 +132,37 @@ router.post('/verify-identity', async (req, res) => {
 
     const email = `${phone}@haobuyun.app`;
     
+    // Create fresh client to ensure we use current env vars
+    const { createClient } = await import('@supabase/supabase-js');
+    const freshClient = createClient(
+      process.env.COZE_SUPABASE_URL || '',
+      process.env.COZE_SUPABASE_SERVICE_ROLE_KEY || ''
+    );
+    
     let targetUser: User | null;
     try {
-      targetUser = await findUserByEmail(email);
+      // Use fresh client instead of module-level supabaseAdmin
+      const { data: listData, error: listError } = await freshClient.auth.admin.listUsers({ page: 1, perPage: 100 });
+      if (listError) {
+        console.error('[verify-identity] listUsers error:', listError);
+        return res.status(500).json({ success: false, error: '查询用户失败', debugUrl: usedUrl });
+      }
+      targetUser = listData?.users?.find(u => u.email === email) || null;
     } catch (error) {
       console.error('[verify-identity] Find user error:', error);
-      return res.status(500).json({ success: false, error: '查询用户失败' });
+      return res.status(500).json({ success: false, error: '查询用户失败', debugUrl: usedUrl });
     }
     
     if (!targetUser) {
       console.log('[verify-identity] User not found for email:', email);
       // List all registered users for debugging
-      const { data: allUsers } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 100 });
+      const { data: allUsers } = await freshClient.auth.admin.listUsers({ page: 1, perPage: 100 });
       console.log('[verify-identity] All registered users:', allUsers?.users?.map(u => ({
         email: u.email,
         phone: u.user_metadata?.phone,
         id_card: u.user_metadata?.id_card ? '****' + u.user_metadata.id_card.slice(-4) : null
       })));
-      return res.status(404).json({ success: false, error: '该手机号未注册' });
+      return res.status(404).json({ success: false, error: '该手机号未注册', debugUrl: usedUrl });
     }
 
     console.log('[Auth] verify-identity: found user, checking id_card');
@@ -182,7 +196,9 @@ router.post('/verify-identity', async (req, res) => {
 router.post('/forgot-password', async (req, res) => {
   try {
     const { phone, idCard, newPassword } = req.body;
+    const usedUrl = process.env.COZE_SUPABASE_URL;
     console.log('[Auth] forgot-password: phone=', phone, 'idCard length=', idCard?.length);
+    console.log('[Auth] forgot-password: SUPABASE_URL:', usedUrl);
 
     if (!phone || !idCard || !newPassword) {
       return res.status(400).json({ 
@@ -202,15 +218,32 @@ router.post('/forgot-password', async (req, res) => {
     const email = `${phone}@haobuyun.app`;
     console.log('[Auth] forgot-password: searching for email:', email);
 
-    // Find user by email with pagination support
+    // Create fresh client to ensure we use current env vars
+    const { createClient } = await import('@supabase/supabase-js');
+    const freshClient = createClient(
+      process.env.COZE_SUPABASE_URL || '',
+      process.env.COZE_SUPABASE_SERVICE_ROLE_KEY || ''
+    );
+
+    // Find user by email
     let targetUser: User | null;
     try {
-      targetUser = await findUserByEmail(email);
+      const { data: listData, error: listError } = await freshClient.auth.admin.listUsers({ page: 1, perPage: 100 });
+      if (listError) {
+        console.error('[Auth] forgot-password: listUsers error:', listError);
+        return res.status(500).json({ 
+          success: false, 
+          error: '查询用户失败',
+          debugUrl: usedUrl
+        });
+      }
+      targetUser = listData?.users?.find(u => u.email === email) || null;
     } catch (error) {
       console.error('[Auth] Find user error:', error);
       return res.status(500).json({ 
         success: false, 
-        error: '查询用户失败' 
+        error: '查询用户失败',
+        debugUrl: usedUrl
       });
     }
 
@@ -218,7 +251,8 @@ router.post('/forgot-password', async (req, res) => {
       console.log('[Auth] forgot-password: user not found for email:', email);
       return res.status(404).json({ 
         success: false, 
-        error: '该手机号未注册' 
+        error: '该手机号未注册',
+        debugUrl: usedUrl
       });
     }
 
