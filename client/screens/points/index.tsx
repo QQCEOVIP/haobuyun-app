@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
 import { useSafeRouter } from "@/hooks/useSafeRouter";
 import { useAuth } from "@/contexts/AuthContext";
+import { getBackendBaseUrl } from "@/utils";
 
 interface PointsInfo {
   balance: number;
@@ -58,8 +59,8 @@ export default function PointsScreen() {
     const headers = { "x-session": session.access_token };
     try {
       const [balanceRes, checkinRes] = await Promise.all([
-        fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/points/balance`, { headers }),
-        fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/points/checkin`, { headers }),
+        fetch(`${getBackendBaseUrl()}/api/v1/points/balance`, { headers }),
+        fetch(`${getBackendBaseUrl()}/api/v1/points/checkin`, { headers }),
       ]);
       if (balanceRes.ok) {
         const data = await balanceRes.json();

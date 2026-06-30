@@ -14,6 +14,7 @@ import { useSafeRouter } from '@/hooks/useSafeRouter';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
 import * as Contacts from 'expo-contacts';
+import { getBackendBaseUrl } from '@/utils';
 
 interface TrashContact {
   id: string;
@@ -38,7 +39,7 @@ export default function RecycleBinScreen() {
       if (user?.id) {
         headers['x-user-id'] = user.id;
       }
-      const response = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/contacts/trash`, { headers });
+      const response = await fetch(`${getBackendBaseUrl()}/api/v1/contacts/trash`, { headers });
       if (!response.ok) throw new Error('Failed to load trash');
       const result = await response.json();
       // Backend returns { success, data, total }
@@ -92,7 +93,7 @@ export default function RecycleBinScreen() {
        */
       console.log('[RecycleBin] Calling restore-batch API with ids:', Array.from(selectedIds));
       const response = await fetch(
-        `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/contacts/trash/restore-batch`,
+        `${getBackendBaseUrl()}/api/v1/contacts/trash/restore-batch`,
         {
           method: 'POST',
           headers,
@@ -196,7 +197,7 @@ export default function RecycleBinScreen() {
               if (user?.id) headers['x-user-id'] = user.id;
               for (const id of selectedIds) {
                 await fetch(
-                  `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/contacts/${id}/permanent`,
+                  `${getBackendBaseUrl()}/api/v1/contacts/${id}/permanent`,
                   { method: 'DELETE', headers }
                 );
               }

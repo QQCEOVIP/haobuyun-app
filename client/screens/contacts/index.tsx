@@ -18,6 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
+import { getBackendBaseUrl } from '@/utils';
 import * as FileSystemLegacy from 'expo-file-system/legacy';
 import { supabase } from '@/storage/supabase';
 import * as Contacts from 'expo-contacts';
@@ -157,10 +158,10 @@ export default function ContactsScreen() {
     }
 
     try {
-      const EXPO_PUBLIC_BACKEND_BASE_URL = process.env.EXPO_PUBLIC_BACKEND_BASE_URL;
+      const baseUrl = getBackendBaseUrl();
       if (vote === 'valid') {
         // 撤回投票
-        await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/votes`, {
+        await fetch(`${baseUrl}/api/v1/votes`, {
           method: 'DELETE',
           headers: {
             'Content-Type': 'application/json',
@@ -170,7 +171,7 @@ export default function ContactsScreen() {
         });
       } else {
         // 提交/更新投票
-        await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/votes`, {
+        await fetch(`${baseUrl}/api/v1/votes`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

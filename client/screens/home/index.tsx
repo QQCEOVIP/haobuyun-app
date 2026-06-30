@@ -23,9 +23,9 @@ import * as FileSystemLegacy from 'expo-file-system/legacy';
 import { StorageAccessFramework } from 'expo-file-system/legacy';
 import Constants from 'expo-constants';
 
-// Helper function to get backend base URL with fallback
+// Force production URL - do not use environment variable
 const getBackendBaseUrl = () => {
-  return process.env.EXPO_PUBLIC_BACKEND_BASE_URL || 'https://69c51756-21d9-48e1-ba9b-9e1473300950.dev.coze.site';
+  return 'https://kdsf38dsn9.coze.site';
 };
 
 
@@ -234,7 +234,6 @@ export default function HomeScreen() {
       // 查询社区投票结果
       const communityVotesMap = new Map<string, { stoppedCount: number; communityStatus: string | null }>();
       try {
-        const EXPO_PUBLIC_BACKEND_BASE_URL = process.env.EXPO_PUBLIC_BACKEND_BASE_URL;
         const response = await fetch(`${getBackendBaseUrl()}/api/v1/votes/batch-query`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Contacts from 'expo-contacts';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '@/contexts/AuthContext';
+import { getBackendBaseUrl } from '@/utils';
 
 interface DuplicateGroup {
   phone: string;
@@ -186,7 +187,7 @@ export default function DuplicatesScreen() {
               if (user?.id && deletedPhones.length > 0) {
                 const headers: Record<string, string> = { 'Content-Type': 'application/json' };
                 headers['x-user-id'] = user.id;
-                await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/contacts/batch-delete`, {
+                await fetch(`${getBackendBaseUrl()}/api/v1/contacts/batch-delete`, {
                   method: 'POST',
                   headers,
                   body: JSON.stringify({ phones: deletedPhones, names: deletedNames }),

@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { useFocusEffect } from "expo-router";
 import { useAuth } from "@/contexts/AuthContext";
+import { getBackendBaseUrl } from "@/utils";
 
 interface Medal {
   id: string;
@@ -25,7 +26,7 @@ export default function MedalsScreen() {
 
     try {
       const res = await fetch(
-        `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/points/medals`,
+        `${getBackendBaseUrl()}/api/v1/points/medals`,
         {
           headers: { "x-session": session.access_token }
         }

@@ -16,6 +16,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
 import { useAuth } from '@/contexts/AuthContext';
 
+// Force production URL - do not use environment variable
+const getBackendBaseUrl = () => {
+  return 'https://kdsf38dsn9.coze.site';
+};
+
 interface MenuItemProps {
   name: string;
   color: string;
@@ -70,7 +75,7 @@ export default function ProfileScreen() {
       // Then try to fetch from backend to get fresh URL
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (user.id) headers['x-user-id'] = user.id;
-      const response = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/profile`, { headers });
+      const response = await fetch(`${getBackendBaseUrl()}/api/v1/profile`, { headers });
       if (response.ok) {
         const result = await response.json();
         if (result.profile?.avatar_url) {
@@ -128,8 +133,7 @@ export default function ProfileScreen() {
        * Headers: x-user-id: string
        * Body: FormData with 'avatar' field
        */
-      const baseUrl = process.env.EXPO_PUBLIC_BACKEND_BASE_URL || 'https://69c51756-21d9-48e1-ba9b-9e1473300950.dev.coze.site';
-      const response = await fetch(`${baseUrl}/api/v1/profile/avatar`, {
+      const response = await fetch(`${getBackendBaseUrl()}/api/v1/profile/avatar`, {
         method: 'POST',
         headers: {
           'x-user-id': user.id,

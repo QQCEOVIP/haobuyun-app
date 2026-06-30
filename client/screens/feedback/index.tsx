@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/storage/supabase';
+import { getBackendBaseUrl } from '@/utils';
 
 const CATEGORIES = [
   { key: 'suggestion', label: '建议', icon: 'bulb-outline' as const, color: '#E6A23C' },
@@ -49,7 +50,7 @@ export default function FeedbackScreen() {
        * 接口：POST /api/v1/feedback
        * Body: { category: string, content: string, contact?: string, userId: string }
        */
-      const response = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/feedback`, {
+      const response = await fetch(`${getBackendBaseUrl()}/api/v1/feedback`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Contacts from 'expo-contacts';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '@/contexts/AuthContext';
+import { getBackendBaseUrl } from '@/utils';
 
 interface StoppedContact {
   id: string;
@@ -162,7 +163,7 @@ export default function StoppedContactsScreen() {
                 const phones = toDelete.map(c => c.phone).filter(Boolean);
                 const names = toDelete.map(c => c.name || '');
                 if (phones.length > 0) {
-                  await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/contacts/batch-delete`, {
+                  await fetch(`${getBackendBaseUrl()}/api/v1/contacts/batch-delete`, {
                     method: 'POST',
                     headers,
                     body: JSON.stringify({ phones, names }),

@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { useFocusEffect } from "expo-router";
 import { useAuth } from "@/contexts/AuthContext";
+import { getBackendBaseUrl } from "@/utils";
 
 interface LeaderboardItem {
   rank: number;
@@ -31,7 +32,7 @@ export default function LeaderboardScreen() {
 
     try {
       const res = await fetch(
-        `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/points/leaderboard?period=${period}`,
+        `${getBackendBaseUrl()}/api/v1/points/leaderboard?period=${period}`,
         {
           headers: { "x-session": session.access_token }
         }

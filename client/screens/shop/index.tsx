@@ -5,6 +5,7 @@ import { Screen } from "@/components/Screen";
 import { useFocusEffect } from "expo-router";
 import { useSafeRouter } from "@/hooks/useSafeRouter";
 import { useAuth } from "@/contexts/AuthContext";
+import { getBackendBaseUrl } from "@/utils";
 
 interface Product {
   id: string;
@@ -38,14 +39,14 @@ export default function ShopScreen() {
 
     try {
       // 获取积分余额
-      const balanceRes = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/points/balance`, {
+      const balanceRes = await fetch(`${getBackendBaseUrl()}/api/v1/points/balance`, {
         headers: { "x-session": session.access_token }
       });
       const balanceData = await balanceRes.json();
       setBalance(balanceData.balance || 0);
 
       // 获取商品列表
-      const productsRes = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/points/shop/products`, {
+      const productsRes = await fetch(`${getBackendBaseUrl()}/api/v1/points/shop/products`, {
         headers: { "x-session": session.access_token }
       });
       const productsData = await productsRes.json();
@@ -79,7 +80,7 @@ export default function ShopScreen() {
           onPress: async () => {
             try {
               const res = await fetch(
-                `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/points/shop/exchange`,
+                `${getBackendBaseUrl()}/api/v1/points/shop/exchange`,
                 {
                   method: "POST",
                   headers: {

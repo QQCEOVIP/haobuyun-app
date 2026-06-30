@@ -3,6 +3,11 @@ import { Session, User } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/storage/supabase';
 
+// Force production URL - do not use environment variable
+const getBackendBaseUrl = () => {
+  return 'https://kdsf38dsn9.coze.site';
+};
+
 interface AuthContextType {
   session: Session | null;
   user: User | null;
@@ -31,13 +36,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const fetchAndCacheAvatar = async (userId: string) => {
     console.log('[fetchAndCacheAvatar] Called for userId:', userId);
     try {
-      // Fallback URL if environment variable is not set
-      const baseUrl = process.env.EXPO_PUBLIC_BACKEND_BASE_URL || 'https://kdsf38dsn9.coze.site';
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       headers['x-user-id'] = userId;
-      const apiUrl = `${baseUrl}/api/v1/profile`;
-      console.log('[fetchAndCacheAvatar] EXPO_PUBLIC_BACKEND_BASE_URL:', process.env.EXPO_PUBLIC_BACKEND_BASE_URL || '(not set)');
-      console.log('[fetchAndCacheAvatar] Using baseUrl:', baseUrl);
+      const apiUrl = `${getBackendBaseUrl()}/api/v1/profile`;
       console.log('[fetchAndCacheAvatar] API URL:', apiUrl);
       console.log('[fetchAndCacheAvatar] Headers:', { 'x-user-id': userId });
       

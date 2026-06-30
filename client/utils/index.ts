@@ -3,7 +3,15 @@ import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 dayjs.extend(utc);
 
-const API_BASE = (process.env.EXPO_PUBLIC_API_BASE ?? '').replace(/\/$/, '');
+/**
+ * 获取后端 API 基础 URL
+ * 强制使用生产地址，不使用环境变量
+ */
+export const getBackendBaseUrl = (): string => {
+  return 'https://kdsf38dsn9.coze.site';
+};
+
+const API_BASE = getBackendBaseUrl();
 
 /**
  * 创建跨平台兼容的文件对象，用于 FormData.append()

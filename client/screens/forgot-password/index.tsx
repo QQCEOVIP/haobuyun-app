@@ -14,9 +14,9 @@ import { Screen } from '@/components/Screen';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
 import { Ionicons } from '@expo/vector-icons';
 
-// Fallback to production URL if environment variable is not set
+// Force production URL - do not use environment variable
 const getBackendBaseUrl = () => {
-  return process.env.EXPO_PUBLIC_BACKEND_BASE_URL || 'https://kdsf38dsn9.coze.site';
+  return 'https://kdsf38dsn9.coze.site';
 };
 
 export default function ForgotPasswordScreen() {
@@ -50,16 +50,13 @@ export default function ForgotPasswordScreen() {
 
     setLoading(true);
     try {
-      // Fallback URL if environment variable is not set
-      const baseUrl = process.env.EXPO_PUBLIC_BACKEND_BASE_URL || 'https://69c51756-21d9-48e1-ba9b-9e1473300950.dev.coze.site';
-      const url = `${baseUrl}/api/v1/auth/verify-identity`;
+      const url = `${getBackendBaseUrl()}/api/v1/auth/verify-identity`;
       const requestBody = {
         phone: phone.trim(),
         idCard: idCard.trim(),
       };
       
-      addDebug(`EXPO_PUBLIC_BACKEND_BASE_URL: ${process.env.EXPO_PUBLIC_BACKEND_BASE_URL || '(not set)'}`);
-      addDebug(`Using baseUrl: ${baseUrl}`);
+      addDebug(`Using baseUrl: ${getBackendBaseUrl()}`);
       addDebug(`Full URL: ${url}`);
       addDebug(`Request: ${JSON.stringify(requestBody)}`);
       
@@ -105,17 +102,14 @@ export default function ForgotPasswordScreen() {
 
     setLoading(true);
     try {
-      // Fallback URL if environment variable is not set
-      const baseUrl = process.env.EXPO_PUBLIC_BACKEND_BASE_URL || 'https://69c51756-21d9-48e1-ba9b-9e1473300950.dev.coze.site';
-      const url = `${baseUrl}/api/v1/auth/forgot-password`;
+      const url = `${getBackendBaseUrl()}/api/v1/auth/forgot-password`;
       const requestBody = {
         phone: phone.trim(),
         idCard: idCard.trim(),
         newPassword: newPassword,
       };
       
-      addDebug(`EXPO_PUBLIC_BACKEND_BASE_URL: ${process.env.EXPO_PUBLIC_BACKEND_BASE_URL || '(not set)'}`);
-      addDebug(`Using baseUrl: ${baseUrl}`);
+      addDebug(`Using baseUrl: ${getBackendBaseUrl()}`);
       addDebug(`Full URL: ${url}`);
       addDebug(`Request: phone=${phone.trim()}, idCard=${idCard.trim()}, newPassword length=${newPassword.length}`);
       

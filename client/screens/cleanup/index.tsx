@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/storage/supabase';
+import { getBackendBaseUrl } from '@/utils';
 
 interface Contact {
   id: string;
@@ -93,7 +94,7 @@ export default function CleanupScreen() {
             try {
               // Soft delete via backend API - bypasses RLS
               const response = await fetch(
-                `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/contacts/batch-delete`,
+                `${getBackendBaseUrl()}/api/v1/contacts/batch-delete`,
                 {
                   method: 'POST',
                   headers: {
