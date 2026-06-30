@@ -116,6 +116,8 @@ router.post('/verify-identity', async (req, res) => {
     const { phone, idCard } = req.body;
     console.log('[verify-identity] Request:', { phone, idCard: idCard ? idCard.substring(0, 4) + '****' : null });
     console.log('[verify-identity] Query condition:', { email: `${phone}@haobuyun.app` });
+    console.log('[verify-identity] SUPABASE_URL:', process.env.COZE_SUPABASE_URL);
+    console.log('[verify-identity] SERVICE_ROLE_KEY length:', (process.env.COZE_SUPABASE_SERVICE_ROLE_KEY || '').length);
 
     if (!phone || !idCard) {
       return res.status(400).json({ 

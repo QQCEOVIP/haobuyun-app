@@ -73,34 +73,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    // 获取初始 session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setIsLoading(false);
+    const loadCachedAvatar = async () => {
+      try {
+        const cachedAvatar = await AsyncStorage.getItem('@user_avatar');
+        if (cachedAvatar) {
+          setAvatarUrl(cachedAvatar);
+        }
+      } catch (error) {
+        console.error('[AuthContext] Failed to load cached avatar:', error);
+      }
+    };
+    
+    loadCachedAvatar();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('[AuthContext] onAuthStateChange event:', event, 'session:', !!session);
+      
+      if (event === 'SIGNED_IN' && session) {
+        setSession(session);
+        setUser(session.user);
+        await fetchAndCacheAvatar(session.user.id);
+      } else if (event === 'INITIAL_SESSION' && session) {
+        setSession(session);
+        setUser(session.user);
+        await fetchAndCacheAvatar(session.user.id);
+        setIsLoading(false);
+      } else if (event === 'SIGNED_OUT') {
+        setSession(null);
+        setUser(null);
+        setAvatarUrl(null);
+        await AsyncStorage.removeItem('@user_avatar');
+        setIsLoading(false);
+      }
     });
 
-    // 监听认证状态变化
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
+    const checkSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        console.log('[AuthContext] Initial session check:', !!session);
+        if (session) {
+          setSession(session);
+          setUser(session.user);
+          await fetchAndCacheAvatar(session.user.id);
+        }
+      } catch (error) {
+        console.error('[AuthContext] Session check error:', error);
+      } finally {
         setIsLoading(false);
-
-        // When user signs in, fetch and cache avatar from backend
-        if (event === 'SIGNED_IN' && session?.user) {
-          fetchAndCacheAvatar(session.user.id);
-        }
-        // When user signs out, clear cached avatar
-        if (event === 'SIGNED_OUT') {
-          AsyncStorage.removeItem('@user_avatar').catch(() => { /* ignore */ });
-          setAvatarUrl(null);
-        }
       }
-    );
+    };
+    
+    checkSession();
 
     return () => {
-      subscription.unsubscribe();
+      authListener.subscription.unsubscribe();
     };
   }, []);
 

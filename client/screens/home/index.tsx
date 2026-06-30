@@ -13,6 +13,7 @@ import {
   Image,
   ScrollView,
   RefreshControl,
+  DeviceEventEmitter,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
@@ -45,8 +46,10 @@ interface ContactStats {
 }
 
 export default function HomeScreen() {
-  const { user, session, avatarUrl } = useAuth();
-  console.log('[Home] avatarUrl from context:', avatarUrl);
+  const { user, session, avatarUrl: contextAvatarUrl } = useAuth();
+  const [localAvatarUrl, setLocalAvatarUrl] = useState<string | null>(null);
+  const displayAvatarUrl = contextAvatarUrl || localAvatarUrl;
+  console.log('[Home] avatarUrl from context:', contextAvatarUrl, 'local:', localAvatarUrl);
   const [stats, setStats] = useState<ContactStats>({
     total: 0,
     active: 0,
@@ -75,6 +78,34 @@ export default function HomeScreen() {
       setInitialLoaded(true);
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load avatar from AsyncStorage as fallback and listen for avatar updates
+  useFocusEffect(
+    useCallback(() => {
+      (async () => {
+        try {
+          const cached = await AsyncStorage.getItem('@user_avatar');
+          if (cached) {
+            setLocalAvatarUrl(cached);
+          }
+        } catch (e) {
+          // ignore
+        }
+      })();
+    }, [])
+  );
+
+  // Listen for avatar-updated events from other screens
+  useEffect(() => {
+    const subscription = DeviceEventEmitter.addListener('avatar-updated', (event: { uri: string }) => {
+      if (event?.uri) {
+        setLocalAvatarUrl(event.uri);
+      }
+    });
+    return () => {
+      subscription.remove();
+    };
+  }, []);
 
   // Lightweight refresh: only re-read AsyncStorage status counts when page gains focus
   // This avoids the heavy device contacts read that caused black screen issues
@@ -1572,8 +1603,8 @@ export default function HomeScreen() {
           {/* 用户头像在左上角 */}
           <View style={styles.avatarContainer}>
             <View style={styles.avatar}>
-              {avatarUrl ? (
-                <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
+              {displayAvatarUrl ? (
+                <Image source={{ uri: displayAvatarUrl }} style={styles.avatarImage} />
               ) : (
                 <Text style={styles.avatarText}>
                   {userEmail.split('@')[0]?.[0]?.toUpperCase() || 'U'}

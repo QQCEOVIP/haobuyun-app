@@ -49,6 +49,17 @@ app.use('/api/v1/votes', votesRouter);
 // app.use('/api/v1/ads', adsRouter);    // 广告回调接口
 // app.use('/api/v1/games', gameRouter); // 小游戏接口
 
+// === Debug endpoint for environment check ===
+app.get('/api/v1/debug/env-check', (req, res) => {
+  res.json({
+    hasSupabaseUrl: !!process.env.COZE_SUPABASE_URL,
+    supabaseUrl: process.env.COZE_SUPABASE_URL || 'NOT SET',
+    hasServiceRoleKey: !!process.env.COZE_SUPABASE_SERVICE_ROLE_KEY,
+    serviceRoleKeyLength: (process.env.COZE_SUPABASE_SERVICE_ROLE_KEY || '').length,
+    allEnvKeys: Object.keys(process.env).filter(k => k.includes('SUPABASE') || k.includes('COZE'))
+  });
+});
+
 // === serve client bundle ===
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
