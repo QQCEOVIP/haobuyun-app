@@ -196,6 +196,46 @@ app.post('/api/v1/debug/test-verify', async (req, res) => {
   }
 });
 
+// Debug endpoint: seed user to production database
+app.post('/api/v1/debug/seed-user', async (req, res) => {
+  try {
+    const { createClient } = await import('@supabase/supabase-js');
+    // Use PRODUCTION database (from env var)
+    const db = createClient(
+      process.env.COZE_SUPABASE_URL || '',
+      process.env.COZE_SUPABASE_SERVICE_ROLE_KEY || ''
+    );
+    
+    const { data, error } = await db.auth.admin.createUser({
+      email: '15977355155@haobuyun.app',
+      password: 'Aa123456',
+      email_confirm: true,
+      user_metadata: { phone: '15977355155', id_card: '450327198812170459' }
+    });
+    
+    if (error) {
+      // If user already exists, try to get them and update metadata
+      if (error.message.includes('already')) {
+        const { data: listData } = await db.auth.admin.listUsers({ page: 1, perPage: 100 });
+        const existing = listData?.users?.find(u => u.email === '15977355155@haobuyun.app');
+        if (existing) {
+          return res.json({ 
+            success: true, 
+            message: 'User already exists in production', 
+            userId: existing.id,
+            metadata: existing.user_metadata 
+          });
+        }
+      }
+      return res.json({ success: false, error: error.message });
+    }
+    
+    res.json({ success: true, userId: data.user?.id, email: data.user?.email });
+  } catch (e: any) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // === serve client bundle ===
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
