@@ -5,8 +5,10 @@ import { sql } from 'drizzle-orm';
 const router: any = Router();
 
 // 阈值配置（可配置）
-const CONFIRMED_THRESHOLD = 3;
-const MAYBE_THRESHOLD = 2;
+// >=5 人标记停机 -> 确认停机
+// >=1 人标记停机 -> 疑似停机
+const CONFIRMED_THRESHOLD = 5;
+const MAYBE_THRESHOLD = 1;
 
 function getUserIdFromHeaders(req: any): string | null {
   const userId = req.headers['x-user-id'];
@@ -28,7 +30,7 @@ function requireAuth(req: any, res: any, next: any) {
 /**
  * 提交/更新投票
  * POST /api/v1/votes
- * Body: { phone: string, vote: 'confirmed_invalid' | 'maybe_invalid' | 'valid' }
+ * Body: { phone: string, vote: 'stopped' | 'valid' }
  */
 router.post('/', requireAuth, async (req: any, res: any) => {
   try {
@@ -39,7 +41,7 @@ router.post('/', requireAuth, async (req: any, res: any) => {
       return res.status(400).json({ error: '缺少必要参数' });
     }
 
-    if (!['confirmed_invalid', 'maybe_invalid', 'valid'].includes(vote)) {
+    if (!['stopped', 'valid'].includes(vote)) {
       return res.status(400).json({ error: '无效的投票类型' });
     }
 
@@ -89,7 +91,12 @@ router.delete('/', requireAuth, async (req: any, res: any) => {
  * 批量查询社区投票结果
  * POST /api/v1/votes/batch-query
  * Body: { phones: string[] }
- * Returns: { results: { phone, confirmed_invalid_count, maybe_invalid_count, total_count, community_status }[] }
+ * Returns: { results: { phone, stopped_count, community_status }[] }
+ * 
+ * 社区状态计算：
+ * - stopped_count >= 5 -> 'confirmed_stopped' (确认停机)
+ * - stopped_count >= 1 && < 5 -> 'maybe_stopped' (疑似停机)
+ * - stopped_count = 0 -> null (无社区状态)
  */
 router.post('/batch-query', async (req: any, res: any) => {
   try {
@@ -102,50 +109,36 @@ router.post('/batch-query', async (req: any, res: any) => {
     // 限制单次查询数量
     const limitedPhones = phones.slice(0, 500);
 
-    // 查询所有相关投票
+    // 查询所有 'stopped' 投票
     const votes = await db.execute(sql`
-      SELECT phone, vote, COUNT(*)::int as count 
+      SELECT phone, COUNT(*)::int as stopped_count 
       FROM number_votes
-      WHERE phone = ANY(${limitedPhones}::text[])
-      GROUP BY phone, vote
+      WHERE phone = ANY(${limitedPhones}::text[]) AND vote = 'stopped'
+      GROUP BY phone
     `);
 
-    // 聚合结果
-    const phoneMap = new Map<string, { confirmedCount: number; maybeCount: number; totalCount: number }>();
-    
+    // 构建结果
+    const stoppedMap = new Map<string, number>();
     for (const row of votes as any[]) {
-      const { phone, vote, count } = row;
-      if (!phoneMap.has(phone)) {
-        phoneMap.set(phone, { confirmedCount: 0, maybeCount: 0, totalCount: 0 });
-      }
-      const entry = phoneMap.get(phone)!;
-      if (vote === 'confirmed_invalid') {
-        entry.confirmedCount = count;
-      } else if (vote === 'maybe_invalid') {
-        entry.maybeCount = count;
-      }
-      entry.totalCount += count;
+      stoppedMap.set(row.phone, row.stopped_count);
     }
 
-    // 计算社区状态
     const results = [];
     for (const phone of limitedPhones) {
-      const entry = phoneMap.get(phone);
-      if (entry) {
-        let communityStatus: string | null = null;
-        if (entry.confirmedCount >= CONFIRMED_THRESHOLD) {
-          communityStatus = 'confirmed_invalid';
-        } else if (entry.maybeCount >= MAYBE_THRESHOLD) {
-          communityStatus = 'maybe_invalid';
-        }
-        results.push({
-          phone,
-          confirmed_invalid_count: entry.confirmedCount,
-          maybe_invalid_count: entry.maybeCount,
-          total_count: entry.totalCount,
-          community_status: communityStatus,
-        });
+      const stoppedCount = stoppedMap.get(phone) || 0;
+      let communityStatus: string | null = null;
+      
+      if (stoppedCount >= CONFIRMED_THRESHOLD) {
+        communityStatus = 'confirmed_stopped';
+      } else if (stoppedCount >= MAYBE_THRESHOLD) {
+        communityStatus = 'maybe_stopped';
       }
+      
+      results.push({
+        phone,
+        stopped_count: stoppedCount,
+        community_status: communityStatus,
+      });
     }
 
     res.json({ results });

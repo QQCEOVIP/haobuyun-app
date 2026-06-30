@@ -113,8 +113,8 @@ export default function HomeScreen() {
   };
 
   // 阈值配置（与服务端保持一致）
-  const CONFIRMED_THRESHOLD = 3;
-  const MAYBE_THRESHOLD = 2;
+  const CONFIRMED_THRESHOLD = 5;
+  const MAYBE_THRESHOLD = 1;
 
   // 一键检测功能
   const runDetection = async () => {
@@ -174,7 +174,7 @@ export default function HomeScreen() {
         .filter(p => p.length > 0);
 
       // 查询社区投票结果
-      const communityVotesMap = new Map<string, { confirmedCount: number; maybeCount: number; communityStatus: string | null }>();
+      const communityVotesMap = new Map<string, { stoppedCount: number; communityStatus: string | null }>();
       try {
         const EXPO_PUBLIC_BACKEND_BASE_URL = process.env.EXPO_PUBLIC_BACKEND_BASE_URL;
         const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/votes/batch-query`, {
@@ -186,10 +186,9 @@ export default function HomeScreen() {
           const data = await response.json();
           if (data.results) {
             for (const item of data.results) {
-              if (item.total_count > 0) {
+              if (item.stopped_count > 0) {
                 communityVotesMap.set(item.phone, {
-                  confirmedCount: item.confirmed_invalid_count,
-                  maybeCount: item.maybe_invalid_count,
+                  stoppedCount: item.stopped_count,
                   communityStatus: item.community_status,
                 });
               }
@@ -219,12 +218,12 @@ export default function HomeScreen() {
         const communityVote = communityVotesMap.get(phone);
         
         // 综合判断：本地状态 + 社区投票
-        // 确认失效：本地标记stopped OR 社区确认失效
-        // 可能失效：本地标记suspected_stopped OR 社区可能失效（且未被确认失效）
+        // 确认停机：本地标记stopped OR 社区确认停机（>=5人标记）
+        // 疑似停机：社区疑似停机（>=1人标记）且本地未标记stopped
         let finalStatus = localStatus;
-        if (communityVote?.communityStatus === 'confirmed_invalid') {
+        if (communityVote?.communityStatus === 'confirmed_stopped') {
           finalStatus = 'stopped';
-        } else if (communityVote?.communityStatus === 'maybe_invalid' && localStatus !== 'stopped') {
+        } else if (communityVote?.communityStatus === 'maybe_stopped' && localStatus !== 'stopped') {
           finalStatus = 'suspected_stopped';
         }
         
@@ -260,7 +259,7 @@ export default function HomeScreen() {
       if (communityCount > 0) {
         Alert.alert(
           '检测完成',
-          `检测 ${result.total} 个号码\n发现 ${result.invalid} 个确认失效、${result.maybeInvalid} 个可能失效\n（参考了 ${communityCount} 个社区投票）`
+          `检测 ${result.total} 个号码\n发现 ${result.invalid} 个确认停机、${result.maybeInvalid} 个疑似停机\n（参考了 ${communityCount} 个社区投票）`
         );
       }
     } catch (error) {

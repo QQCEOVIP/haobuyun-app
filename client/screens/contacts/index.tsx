@@ -42,7 +42,6 @@ const STATUS_TABS = [
   { key: 'all', label: '全部' },
   { key: 'normal', label: '正常' },
   { key: 'stopped', label: '停机' },
-  { key: 'suspected_stopped', label: '疑似停机' },
 ];
 
 export default function ContactsScreen() {
@@ -69,7 +68,7 @@ export default function ContactsScreen() {
   const [editAvatarUri, setEditAvatarUri] = useState<string | null>(null);
 
   // 社区投票相关状态
-  const [communityVotes, setCommunityVotes] = useState<Map<string, { confirmedCount: number; maybeCount: number; communityStatus: string | null }>>(new Map());
+  const [communityVotes, setCommunityVotes] = useState<Map<string, { stoppedCount: number; communityStatus: string | null }>>(new Map());
   const [votePanelVisible, setVotePanelVisible] = useState(false);
   const [votePanelContact, setVotePanelContact] = useState<Contact | null>(null);
 
@@ -135,7 +134,7 @@ export default function ContactsScreen() {
   };
 
   // 上传投票到服务端
-  const uploadVote = async (phone: string, vote: 'confirmed_invalid' | 'maybe_invalid' | 'valid') => {
+  const uploadVote = async (phone: string, vote: 'stopped' | 'valid') => {
     // 新用户检查
     if (isUserNew()) {
       Alert.alert('提示', '注册满7天后可参与号码状态共享');
@@ -183,12 +182,11 @@ export default function ContactsScreen() {
       const json = await AsyncStorage.getItem('@community_votes_cache');
       if (json) {
         const data = JSON.parse(json);
-        const map = new Map<string, { confirmedCount: number; maybeCount: number; communityStatus: string | null }>();
+        const map = new Map<string, { stoppedCount: number; communityStatus: string | null }>();
         for (const item of data) {
-          if (item.total_count > 0) {
+          if (item.stopped_count > 0) {
             map.set(item.phone, {
-              confirmedCount: item.confirmed_invalid_count,
-              maybeCount: item.maybe_invalid_count,
+              stoppedCount: item.stopped_count,
               communityStatus: item.community_status,
             });
           }
@@ -685,9 +683,7 @@ export default function ContactsScreen() {
         
         // 上传投票到社区
         if (newStatus === 'stopped') {
-          await uploadVote(contact.phone, 'confirmed_invalid');
-        } else if (newStatus === 'suspected_stopped') {
-          await uploadVote(contact.phone, 'maybe_invalid');
+          await uploadVote(contact.phone, 'stopped');
         } else if (newStatus === 'normal') {
           await uploadVote(contact.phone, 'valid');
         }
@@ -712,9 +708,7 @@ export default function ContactsScreen() {
       
       // 上传投票到社区
       if (newStatus === 'stopped') {
-        await uploadVote(contact.phone, 'confirmed_invalid');
-      } else if (newStatus === 'suspected_stopped') {
-        await uploadVote(contact.phone, 'maybe_invalid');
+        await uploadVote(contact.phone, 'stopped');
       } else if (newStatus === 'normal') {
         await uploadVote(contact.phone, 'valid');
       }
@@ -764,10 +758,10 @@ export default function ContactsScreen() {
 
   const getCommunityVoteStyle = (communityStatus: string | null) => {
     switch (communityStatus) {
-      case 'confirmed_invalid':
-        return { bg: '#FEF0F0', text: '#F56C6C', label: '确认失效' };
-      case 'maybe_invalid':
-        return { bg: '#FFF8E6', text: '#E6A23C', label: '可能失效' };
+      case 'confirmed_stopped':
+        return { bg: '#FEF0F0', text: '#F56C6C', label: '确认停机' };
+      case 'maybe_stopped':
+        return { bg: '#FFF8E6', text: '#E6A23C', label: '疑似停机' };
       default:
         return null;
     }
@@ -778,7 +772,7 @@ export default function ContactsScreen() {
     const communityVote = communityVotes.get(item.phone);
     const communityVoteStyle = communityVote?.communityStatus ? getCommunityVoteStyle(communityVote.communityStatus) : null;
     const customAvatarUri = contactAvatars[item.phone];
-    const totalCount = communityVote ? communityVote.confirmedCount + communityVote.maybeCount : 0;
+    const totalCount = communityVote ? communityVote.stoppedCount : 0;
 
     return (
       <TouchableOpacity
@@ -1064,13 +1058,6 @@ export default function ContactsScreen() {
                   <Text style={[styles.statusMenuOptionText, { color: '#F56C6C' }]}>停机</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.statusMenuOption, { backgroundColor: '#FFF8E6' }]}
-                  onPress={() => updateContactStatus(statusMenuContact, 'suspected_stopped')}
-                >
-                  <Ionicons name="alert-circle" size={20} color="#E6A23C" />
-                  <Text style={[styles.statusMenuOptionText, { color: '#E6A23C' }]}>疑似停机</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
                   style={styles.statusMenuCancel}
                   onPress={() => setStatusMenuContact(null)}
                 >
@@ -1258,16 +1245,13 @@ export default function ContactsScreen() {
                   </View>
                   {(() => {
                     const vote = communityVotes.get(votePanelContact.phone);
-                    if (vote && (vote.confirmedCount > 0 || vote.maybeCount > 0)) {
+                    if (vote && vote.stoppedCount > 0) {
                       return (
                         <View style={styles.votePanelSummary}>
                           <Text style={styles.votePanelSummaryTitle}>社区投票结果</Text>
                           <View style={styles.votePanelSummaryRow}>
                             <Text style={[styles.votePanelSummaryText, { color: '#F56C6C' }]}>
-                              确认失效: {vote.confirmedCount}人
-                            </Text>
-                            <Text style={[styles.votePanelSummaryText, { color: '#E6A23C' }]}>
-                              可能失效: {vote.maybeCount}人
+                              标记停机: {vote.stoppedCount}人
                             </Text>
                           </View>
                         </View>
@@ -1286,21 +1270,8 @@ export default function ContactsScreen() {
                     >
                       <Ionicons name="close-circle" size={22} color="#F56C6C" />
                       <View style={styles.votePanelOptionText}>
-                        <Text style={[styles.votePanelOptionTitle, { color: '#F56C6C' }]}>确认失效</Text>
+                        <Text style={[styles.votePanelOptionTitle, { color: '#F56C6C' }]}>停机</Text>
                         <Text style={styles.votePanelOptionDesc}>该号码已停机/空号</Text>
-                      </View>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.votePanelOption, { backgroundColor: '#FFF8E6' }]}
-                      onPress={async () => {
-                        await updateContactStatus(votePanelContact, 'suspected_stopped');
-                        setVotePanelVisible(false);
-                      }}
-                    >
-                      <Ionicons name="alert-circle" size={22} color="#E6A23C" />
-                      <View style={styles.votePanelOptionText}>
-                        <Text style={[styles.votePanelOptionTitle, { color: '#E6A23C' }]}>可能失效</Text>
-                        <Text style={styles.votePanelOptionDesc}>疑似停机/不常用</Text>
                       </View>
                     </TouchableOpacity>
                     <TouchableOpacity
@@ -1313,7 +1284,7 @@ export default function ContactsScreen() {
                       <Ionicons name="checkmark-circle" size={22} color="#67C23A" />
                       <View style={styles.votePanelOptionText}>
                         <Text style={[styles.votePanelOptionTitle, { color: '#67C23A' }]}>号码有效</Text>
-                        <Text style={styles.votePanelOptionDesc}>撤回之前的失效标记</Text>
+                        <Text style={styles.votePanelOptionDesc}>撤回之前的停机标记</Text>
                       </View>
                     </TouchableOpacity>
                   </View>
