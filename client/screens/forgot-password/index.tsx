@@ -38,33 +38,42 @@ export default function ForgotPasswordScreen() {
 
     setLoading(true);
     try {
-      const url = `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/auth/verify-identity`;
-      console.log('[ForgotPassword] Request URL:', url);
-      console.log('[ForgotPassword] EXPO_PUBLIC_BACKEND_BASE_URL:', process.env.EXPO_PUBLIC_BACKEND_BASE_URL);
+      const baseUrl = process.env.EXPO_PUBLIC_BACKEND_BASE_URL;
+      const url = `${baseUrl}/api/v1/auth/verify-identity`;
+      const requestBody = {
+        phone: phone.trim(),
+        idCard: idCard.trim(),
+      };
       
-      const response = await fetch(
-        url,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            phone: phone.trim(),
-            idCard: idCard.trim(),
-          }),
-        }
-      );
+      console.log('[ForgotPassword] === VERIFY REQUEST ===');
+      console.log('[ForgotPassword] EXPO_PUBLIC_BACKEND_BASE_URL:', baseUrl);
+      console.log('[ForgotPassword] Full URL:', url);
+      console.log('[ForgotPassword] Request body:', JSON.stringify(requestBody));
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
+      });
 
-      console.log('[ForgotPassword] Response status:', response.status);
+      console.log('[ForgotPassword] === VERIFY RESPONSE ===');
+      console.log('[ForgotPassword] response.status:', response.status);
+      console.log('[ForgotPassword] response.ok:', response.ok);
+      
       const result = await response.json();
-      console.log('[ForgotPassword] Response result:', JSON.stringify(result));
+      console.log('[ForgotPassword] result (full):', JSON.stringify(result));
+      console.log('[ForgotPassword] result.success:', result.success);
+      console.log('[ForgotPassword] result.error:', result.error);
 
       if (response.ok && result.success) {
-        // Verification successful, move to reset step
+        console.log('[ForgotPassword] Verification SUCCESS, moving to reset step');
         setStep('reset');
       } else {
+        console.log('[ForgotPassword] Verification FAILED');
         Alert.alert('验证失败', result.error || '信息不匹配');
       }
     } catch (error) {
+      console.error('[ForgotPassword] === VERIFY ERROR ===');
       console.error('[ForgotPassword] Error:', error);
       Alert.alert('错误', '网络错误，请重试');
     } finally {
@@ -84,29 +93,43 @@ export default function ForgotPasswordScreen() {
 
     setLoading(true);
     try {
-      const response = await fetch(
-        `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/auth/forgot-password`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            phone: phone.trim(),
-            idCard: idCard.trim(),
-            newPassword: newPassword,
-          }),
-        }
-      );
+      const baseUrl = process.env.EXPO_PUBLIC_BACKEND_BASE_URL;
+      const url = `${baseUrl}/api/v1/auth/forgot-password`;
+      const requestBody = {
+        phone: phone.trim(),
+        idCard: idCard.trim(),
+        newPassword: newPassword,
+      };
+      
+      console.log('[ForgotPassword] === RESET REQUEST ===');
+      console.log('[ForgotPassword] Full URL:', url);
+      console.log('[ForgotPassword] Request body:', JSON.stringify({ ...requestBody, newPassword: '***' }));
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
+      });
 
+      console.log('[ForgotPassword] === RESET RESPONSE ===');
+      console.log('[ForgotPassword] response.status:', response.status);
+      console.log('[ForgotPassword] response.ok:', response.ok);
+      
       const result = await response.json();
+      console.log('[ForgotPassword] result (full):', JSON.stringify(result));
 
       if (response.ok && result.success) {
+        console.log('[ForgotPassword] Reset SUCCESS');
         Alert.alert('成功', '密码重置成功，请使用新密码登录', [
           { text: '确定', onPress: () => router.replace('/login') },
         ]);
       } else {
+        console.log('[ForgotPassword] Reset FAILED');
         Alert.alert('失败', result.error || '重置密码失败');
       }
     } catch (error) {
+      console.error('[ForgotPassword] === RESET ERROR ===');
+      console.error('[ForgotPassword] Error:', error);
       Alert.alert('错误', '网络错误，请重试');
     } finally {
       setLoading(false);

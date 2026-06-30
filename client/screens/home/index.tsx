@@ -1544,7 +1544,7 @@ export default function HomeScreen() {
 
   // 健康度 = (总号码 - 确认失效 - 可能失效) / 总号码 × 100%
   const healthPercentage = stats.total > 0
-    ? Math.round(((stats.total - stats.invalid - stats.maybeInvalid) / stats.total) * 100)
+    ? Number((((stats.total - stats.invalid - stats.maybeInvalid) / stats.total) * 100).toFixed(2))
     : 100;
 
   // Debug logging for health percentage
