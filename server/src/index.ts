@@ -91,6 +91,29 @@ app.get('/api/v1/debug/show-keys', (req, res) => {
   });
 });
 
+app.post('/api/v1/debug/create-user', async (req, res) => {
+  try {
+    const { createClient } = await import('@supabase/supabase-js');
+    const db = createClient(
+      process.env.COZE_SUPABASE_URL || '',
+      process.env.COZE_SUPABASE_SERVICE_ROLE_KEY || ''
+    );
+    const { data, error } = await db.auth.admin.createUser({
+      email: '15977355155@haobuyun.app',
+      password: 'Haobuyun@2026',
+      email_confirm: true,
+      user_metadata: { phone: '15977355155', id_card: '450327198812170459' }
+    });
+    if (error) {
+      res.json({ success: false, error: error.message });
+    } else {
+      res.json({ success: true, userId: data.user?.id, email: data.user?.email });
+    }
+  } catch (e: any) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 app.listen(port, () => {
   console.log(`Server listening at http://localhost:${port}/`);
 });
