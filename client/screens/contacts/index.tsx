@@ -1773,9 +1773,9 @@ const styles = StyleSheet.create({
   },
   // 3D Capsule Recycle Bin Button Styles
   recycleBinPillWrapper: {
-    width: 80,
-    height: 40,
-    borderRadius: 20,
+    width: 64,
+    height: 32,
+    borderRadius: 16,
     shadowColor: '#EF4444',
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.35,
@@ -1783,9 +1783,9 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   recycleBinPillImage: {
-    width: 80,
-    height: 40,
-    borderRadius: 20,
+    width: 64,
+    height: 32,
+    borderRadius: 16,
   },
   _pillLeft_unused: {
     flex: 1,
