@@ -14,6 +14,11 @@ import { Screen } from '@/components/Screen';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
 import { Ionicons } from '@expo/vector-icons';
 
+// Fallback to production URL if environment variable is not set
+const getBackendBaseUrl = () => {
+  return process.env.EXPO_PUBLIC_BACKEND_BASE_URL || 'https://kdsf38dsn9.coze.site';
+};
+
 export default function ForgotPasswordScreen() {
   const router = useSafeRouter();
   const [step, setStep] = useState<'verify' | 'reset'>('verify');
