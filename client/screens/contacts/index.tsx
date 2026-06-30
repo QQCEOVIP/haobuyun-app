@@ -68,7 +68,137 @@ export default function ContactsScreen() {
   const [editSaving, setEditSaving] = useState(false);
   const [editAvatarUri, setEditAvatarUri] = useState<string | null>(null);
 
+  // 社区投票相关状态
+  const [communityVotes, setCommunityVotes] = useState<Map<string, { confirmedCount: number; maybeCount: number; communityStatus: string | null }>>(new Map());
+  const [votePanelVisible, setVotePanelVisible] = useState(false);
+  const [votePanelContact, setVotePanelContact] = useState<Contact | null>(null);
+
   const userId = (user as any)?.id;
+
+  // 阈值配置（与服务端保持一致）
+  const CONFIRMED_THRESHOLD = 3;
+  const MAYBE_THRESHOLD = 2;
+
+  // 新用户检查：注册是否满7天
+  const isUserNew = (): boolean => {
+    const createdAt = (user as any)?.created_at;
+    if (!createdAt) return true; // 未知则假定为新用户
+    const daysSince = (Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24);
+    return daysSince < 7;
+  };
+
+  // 反垃圾检查：1小时内最多50次投票
+  const checkVoteSpam = async (): Promise<boolean> => {
+    try {
+      const timestamp = await AsyncStorage.getItem('@vote_count_timestamp');
+      const count = await AsyncStorage.getItem('@vote_count');
+      const now = Date.now();
+      const oneHour = 60 * 60 * 1000;
+
+      if (timestamp && count) {
+        const ts = parseInt(timestamp, 10);
+        const cnt = parseInt(count, 10);
+        if (now - ts < oneHour && cnt >= 50) {
+          return true; // 是垃圾行为
+        }
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  };
+
+  // 增加投票计数
+  const incrementVoteCount = async () => {
+    try {
+      const timestamp = await AsyncStorage.getItem('@vote_count_timestamp');
+      const count = await AsyncStorage.getItem('@vote_count');
+      const now = Date.now();
+      const oneHour = 60 * 60 * 1000;
+
+      if (timestamp && count) {
+        const ts = parseInt(timestamp, 10);
+        const cnt = parseInt(count, 10);
+        if (now - ts < oneHour) {
+          await AsyncStorage.setItem('@vote_count', String(cnt + 1));
+        } else {
+          await AsyncStorage.setItem('@vote_count_timestamp', String(now));
+          await AsyncStorage.setItem('@vote_count', '1');
+        }
+      } else {
+        await AsyncStorage.setItem('@vote_count_timestamp', String(now));
+        await AsyncStorage.setItem('@vote_count', '1');
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  // 上传投票到服务端
+  const uploadVote = async (phone: string, vote: 'confirmed_invalid' | 'maybe_invalid' | 'valid') => {
+    // 新用户检查
+    if (isUserNew()) {
+      Alert.alert('提示', '注册满7天后可参与号码状态共享');
+      return;
+    }
+
+    // 反垃圾检查
+    if (await checkVoteSpam()) {
+      Alert.alert('提示', '标记过于频繁，请稍后再试');
+      return;
+    }
+
+    try {
+      const EXPO_PUBLIC_BACKEND_BASE_URL = process.env.EXPO_PUBLIC_BACKEND_BASE_URL;
+      if (vote === 'valid') {
+        // 撤回投票
+        await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/votes`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-id': userId,
+          },
+          body: JSON.stringify({ phone }),
+        });
+      } else {
+        // 提交/更新投票
+        await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/votes`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-id': userId,
+          },
+          body: JSON.stringify({ phone, vote }),
+        });
+      }
+      await incrementVoteCount();
+    } catch (error) {
+      console.warn('Failed to upload vote:', error);
+    }
+  };
+
+  // 加载社区投票缓存
+  const loadCommunityVotesCache = async () => {
+    try {
+      const json = await AsyncStorage.getItem('@community_votes_cache');
+      if (json) {
+        const data = JSON.parse(json);
+        const map = new Map<string, { confirmedCount: number; maybeCount: number; communityStatus: string | null }>();
+        for (const item of data) {
+          if (item.total_count > 0) {
+            map.set(item.phone, {
+              confirmedCount: item.confirmed_invalid_count,
+              maybeCount: item.maybe_invalid_count,
+              communityStatus: item.community_status,
+            });
+          }
+        }
+        setCommunityVotes(map);
+      }
+    } catch {
+      // ignore
+    }
+  };
 
   // Load custom avatars from AsyncStorage
   const loadContactAvatars = useCallback(async () => {
@@ -552,6 +682,15 @@ export default function ContactsScreen() {
         // Update local state
         setContacts(prev => prev.map(c => c.phone === contact.phone ? { ...c, status: newStatus } : c));
         setStatusMenuContact(null);
+        
+        // 上传投票到社区
+        if (newStatus === 'stopped') {
+          await uploadVote(contact.phone, 'confirmed_invalid');
+        } else if (newStatus === 'suspected_stopped') {
+          await uploadVote(contact.phone, 'maybe_invalid');
+        } else if (newStatus === 'normal') {
+          await uploadVote(contact.phone, 'valid');
+        }
         return;
       }
       
@@ -570,6 +709,15 @@ export default function ContactsScreen() {
       setContacts(prev => prev.map(c => c.phone === contact.phone ? { ...c, status: newStatus } : c));
       // Persist to AsyncStorage for cross-session durability
       await AsyncStorage.setItem(`@contact_status_${contact.phone}`, newStatus);
+      
+      // 上传投票到社区
+      if (newStatus === 'stopped') {
+        await uploadVote(contact.phone, 'confirmed_invalid');
+      } else if (newStatus === 'suspected_stopped') {
+        await uploadVote(contact.phone, 'maybe_invalid');
+      } else if (newStatus === 'normal') {
+        await uploadVote(contact.phone, 'valid');
+      }
     } catch (error: any) {
       console.error('Failed to update status:', error);
       // Still update local state even on error
@@ -592,6 +740,7 @@ export default function ContactsScreen() {
   useEffect(() => {
     loadContacts();
     loadContactAvatars();
+    loadCommunityVotesCache();
   }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const onRefresh = async () => {
@@ -613,11 +762,23 @@ export default function ContactsScreen() {
     }
   };
 
+  const getCommunityVoteStyle = (communityStatus: string | null) => {
+    switch (communityStatus) {
+      case 'confirmed_invalid':
+        return { bg: '#FEF0F0', text: '#F56C6C', label: '确认失效' };
+      case 'maybe_invalid':
+        return { bg: '#FFF8E6', text: '#E6A23C', label: '可能失效' };
+      default:
+        return null;
+    }
+  };
+
   const renderContact = ({ item }: { item: Contact }) => {
     const statusStyle = getStatusStyle(item.status);
-    const communityMark = communityMarks.get(item.phone);
-    const communityStyle = communityMark ? getStatusStyle(communityMark.status) : null;
+    const communityVote = communityVotes.get(item.phone);
+    const communityVoteStyle = communityVote?.communityStatus ? getCommunityVoteStyle(communityVote.communityStatus) : null;
     const customAvatarUri = contactAvatars[item.phone];
+    const totalCount = communityVote ? communityVote.confirmedCount + communityVote.maybeCount : 0;
 
     return (
       <TouchableOpacity
@@ -649,7 +810,7 @@ export default function ContactsScreen() {
           <Ionicons name="create-outline" size={20} color="#4A90D9" />
         </TouchableOpacity>
         <View style={styles.badgeContainer}>
-          {communityStyle ? (
+          {communityVoteStyle ? (
             <>
               <TouchableOpacity
                 style={styles.badgeGroup}
@@ -663,14 +824,21 @@ export default function ContactsScreen() {
                   </Text>
                 </View>
               </TouchableOpacity>
-              <View style={styles.badgeGroup}>
+              <TouchableOpacity
+                style={styles.badgeGroup}
+                activeOpacity={0.7}
+                onPress={() => {
+                  setVotePanelContact(item);
+                  setVotePanelVisible(true);
+                }}
+              >
                 <Text style={styles.badgeLabel}>社区</Text>
-                <View style={[styles.statusBadge, { backgroundColor: communityStyle.bg }]}>
-                  <Text style={[styles.statusText, { color: communityStyle.text }]}>
-                    {communityMark!.markCount}人标记{communityStyle.label}
+                <View style={[styles.statusBadge, { backgroundColor: communityVoteStyle.bg }]}>
+                  <Text style={[styles.statusText, { color: communityVoteStyle.text }]}>
+                    {totalCount}人标记
                   </Text>
                 </View>
-              </View>
+              </TouchableOpacity>
             </>
           ) : (
             <TouchableOpacity
@@ -1063,6 +1231,102 @@ export default function ContactsScreen() {
               </View>
             </View>
           </View>
+        </Modal>
+      )}
+
+      {/* 社区投票面板 */}
+      {votePanelVisible && votePanelContact && (
+        <Modal
+          visible={true}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setVotePanelVisible(false)}
+        >
+          <TouchableWithoutFeedback onPress={() => setVotePanelVisible(false)}>
+            <View style={styles.modalOverlay}>
+              <TouchableWithoutFeedback>
+                <View style={styles.votePanelCard}>
+                  <View style={styles.votePanelHeader}>
+                    <Text style={styles.votePanelTitle}>号码状态投票</Text>
+                    <TouchableOpacity onPress={() => setVotePanelVisible(false)}>
+                      <Ionicons name="close" size={24} color="#909399" />
+                    </TouchableOpacity>
+                  </View>
+                  <View style={styles.votePanelInfo}>
+                    <Text style={styles.votePanelContactName}>{votePanelContact.name}</Text>
+                    <Text style={styles.votePanelPhone}>{votePanelContact.phone}</Text>
+                  </View>
+                  {(() => {
+                    const vote = communityVotes.get(votePanelContact.phone);
+                    if (vote && (vote.confirmedCount > 0 || vote.maybeCount > 0)) {
+                      return (
+                        <View style={styles.votePanelSummary}>
+                          <Text style={styles.votePanelSummaryTitle}>社区投票结果</Text>
+                          <View style={styles.votePanelSummaryRow}>
+                            <Text style={[styles.votePanelSummaryText, { color: '#F56C6C' }]}>
+                              确认失效: {vote.confirmedCount}人
+                            </Text>
+                            <Text style={[styles.votePanelSummaryText, { color: '#E6A23C' }]}>
+                              可能失效: {vote.maybeCount}人
+                            </Text>
+                          </View>
+                        </View>
+                      );
+                    }
+                    return null;
+                  })()}
+                  <View style={styles.votePanelOptions}>
+                    <Text style={styles.votePanelOptionsTitle}>你的投票</Text>
+                    <TouchableOpacity
+                      style={[styles.votePanelOption, { backgroundColor: '#FEF0F0' }]}
+                      onPress={async () => {
+                        await updateContactStatus(votePanelContact, 'stopped');
+                        setVotePanelVisible(false);
+                      }}
+                    >
+                      <Ionicons name="close-circle" size={22} color="#F56C6C" />
+                      <View style={styles.votePanelOptionText}>
+                        <Text style={[styles.votePanelOptionTitle, { color: '#F56C6C' }]}>确认失效</Text>
+                        <Text style={styles.votePanelOptionDesc}>该号码已停机/空号</Text>
+                      </View>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.votePanelOption, { backgroundColor: '#FFF8E6' }]}
+                      onPress={async () => {
+                        await updateContactStatus(votePanelContact, 'suspected_stopped');
+                        setVotePanelVisible(false);
+                      }}
+                    >
+                      <Ionicons name="alert-circle" size={22} color="#E6A23C" />
+                      <View style={styles.votePanelOptionText}>
+                        <Text style={[styles.votePanelOptionTitle, { color: '#E6A23C' }]}>可能失效</Text>
+                        <Text style={styles.votePanelOptionDesc}>疑似停机/不常用</Text>
+                      </View>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.votePanelOption, { backgroundColor: '#E7F7E7' }]}
+                      onPress={async () => {
+                        await updateContactStatus(votePanelContact, 'normal');
+                        setVotePanelVisible(false);
+                      }}
+                    >
+                      <Ionicons name="checkmark-circle" size={22} color="#67C23A" />
+                      <View style={styles.votePanelOptionText}>
+                        <Text style={[styles.votePanelOptionTitle, { color: '#67C23A' }]}>号码有效</Text>
+                        <Text style={styles.votePanelOptionDesc}>撤回之前的失效标记</Text>
+                      </View>
+                    </TouchableOpacity>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.statusMenuCancel}
+                    onPress={() => setVotePanelVisible(false)}
+                  >
+                    <Text style={styles.statusMenuCancelText}>取消</Text>
+                  </TouchableOpacity>
+                </View>
+              </TouchableWithoutFeedback>
+            </View>
+          </TouchableWithoutFeedback>
         </Modal>
       )}
     </SafeAreaView>
@@ -1589,5 +1853,95 @@ const styles = StyleSheet.create({
     width: 1,
     height: 30,
     backgroundColor: '#F0F0F0',
+  },
+  // 投票面板样式
+  votePanelCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    width: '88%',
+    maxWidth: 380,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  votePanelHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  votePanelTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1A1A2E',
+  },
+  votePanelInfo: {
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingVertical: 12,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 12,
+  },
+  votePanelContactName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1A1A2E',
+  },
+  votePanelPhone: {
+    fontSize: 14,
+    color: '#606266',
+    marginTop: 4,
+  },
+  votePanelSummary: {
+    marginBottom: 16,
+    padding: 12,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 12,
+  },
+  votePanelSummaryTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#606266',
+    marginBottom: 8,
+  },
+  votePanelSummaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+  votePanelSummaryText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  votePanelOptions: {
+    marginBottom: 12,
+  },
+  votePanelOptionsTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#606266',
+    marginBottom: 10,
+  },
+  votePanelOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  votePanelOptionText: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  votePanelOptionTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  votePanelOptionDesc: {
+    fontSize: 12,
+    color: '#909399',
+    marginTop: 2,
   },
 });

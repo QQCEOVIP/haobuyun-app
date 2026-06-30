@@ -112,6 +112,10 @@ export default function HomeScreen() {
     }
   };
 
+  // 阈值配置（与服务端保持一致）
+  const CONFIRMED_THRESHOLD = 3;
+  const MAYBE_THRESHOLD = 2;
+
   // 一键检测功能
   const runDetection = async () => {
     if (detecting) return;
@@ -164,7 +168,41 @@ export default function HomeScreen() {
         }
       }
 
-      // 统计检测结果
+      // 收集所有电话号码用于社区投票查询
+      const allPhones = deviceContacts
+        .map(c => c.phoneNumbers?.[0]?.number || '')
+        .filter(p => p.length > 0);
+
+      // 查询社区投票结果
+      const communityVotesMap = new Map<string, { confirmedCount: number; maybeCount: number; communityStatus: string | null }>();
+      try {
+        const EXPO_PUBLIC_BACKEND_BASE_URL = process.env.EXPO_PUBLIC_BACKEND_BASE_URL;
+        const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/votes/batch-query`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phones: allPhones.slice(0, 500) }), // 限制单次查询数量
+        });
+        if (response.ok) {
+          const data = await response.json();
+          if (data.results) {
+            for (const item of data.results) {
+              if (item.total_count > 0) {
+                communityVotesMap.set(item.phone, {
+                  confirmedCount: item.confirmed_invalid_count,
+                  maybeCount: item.maybe_invalid_count,
+                  communityStatus: item.community_status,
+                });
+              }
+            }
+            // 缓存社区投票结果
+            await AsyncStorage.setItem('@community_votes_cache', JSON.stringify(data.results));
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to query community votes:', error);
+      }
+
+      // 统计检测结果（结合本地状态和社区投票）
       const result = {
         total: deviceContacts.length,
         active: 0,
@@ -177,9 +215,20 @@ export default function HomeScreen() {
         const phone = contact.phoneNumbers?.[0]?.number || '';
         const localData = allLocalContacts?.find((lc: any) => lc.phone === phone);
         // AsyncStorage 手动标签优先，其次 Supabase 检测结果
-        const status = localStatusMap.get(phone) || localData?.status;
+        const localStatus = localStatusMap.get(phone) || localData?.status;
+        const communityVote = communityVotesMap.get(phone);
         
-        switch (status) {
+        // 综合判断：本地状态 + 社区投票
+        // 确认失效：本地标记stopped OR 社区确认失效
+        // 可能失效：本地标记suspected_stopped OR 社区可能失效（且未被确认失效）
+        let finalStatus = localStatus;
+        if (communityVote?.communityStatus === 'confirmed_invalid') {
+          finalStatus = 'stopped';
+        } else if (communityVote?.communityStatus === 'maybe_invalid' && localStatus !== 'stopped') {
+          finalStatus = 'suspected_stopped';
+        }
+        
+        switch (finalStatus) {
           case 'normal':
             result.active++;
             break;
@@ -205,6 +254,15 @@ export default function HomeScreen() {
 
       // 保存检测结果
       setDetectionResult(result);
+      
+      // 显示检测结果摘要
+      const communityCount = communityVotesMap.size;
+      if (communityCount > 0) {
+        Alert.alert(
+          '检测完成',
+          `检测 ${result.total} 个号码\n发现 ${result.invalid} 个确认失效、${result.maybeInvalid} 个可能失效\n（参考了 ${communityCount} 个社区投票）`
+        );
+      }
     } catch (error) {
       console.error('检测失败:', error);
       Alert.alert('错误', '检测过程中发生错误，请重试');
