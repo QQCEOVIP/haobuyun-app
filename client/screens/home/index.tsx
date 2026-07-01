@@ -115,6 +115,11 @@ export default function HomeScreen() {
       // Only refresh status counts, not device contacts
       (async () => {
         try {
+          // If total is 0 (no contacts on device), skip AsyncStorage read and keep all stats at 0
+          if (stats.total === 0) {
+            setStats({ total: 0, active: 0, maybeInvalid: 0, invalid: 0, unknown: 0 });
+            return;
+          }
           const allKeys = await AsyncStorage.getAllKeys();
           const statusKeys = allKeys.filter(k => k.startsWith('@contact_status_'));
           

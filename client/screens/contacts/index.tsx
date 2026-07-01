@@ -749,6 +749,9 @@ export default function ContactsScreen() {
   useEffect(() => {
     if (contacts.length > 0) {
       fetchCleanupStats();
+    } else {
+      // 通讯录为0时，清除残留的旧统计数据
+      setCleanupStats({ duplicate: 0, stopped: 0, suspected: 0 });
     }
   }, [contacts]);
 
