@@ -536,13 +536,12 @@ export default function ContactsScreen() {
               id: c.id,
               deviceContactId: c.id,
               name: c.name || '未知联系人',
-              phone: phone,
+              phone: phone || '(无号码)',
               phoneNumbers: allPhones,
               status: localData?.status || null,
               lastContactDate: localData?.last_contact_date,
             };
-          })
-          .filter((c): c is Contact => c !== null);
+          });
 
         // Load locally persisted status overrides from AsyncStorage
         const allKeys = await AsyncStorage.getAllKeys();
@@ -594,36 +593,18 @@ export default function ContactsScreen() {
   const fetchCleanupStats = async () => {
     if (!userId) return;
     try {
-      // Check device contacts directly (not just the loaded contacts state)
-      // to handle the case where contacts state is stale or not yet loaded
+      // Quick check: does device have any contacts at all?
       const { status: permStatus } = await Contacts.requestPermissionsAsync();
       if (permStatus !== 'granted') {
         setCleanupStats({ duplicate: 0, stopped: 0, suspected: 0 });
         return;
       }
-
-      // Get actual device contact count to verify
-      let deviceContactCount = 0;
-      try {
-        let offset = 0;
-        const pageSize = 5000;
-        while (true) {
-          const { data: pageContacts } = await Contacts.getContactsAsync({
-            fields: [Contacts.Fields.PhoneNumbers],
-            pageSize,
-            pageOffset: offset,
-          });
-          if (!pageContacts || pageContacts.length === 0) break;
-          deviceContactCount += pageContacts.length;
-          offset += pageContacts.length;
-          if (pageContacts.length < pageSize) break;
-        }
-      } catch (e) {
-        console.warn('[fetchCleanupStats] Failed to count device contacts:', e);
-      }
-
-      // If device has 0 contacts, reset all stats to 0
-      if (deviceContactCount === 0) {
+      const { data: deviceCheck } = await Contacts.getContactsAsync({
+        fields: [Contacts.Fields.PhoneNumbers],
+        pageSize: 1,
+        pageOffset: 0,
+      });
+      if (!deviceCheck || deviceCheck.length === 0) {
         setCleanupStats({ duplicate: 0, stopped: 0, suspected: 0 });
         return;
       }

@@ -665,7 +665,8 @@ export default function HomeScreen() {
             const permission = await SAF.requestDirectoryPermissionsAsync();
             if (permission.granted && permission.directoryUri) {
               // SAF API: createFileAsync(parentUri, mimeType, fileName)
-              const fileUri = await SAF.createFileAsync(permission.directoryUri, 'application/json', defaultFileName);
+              // Use 'text/plain' to avoid Android SAF converting 'application/json' to 'application_json' in filename
+              const fileUri = await SAF.createFileAsync(permission.directoryUri, 'text/plain', defaultFileName);
               await SAF.writeAsStringAsync(fileUri, backupContent);
               Alert.alert('导出成功', `已备份 ${contactCount} 个联系人（含标签状态）\n仅号簿云可恢复此格式`);
               return;
@@ -685,7 +686,7 @@ export default function HomeScreen() {
 
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(fileUri, {
-          mimeType: 'application/json',
+          mimeType: 'text/plain',
           dialogTitle: '号簿云备份',
         });
         Alert.alert('导出成功', `已备份 ${contactCount} 个联系人（含标签状态）\n仅号簿云可恢复此格式`);
