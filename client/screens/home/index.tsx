@@ -598,25 +598,30 @@ export default function HomeScreen() {
       const defaultFileName = formatBackupFileName(contactCount);
       const backupContent = JSON.stringify(backupData, null, 2);
 
-      // Always use cache directory + sharing approach to avoid Android SAF filename issues
-      // SAF on some Android devices uses MIME type as filename, causing 'application_json' instead of '.json'
-      const fileUri = FileSystemLegacy.cacheDirectory + defaultFileName;
-      await FileSystemLegacy.writeAsStringAsync(fileUri, backupContent, { encoding: FileSystemLegacy.EncodingType.UTF8 });
-
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(fileUri, {
-          mimeType: 'application/json',
-          dialogTitle: '号簿云备份',
-        });
-        Alert.alert('导出成功', `已备份 ${contactCount} 个联系人（含标签状态）\n仅号簿云可恢复此格式`);
+      // Android: Use StorageAccessFramework to let user choose save location (shows system save dialog, NOT share sheet)
+      if (Platform.OS === 'android') {
+        const permission = await StorageAccessFramework.requestDirectoryPermissionsAsync();
+        if (!permission.granted) {
+          return; // User cancelled directory selection
+        }
+        const fileUri = await StorageAccessFramework.createFileAsync(
+          permission.directoryUri,
+          defaultFileName,
+          'application/json'
+        );
+        await FileSystemLegacy.writeAsStringAsync(fileUri, backupContent, { encoding: FileSystemLegacy.EncodingType.UTF8 });
+        Alert.alert('导出成功', `已导出 ${contactCount} 个联系人（含标签状态）\n仅号簿云可恢复此格式`);
       } else {
-        // Fallback: save to document directory and show filename modal
-        setCustomFileName(defaultFileName);
-        setFileNameModalVisible(true);
-        (global as any).__pendingVcard = backupContent;
-        (global as any).__pendingVcardCount = contactCount;
-        (global as any).__pendingVcardDefaultName = defaultFileName;
-        (global as any).__pendingBackupMode = false; // 明确标记为导出模式，防止被之前备份的残留状态污染
+        // iOS: use cache directory + Sharing (iOS share sheet is the standard way to save files)
+        const fileUri = FileSystemLegacy.cacheDirectory + defaultFileName;
+        await FileSystemLegacy.writeAsStringAsync(fileUri, backupContent, { encoding: FileSystemLegacy.EncodingType.UTF8 });
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(fileUri, {
+            mimeType: 'application/json',
+            dialogTitle: '号簿云备份',
+          });
+        }
+        Alert.alert('导出成功', `已导出 ${contactCount} 个联系人（含标签状态）`);
       }
     } catch (error) {
       // User canceled - don't show error
