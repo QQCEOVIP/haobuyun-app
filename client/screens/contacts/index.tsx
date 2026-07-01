@@ -37,6 +37,7 @@ interface Contact {
   phoneNumbers: string[];
   status: string | null;
   lastContactDate?: string;
+  image?: string | null;
 }
 
 const STATUS_TABS = [
@@ -509,7 +510,7 @@ export default function ContactsScreen() {
         let hasMore = true;
         while (hasMore) {
           const { data: deviceContacts } = await Contacts.getContactsAsync({
-            fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name].filter(
+            fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name, Contacts.Fields.Image].filter(
               (f) => f != null && f !== undefined
             ) as Contacts.Fields[],
             pageSize: devicePageSize,
@@ -540,6 +541,7 @@ export default function ContactsScreen() {
               phoneNumbers: allPhones,
               status: localData?.status || null,
               lastContactDate: localData?.last_contact_date,
+              image: c.image?.available ? c.image.uri : null,
             };
           });
 
@@ -808,6 +810,8 @@ export default function ContactsScreen() {
       >
         {customAvatarUri ? (
           <Image source={{ uri: customAvatarUri }} style={styles.customAvatar} />
+        ) : item.image ? (
+          <Image source={{ uri: item.image }} style={styles.customAvatar} />
         ) : (
           <ContactAvatar name={item.name} size={44} />
         )}

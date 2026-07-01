@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Image } from 'react-native';
 
 // Pre-defined color palette for avatars
 const AVATAR_COLORS = [
@@ -50,13 +50,29 @@ function getDisplayChar(name: string): string {
 interface ContactAvatarProps {
   name: string;
   size?: number;
+  imageUri?: string | null;
 }
 
-export default function ContactAvatar({ name, size = 44 }: ContactAvatarProps) {
+export default function ContactAvatar({ name, size = 44, imageUri }: ContactAvatarProps) {
   const bgColor = getAvatarColor(name || '');
   const displayChar = getDisplayChar(name || '');
   const fontSize = size * 0.4;
 
+  // If image URI is provided, show the actual photo
+  if (imageUri) {
+    return (
+      <Image
+        source={{ uri: imageUri }}
+        style={{
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+        }}
+      />
+    );
+  }
+
+  // Fallback: colored circle with first character
   return (
     <View
       style={[

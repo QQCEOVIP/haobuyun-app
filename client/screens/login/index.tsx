@@ -38,6 +38,7 @@ export default function LoginScreen() {
   const [idCard, setIdCard] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [agreed, setAgreed] = useState(false);
   const [savedAccounts, setSavedAccounts] = useState<SavedAccount[]>([]);
   const { signInWithEmail, signUpWithEmail } = useAuth();
 
@@ -104,6 +105,10 @@ export default function LoginScreen() {
   const phoneToEmail = (phoneNumber: string) => `${phoneNumber}@${APP_DOMAIN}`;
 
   const handleSubmit = async () => {
+    if (!agreed) {
+      Alert.alert('提示', '请先阅读并同意用户协议和隐私政策');
+      return;
+    }
     if (!phone || !password) {
       Alert.alert('提示', '请输入手机号和密码');
       return;
@@ -281,10 +286,28 @@ export default function LoginScreen() {
               </>
             )}
 
+            {/* 协议勾选 */}
+            <View style={styles.agreementRow}>
+              <TouchableOpacity
+                style={styles.agreementCheckbox}
+                onPress={() => setAgreed(!agreed)}
+              >
+                <View style={[styles.checkboxInner, agreed && styles.checkboxInnerChecked]}>
+                  {agreed && <Ionicons name="checkmark" size={12} color="#fff" />}
+                </View>
+              </TouchableOpacity>
+              <Text style={styles.agreementText}>
+                我已阅读并同意
+                <Text style={styles.agreementLink} onPress={() => router.push('/agreement')}>《用户协议》</Text>
+                和
+                <Text style={styles.agreementLink} onPress={() => router.push('/privacy')}>《隐私政策》</Text>
+              </Text>
+            </View>
+
             <TouchableOpacity
-              style={[styles.button, loading && styles.buttonDisabled]}
+              style={[styles.button, (!agreed || loading) && styles.buttonDisabled]}
               onPress={handleSubmit}
-              disabled={loading}
+              disabled={loading || !agreed}
             >
               {loading ? (
                 <ActivityIndicator color="#FFFFFF" />
@@ -443,6 +466,37 @@ const styles = StyleSheet.create({
   },
   savedAccountDelete: {
     padding: 4,
+  },
+  agreementRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  agreementCheckbox: {
+    marginRight: 8,
+    paddingTop: 2,
+  },
+  checkboxInner: {
+    width: 18,
+    height: 18,
+    borderRadius: 4,
+    borderWidth: 1.5,
+    borderColor: '#DCDFE6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkboxInnerChecked: {
+    backgroundColor: '#4A90D9',
+    borderColor: '#4A90D9',
+  },
+  agreementText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#909399',
+    lineHeight: 20,
+  },
+  agreementLink: {
+    color: '#4A90D9',
   },
   button: {
     backgroundColor: '#4A90D9',
