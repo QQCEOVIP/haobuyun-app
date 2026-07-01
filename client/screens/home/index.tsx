@@ -481,12 +481,11 @@ export default function HomeScreen() {
         const contact = contacts[i];
         try {
           const phone = contact.phone || contact.phones?.[0]?.number || '';
-          if (!phone) { failCount++; continue; }
 
           const contactData: any = {
             name: contact.name || '',
             firstName: contact.name || '',
-            phoneNumbers: [{ number: phone }],
+            phoneNumbers: phone ? [{ number: phone }] : [{ number: '00000000000' }],
           };
           if (contact.email) contactData.emails = [{ email: contact.email }];
           if (contact.company) contactData.company = contact.company;

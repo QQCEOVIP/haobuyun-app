@@ -136,7 +136,7 @@ export default function LoginScreen() {
             </Text>
           </View>
 
-          <View style={styles.form}>
+          <View style={styles.form} importantForAutofill="no">
             <View style={styles.inputContainer}>
               <Text style={styles.label}>手机号</Text>
               <TextInput
