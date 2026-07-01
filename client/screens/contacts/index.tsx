@@ -595,16 +595,34 @@ export default function ContactsScreen() {
   const fetchCleanupStats = async () => {
     if (!userId) return;
     try {
-      // Count stopped and suspected_stopped from AsyncStorage (source of truth for labels)
+      // If contacts list is empty, reset all stats to 0
+      if (!contacts || contacts.length === 0) {
+        setCleanupStats({ duplicate: 0, stopped: 0, suspected: 0 });
+        return;
+      }
+
+      // Build set of current phone numbers for filtering stale AsyncStorage entries
+      const currentPhones = new Set<string>();
+      contacts.forEach(c => {
+        if (c.phone) {
+          currentPhones.add(c.phone.replace(/\D/g, ''));
+        }
+      });
+
+      // Count stopped and suspected_stopped from AsyncStorage, but only for phones in current contacts
       const allKeys = await AsyncStorage.getAllKeys();
       const statusKeys = allKeys.filter(k => k.startsWith('@contact_status_'));
       let stopped = 0;
       let suspected = 0;
       if (statusKeys.length > 0) {
         const statusEntries = await AsyncStorage.multiGet(statusKeys);
-        for (const [, value] of statusEntries) {
-          if (value === 'stopped') stopped++;
-          else if (value === 'suspected_stopped') suspected++;
+        for (const [key, value] of statusEntries) {
+          // Extract phone from key and check if it exists in current contacts
+          const phone = key.replace('@contact_status_', '').replace(/\D/g, '');
+          if (currentPhones.has(phone)) {
+            if (value === 'stopped') stopped++;
+            else if (value === 'suspected_stopped') suspected++;
+          }
         }
       }
 

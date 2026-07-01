@@ -8,6 +8,7 @@ import {
   Alert,
   Image,
   ActivityIndicator,
+  DeviceEventEmitter,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -144,9 +145,18 @@ export default function ProfileScreen() {
       if (!response.ok) throw new Error('Upload failed');
       const result = await response.json();
       if (result.avatarUrl) {
-        // Call refreshAvatar to update context with fresh presigned URL
-        // refreshAvatar will also save to AsyncStorage
+        // Directly set avatar with cache-busting to force Image refresh
+        const newUrl = result.avatarUrl + (result.avatarUrl.includes('?') ? '&' : '?') + 'v=' + Date.now();
+        setContextAvatarUrl(newUrl);
+        setLocalAvatarUrl(newUrl);
+        await AsyncStorage.setItem('@user_avatar', newUrl);
+
+        // Also call refreshAvatar as backup to get fresh presigned URL
         await refreshAvatar();
+
+        // Notify other screens (e.g. home) to refresh avatar
+        DeviceEventEmitter.emit('avatar-updated');
+
         Alert.alert('成功', '头像已更新');
       }
     } catch (error) {

@@ -284,6 +284,24 @@ router.post('/forgot-password', async (req, res) => {
       });
     }
 
+    // Also try updating password on the dev database as fallback
+    try {
+      const devClient = createClient(
+        'https://br-jolly-cat-a3661c04.supabase2.aidap-global.cn-beijing.volces.com',
+        process.env.COZE_SUPABASE_SERVICE_ROLE_KEY || ''
+      );
+      // Find user in dev db
+      const { data: devListData } = await devClient.auth.admin.listUsers({ page: 1, perPage: 100 });
+      const devUser = devListData?.users?.find(u => u.email === email);
+      if (devUser) {
+        await devClient.auth.admin.updateUserById(devUser.id, { password: newPassword });
+        console.log('[forgot-password] Also updated password on dev database');
+      }
+    } catch (devError) {
+      console.warn('[forgot-password] Failed to update password on dev database:', devError);
+      // Non-critical, don't fail the request
+    }
+
     console.log('[Auth] forgot-password: success');
     res.json({ 
       success: true, 

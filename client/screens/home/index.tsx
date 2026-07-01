@@ -660,17 +660,17 @@ export default function HomeScreen() {
           })),
       };
 
-      // Generate filename: YYYY-MM-DD_HH-MM-SS_deviceModel_contactCount.json
+      // Generate filename: 号簿云备份_YYYYMMDD_HHMMSS_deviceModel_count.json
       const now = new Date();
-      const dateStr = now.getFullYear().toString() + '-' +
-        (now.getMonth() + 1).toString().padStart(2, '0') + '-' +
+      const dateStr = now.getFullYear().toString() +
+        (now.getMonth() + 1).toString().padStart(2, '0') +
         now.getDate().toString().padStart(2, '0');
-      const timeStr = now.getHours().toString().padStart(2, '0') + '-' +
-        now.getMinutes().toString().padStart(2, '0') + '-' +
+      const timeStr = now.getHours().toString().padStart(2, '0') +
+        now.getMinutes().toString().padStart(2, '0') +
         now.getSeconds().toString().padStart(2, '0');
       const deviceModel = Constants.deviceName || 'device';
       const contactCount = backupData.contacts.length;
-      const defaultFileName = `${dateStr}_${timeStr}_${deviceModel}_${contactCount}.json`;
+      const defaultFileName = `号簿云备份_${dateStr}_${timeStr}_${deviceModel}_${contactCount}.json`;
       const backupContent = JSON.stringify(backupData, null, 2);
 
       // On Android, use StorageAccessFramework to let user pick save location
