@@ -702,47 +702,31 @@ export default function ContactsScreen() {
   const updateContactStatus = async (contact: Contact | null, newStatus: string) => {
     if (!contact || !userId) return;
     try {
-      // Try UPDATE first - this may be allowed by RLS
-      const { data: updatedData, error: updateError } = await supabase
-        .from('contacts')
-        .update({ status: newStatus, updated_at: new Date().toISOString() })
-        .eq('user_id', userId)
-        .eq('phone', contact.phone)
-        .select();
-
-      if (updateError) {
-        // UPDATE failed (possibly RLS), fall through to local-only update
-        console.warn('Supabase UPDATE failed, using local-only update:', updateError.message);
-      } else if (updatedData && updatedData.length > 0) {
-        // UPDATE succeeded and matched rows
-        // Update local state
-        setContacts(prev => prev.map(c => c.phone === contact.phone ? { ...c, status: newStatus } : c));
-        setStatusMenuContact(null);
-        
-        // 上传投票到社区
-        if (newStatus === 'stopped') {
-          await uploadVote(contact.phone, 'stopped');
-        } else if (newStatus === 'normal') {
-          await uploadVote(contact.phone, 'valid');
-        }
-        return;
-      }
-      
-      // No existing record in Supabase (UPDATE matched 0 rows) or UPDATE failed
-      // Try INSERT but don't fail if RLS blocks it
-      const { error: insertError } = await supabase
-        .from('contacts')
-        .insert({ user_id: userId, name: contact.name, phone: contact.phone, status: newStatus });
-      
-      if (insertError) {
-        // INSERT blocked by RLS - that's okay, just update local state
-        console.warn('Supabase INSERT failed (RLS), using local-only update:', insertError.message);
-      }
-      
-      // Always update local state regardless of Supabase result
-      setContacts(prev => prev.map(c => c.phone === contact.phone ? { ...c, status: newStatus } : c));
-      // Persist to AsyncStorage for cross-session durability
+      // Always persist to AsyncStorage first for cross-session durability
       await AsyncStorage.setItem(`@contact_status_${contact.phone}`, newStatus);
+      
+      // Always update local state immediately
+      setContacts(prev => prev.map(c => c.phone === contact.phone ? { ...c, status: newStatus } : c));
+      
+      // Try to update Supabase (may fail due to RLS, but that's okay)
+      try {
+        const { data: updatedData, error: updateError } = await supabase
+          .from('contacts')
+          .update({ status: newStatus, updated_at: new Date().toISOString() })
+          .eq('user_id', userId)
+          .eq('phone', contact.phone)
+          .select();
+
+        if (updateError || !updatedData || updatedData.length === 0) {
+          // UPDATE failed or matched 0 rows, try INSERT
+          await supabase
+            .from('contacts')
+            .insert({ user_id: userId, name: contact.name, phone: contact.phone, status: newStatus });
+        }
+      } catch (dbError) {
+        // Supabase operation failed, but local state and AsyncStorage are already updated
+        console.warn('Supabase operation failed (RLS or other), local state updated:', (dbError as any)?.message);
+      }
       
       // 上传投票到社区
       if (newStatus === 'stopped') {

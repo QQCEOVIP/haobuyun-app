@@ -656,37 +656,14 @@ export default function HomeScreen() {
       const defaultFileName = formatBackupFileName(contactCount);
       const backupContent = JSON.stringify(backupData, null, 2);
 
-      // On Android, use StorageAccessFramework to let user pick save location
-      if (Platform.OS === 'android') {
-        try {
-          const SAF = StorageAccessFramework ?? (FileSystemLegacy as any).StorageAccessFramework;
-          if (SAF && typeof SAF.requestDirectoryPermissionsAsync === 'function') {
-            // 先让用户选择保存目录
-            const permission = await SAF.requestDirectoryPermissionsAsync();
-            if (permission.granted && permission.directoryUri) {
-              // SAF API: createFileAsync(parentUri, mimeType, fileName)
-              // Use 'text/plain' to avoid Android SAF converting 'application/json' to 'application_json' in filename
-              const fileUri = await SAF.createFileAsync(permission.directoryUri, 'text/plain', defaultFileName);
-              await SAF.writeAsStringAsync(fileUri, backupContent);
-              Alert.alert('导出成功', `已备份 ${contactCount} 个联系人（含标签状态）\n仅号簿云可恢复此格式`);
-              return;
-            } else {
-              // 用户取消了路径选择，直接取消导出
-              return;
-            }
-          }
-        } catch (safError) {
-          console.warn('SAF export failed, falling back to Sharing:', safError);
-        }
-      }
-
-      // Fallback: Write to cache and share
+      // Always use cache directory + sharing approach to avoid Android SAF filename issues
+      // SAF on some Android devices uses MIME type as filename, causing 'application_json' instead of '.json'
       const fileUri = FileSystemLegacy.cacheDirectory + defaultFileName;
       await FileSystemLegacy.writeAsStringAsync(fileUri, backupContent, { encoding: FileSystemLegacy.EncodingType.UTF8 });
 
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(fileUri, {
-          mimeType: 'text/plain',
+          mimeType: 'application/json',
           dialogTitle: '号簿云备份',
         });
         Alert.alert('导出成功', `已备份 ${contactCount} 个联系人（含标签状态）\n仅号簿云可恢复此格式`);
@@ -792,41 +769,29 @@ export default function HomeScreen() {
       const vcardContent = vcardLines.join('\n');
       const contactCount = vcardLines.filter(l => l === 'BEGIN:VCARD').length;
 
-      // On Android, use StorageAccessFramework to let user pick save location
-      if (Platform.OS === 'android') {
-        try {
-          const SAF = StorageAccessFramework ?? (FileSystemLegacy as any).StorageAccessFramework;
-          if (SAF && typeof SAF.requestDirectoryPermissionsAsync === 'function') {
-            // 先让用户选择保存目录
-            const permission = await SAF.requestDirectoryPermissionsAsync();
-            if (permission.granted && permission.directoryUri) {
-              // SAF API: createFileAsync(parentUri, mimeType, fileName)
-              const fileUri = await SAF.createFileAsync(permission.directoryUri, 'text/vcard', defaultFileName);
-              await SAF.writeAsStringAsync(fileUri, vcardContent);
-              Alert.alert('备份成功', `已备份 ${contactCount} 个联系人`);
-              setBackupLoading(false);
-              return;
-            } else {
-              // 用户取消了路径选择，直接取消导出
-              setBackupLoading(false);
-              return;
-            }
-          }
-        } catch (safError) {
-          console.warn('SAF backup failed, falling back:', safError);
-        }
+      // Always use cache directory + sharing approach to avoid Android SAF filename issues
+      const fileUri = FileSystemLegacy.cacheDirectory + defaultFileName;
+      await FileSystemLegacy.writeAsStringAsync(fileUri, vcardContent, { encoding: FileSystemLegacy.EncodingType.UTF8 });
+
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: 'text/vcard',
+          dialogTitle: '通讯录备份',
+        });
+        Alert.alert('备份成功', `已备份 ${contactCount} 个联系人`);
+        setBackupLoading(false);
+      } else {
+        // Fallback: save to document directory via filename modal
+        (global as any).__pendingBackupVcard = vcardContent;
+        (global as any).__pendingBackupCount = contactCount;
+
+        // 弹出文件名输入框
+        setCustomFileName(defaultFileName);
+        setFileNameModalVisible(true);
+        
+        // 标记为备份模式
+        (global as any).__pendingBackupMode = true;
       }
-
-      // Fallback: save to document directory via filename modal
-      (global as any).__pendingBackupVcard = vcardContent;
-      (global as any).__pendingBackupCount = contactCount;
-
-      // 弹出文件名输入框
-      setCustomFileName(defaultFileName);
-      setFileNameModalVisible(true);
-      
-      // 标记为备份模式
-      (global as any).__pendingBackupMode = true;
     } catch (error) {
       console.error('备份失败:', error);
       Alert.alert('错误', '备份失败，请重试');
