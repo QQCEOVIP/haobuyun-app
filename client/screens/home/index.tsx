@@ -371,54 +371,24 @@ export default function HomeScreen() {
         return;
       }
       
-      // Try to use DocumentPicker if available
-      if (DocumentPicker) {
-        const result = await (DocumentPicker as any).getDocumentAsync({
-          type: ['text/vcard', 'application/json', '*/*'],
-          copyToCacheDirectory: true,
-        });
-        // User canceled - just return silently
-        if (result.canceled || !result.assets || result.assets.length === 0) return;
-        const file = result.assets[0];
-        if (!file) return;
-        
-        // Determine file type by extension
-        const fileName = file.name || '';
-        const fileUri = file.uri;
-        const content = await FileSystemLegacy.readAsStringAsync(fileUri);
-        
-        if (fileName.endsWith('.json') || fileName.endsWith('.hbyun') || fileName.endsWith('.vcf')) {
-          setProgressVisible(true);
-          setProgressPercent(0);
-          setProgressText('正在解析文件...');
-          await importFromContent(content, fileName, (percent) => {
-            setProgressPercent(percent);
-            setProgressText(`正在导入... ${percent}%`);
-          });
-          setProgressVisible(false);
-        } else {
-          Alert.alert("提示", "请选择 .vcf、.json 或 .hbyun 格式的文件");
-        }
-      } else {
-        // Fallback: scan document directory
-        const dirInfo = await FileSystemLegacy.readDirectoryAsync(FileSystemLegacy.documentDirectory);
-        const importFiles = dirInfo.filter((f: string) => f.endsWith(".vcf") || f.endsWith(".json"));
-        if (importFiles.length === 0) {
-          Alert.alert("提示", "未找到可导入的通讯录文件（.vcf 或 .json）\n请将文件放入应用文档目录，或升级应用以支持文件选择");
-          return;
-        }
-        Alert.alert(
-          "选择导入文件",
-          "可用文件：\n" + importFiles.map((f: string, i: number) => `${i + 1}. ${f}`).join("\n"),
-          importFiles.map((f: string) => ({
-            text: f.length > 20 ? f.substring(0, 17) + "..." : f,
-            onPress: () => importFromFile(f),
-          })).concat([{ text: "取消", style: "cancel" as const }])
-        );
-      }
+      // Show two options: DocumentPicker or Scan Local Files
+      Alert.alert(
+        '选择导入方式',
+        '请选择如何导入通讯录备份文件：',
+        [
+          {
+            text: '从文件选择器选择',
+            onPress: () => handleImportFromPicker(),
+          },
+          {
+            text: '扫描本地文件',
+            onPress: () => handleScanLocalFiles(),
+          },
+          { text: '取消', style: 'cancel' },
+        ]
+      );
     } catch (error) {
       setProgressVisible(false);
-      // User canceled - don't show error
       const errMsg = (error as any)?.message || '';
       if (errMsg.includes('cancel') || errMsg.includes('Cancel') || errMsg.includes('canceled') || errMsg.includes('User canceled')) {
         return;
@@ -426,6 +396,155 @@ export default function HomeScreen() {
       console.error("导入失败:", error);
       Alert.alert("错误", "导入失败: " + (errMsg || '请重试'));
     }
+  };
+
+  // Import from system file picker
+  const handleImportFromPicker = async () => {
+    try {
+      if (!DocumentPicker) {
+        Alert.alert('提示', '当前环境不支持文件选择器，请使用"扫描本地文件"方式');
+        return;
+      }
+      const result = await (DocumentPicker as any).getDocumentAsync({
+        type: ['text/vcard', 'application/json', '*/*'],
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled || !result.assets || result.assets.length === 0) return;
+      const file = result.assets[0];
+      if (!file) return;
+      
+      const fileName = file.name || '';
+      const fileUri = file.uri;
+      const content = await FileSystemLegacy.readAsStringAsync(fileUri);
+      
+      if (fileName.endsWith('.json') || fileName.endsWith('.hbyun') || fileName.endsWith('.vcf')) {
+        setProgressVisible(true);
+        setProgressPercent(0);
+        setProgressText('正在解析文件...');
+        await importFromContent(content, fileName, (percent) => {
+          setProgressPercent(percent);
+          setProgressText(`正在导入... ${percent}%`);
+        });
+        setProgressVisible(false);
+      } else {
+        Alert.alert("提示", "请选择 .vcf、.json 或 .hbyun 格式的文件");
+      }
+    } catch (error) {
+      setProgressVisible(false);
+      const errMsg = (error as any)?.message || '';
+      if (errMsg.includes('cancel') || errMsg.includes('Cancel') || errMsg.includes('canceled') || errMsg.includes('User canceled')) {
+        return;
+      }
+      console.error("导入失败:", error);
+      Alert.alert("错误", "导入失败: " + (errMsg || '请重试'));
+    }
+  };
+
+  // Scan local directories for backup files
+  const handleScanLocalFiles = async () => {
+    setScanLoading(true);
+    setScannedFiles([]);
+    setScanModalVisible(true);
+
+    try {
+      const foundFiles: Array<{ name: string; path: string; size: number; modified: string }> = [];
+      
+      // Directories to scan
+      const scanDirs = [
+        FileSystemLegacy.documentDirectory,
+        FileSystemLegacy.cacheDirectory,
+        '/storage/emulated/0/Download',
+        '/storage/emulated/0/Documents',
+        '/storage/emulated/0/Android/data',
+      ].filter(Boolean) as string[];
+
+      for (const dir of scanDirs) {
+        try {
+          const dirInfo = await FileSystemLegacy.getInfoAsync(dir).catch(() => null);
+          if (!dirInfo?.exists) continue;
+          
+          const files = await FileSystemLegacy.readDirectoryAsync(dir).catch(() => []);
+          for (const fileName of files) {
+            if (fileName.endsWith('.json') || fileName.endsWith('.hbyun') || fileName.endsWith('.vcf')) {
+              // Check if it looks like a backup file
+              if (fileName.includes('备份') || fileName.includes('backup') || fileName.includes('号簿云') || fileName.endsWith('.hbyun')) {
+                const filePath = dir.endsWith('/') ? `${dir}${fileName}` : `${dir}/${fileName}`;
+                try {
+                  const fileInfo = await FileSystemLegacy.getInfoAsync(filePath);
+                  foundFiles.push({
+                    name: fileName,
+                    path: filePath,
+                    size: fileInfo.size || 0,
+                    modified: fileInfo.modificationTime ? new Date(fileInfo.modificationTime * 1000).toLocaleString() : '',
+                  });
+                } catch {}
+              }
+            }
+          }
+        } catch {}
+      }
+
+      // Also scan app's own backups directory
+      const backupsDir = (FileSystemLegacy.documentDirectory || '') + 'backups/';
+      try {
+        const dirInfo = await FileSystemLegacy.getInfoAsync(backupsDir).catch(() => null);
+        if (dirInfo?.exists) {
+          const files = await FileSystemLegacy.readDirectoryAsync(backupsDir).catch(() => []);
+          for (const fileName of files) {
+            if (fileName.endsWith('.json') || fileName.endsWith('.hbyun') || fileName.endsWith('.vcf')) {
+              const filePath = backupsDir.endsWith('/') ? `${backupsDir}${fileName}` : `${backupsDir}/${fileName}`;
+              try {
+                const fileInfo = await FileSystemLegacy.getInfoAsync(filePath);
+                // Avoid duplicates
+                if (!foundFiles.some(f => f.name === fileName)) {
+                  foundFiles.push({
+                    name: fileName,
+                    path: filePath,
+                    size: fileInfo.size || 0,
+                    modified: fileInfo.modificationTime ? new Date(fileInfo.modificationTime * 1000).toLocaleString() : '',
+                  });
+                }
+              } catch {}
+            }
+          }
+        }
+      } catch {}
+
+      // Sort by modification time (newest first)
+      foundFiles.sort((a, b) => b.modified.localeCompare(a.modified));
+      setScannedFiles(foundFiles);
+    } catch (error) {
+      console.error('扫描失败:', error);
+    } finally {
+      setScanLoading(false);
+    }
+  };
+
+  // Import from scanned file
+  const handleImportFromScannedFile = async (filePath: string, fileName: string) => {
+    setScanModalVisible(false);
+    try {
+      const content = await FileSystemLegacy.readAsStringAsync(filePath);
+      setProgressVisible(true);
+      setProgressPercent(0);
+      setProgressText('正在解析文件...');
+      await importFromContent(content, fileName, (percent) => {
+        setProgressPercent(percent);
+        setProgressText(`正在导入... ${percent}%`);
+      });
+      setProgressVisible(false);
+    } catch (error) {
+      setProgressVisible(false);
+      console.error('导入失败:', error);
+      Alert.alert('错误', '导入失败: ' + ((error as any)?.message || '请重试'));
+    }
+  };
+
+  // Format file size for display
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
   const importFromContent = async (content: string, fileName: string, onProgress?: (percent: number) => void) => {
@@ -1017,6 +1136,11 @@ export default function HomeScreen() {
   const [progressVisible, setProgressVisible] = useState(false);
   const [progressText, setProgressText] = useState('请勿离开，即将完成！');
   const [progressPercent, setProgressPercent] = useState(0);
+
+  // Scan local files state
+  const [scanModalVisible, setScanModalVisible] = useState(false);
+  const [scannedFiles, setScannedFiles] = useState<Array<{ name: string; path: string; size: number; modified: string }>>([]);
+  const [scanLoading, setScanLoading] = useState(false);
 
   // ========== Helper functions for backup ==========
   const getDeviceModel = (): string => {
@@ -2045,6 +2169,75 @@ export default function HomeScreen() {
         </View>
       </Modal>
       )}
+
+      {/* Scan Local Files Modal */}
+      <Modal
+        visible={scanModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setScanModalVisible(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setScanModalVisible(false)} disabled={scanLoading}>
+          <View style={styles.scanOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.scanCard}>
+                {/* Header */}
+                <View style={styles.scanHeader}>
+                  <Text style={styles.scanTitle}>扫描到的备份文件</Text>
+                  <TouchableOpacity onPress={() => setScanModalVisible(false)}>
+                    <Ionicons name="close" size={24} color="#606266" />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Content */}
+                {scanLoading ? (
+                  <View style={styles.scanLoadingContainer}>
+                    <ActivityIndicator size="large" color="#4A90D9" />
+                    <Text style={styles.scanLoadingText}>正在扫描本地文件...</Text>
+                  </View>
+                ) : scannedFiles.length === 0 ? (
+                  <View style={styles.scanEmptyContainer}>
+                    <Ionicons name="folder-open-outline" size={48} color="#C0C4CC" />
+                    <Text style={styles.scanEmptyText}>未找到备份文件</Text>
+                    <Text style={styles.scanEmptyHint}>将备份文件(.json/.hbyun)放入 Download 或 Documents 目录</Text>
+                  </View>
+                ) : (
+                  <ScrollView style={styles.scanList} showsVerticalScrollIndicator={false}>
+                    {scannedFiles.map((file, index) => (
+                      <TouchableOpacity
+                        key={`${file.name}-${index}`}
+                        style={styles.scanFileItem}
+                        onPress={() => handleImportFromScannedFile(file.path, file.name)}
+                      >
+                        <View style={styles.scanFileIcon}>
+                          <Ionicons name="document-text" size={24} color="#4A90D9" />
+                        </View>
+                        <View style={styles.scanFileInfo}>
+                          <Text style={styles.scanFileName} numberOfLines={1}>{file.name}</Text>
+                          <Text style={styles.scanFileMeta}>
+                            {formatFileSize(file.size)}{file.modified ? ` · ${file.modified}` : ''}
+                          </Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={20} color="#C0C4CC" />
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                )}
+
+                {/* Footer */}
+                <TouchableOpacity
+                  style={styles.scanRescanButton}
+                  onPress={handleScanLocalFiles}
+                  disabled={scanLoading}
+                >
+                  <Ionicons name="refresh" size={16} color="#4A90D9" />
+                  <Text style={styles.scanRescanText}>重新扫描</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -2404,5 +2597,107 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#606266',
     textAlign: 'center',
+  },
+  // Scan Local Files Modal
+  scanOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
+  },
+  scanCard: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '70%',
+    paddingBottom: 20,
+  },
+  scanHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EBEEF5',
+  },
+  scanTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#303133',
+  },
+  scanLoadingContainer: {
+    paddingVertical: 60,
+    alignItems: 'center',
+  },
+  scanLoadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#909399',
+  },
+  scanEmptyContainer: {
+    paddingVertical: 60,
+    alignItems: 'center',
+  },
+  scanEmptyText: {
+    marginTop: 12,
+    fontSize: 15,
+    color: '#606266',
+  },
+  scanEmptyHint: {
+    marginTop: 8,
+    fontSize: 13,
+    color: '#909399',
+    textAlign: 'center',
+    paddingHorizontal: 20,
+  },
+  scanList: {
+    maxHeight: 400,
+    paddingHorizontal: 16,
+  },
+  scanFileItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F2F6FC',
+  },
+  scanFileIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: 'rgba(74,144,217,0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  scanFileInfo: {
+    flex: 1,
+  },
+  scanFileName: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#303133',
+  },
+  scanFileMeta: {
+    marginTop: 4,
+    fontSize: 12,
+    color: '#909399',
+  },
+  scanRescanButton: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 16,
+    marginHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: 'rgba(74,144,217,0.08)',
+  },
+  scanRescanText: {
+    marginLeft: 6,
+    fontSize: 14,
+    color: '#4A90D9',
+    fontWeight: '500',
   },
 });
