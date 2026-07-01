@@ -592,66 +592,8 @@ export default function HomeScreen() {
 
   const handleExport = async () => {
     try {
-      const { status } = await Contacts.requestPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert("权限不足", "需要通讯录权限才能导出");
-        return;
-      }
-      const allContacts = await getAllDeviceContacts([
-        Contacts.Fields.PhoneNumbers,
-        Contacts.Fields.Name,
-        Contacts.Fields.Emails,
-        Contacts.Fields.PostalAddresses,
-        Contacts.Fields.JobTitle,
-        Contacts.Fields.Company,
-        Contacts.Fields.Note,
-      ]);
-      if (!allContacts || allContacts.length === 0) {
-        Alert.alert("提示", "通讯录中没有联系人可导出");
-        return;
-      }
-
-      // 从 AsyncStorage 读取所有标签状态（包含所有联系人，不过滤）
-      const allPhoneKeys: string[] = [];
-      allContacts.forEach(c => {
-        (c.phoneNumbers || []).forEach((p: any) => {
-          if (p.number) allPhoneKeys.push(`@contact_status_${p.number}`);
-        });
-      });
-      const statusEntries = allPhoneKeys.length > 0
-        ? await AsyncStorage.multiGet(allPhoneKeys)
-        : [];
-      const statusMap = new Map<string, string>();
-      statusEntries.forEach(([key, value]) => {
-        if (value) {
-          const phone = key.replace('@contact_status_', '');
-          statusMap.set(phone, value);
-        }
-      });
-
-      // 生成号簿云专有备份格式（JSON，与云端备份 generateBackupData 完全一致）
-      // 不过滤联系人，包含所有联系人（包括无电话号码的）
-      const backupData = {
-        format: 'HAOBUYUN_BACKUP',
-        version: '1.0',
-        exportedAt: new Date().toISOString(),
-        device: 'mobile',
-        device_model: Constants.deviceName || ((Platform as any).constants?.Brand || '') + ' ' + ((Platform as any).constants?.Model || '') || 'Unknown',
-        contacts: allContacts
-          .map(c => ({
-            name: c.name || '',
-            phones: (c.phoneNumbers || []).map((p: any) => ({
-              number: p.number || '',
-              label: p.label || 'mobile',
-              status: statusMap.get(p.number || '') || null,
-            })),
-            emails: (c.emails || []).map((e: any) => ({ email: e.email || '', label: e.label || '' })),
-            company: c.company || '',
-            jobTitle: c.jobTitle || '',
-            note: c.note || '',
-          })),
-      };
-
+      // 直接使用 generateBackupData 确保格式与云端备份完全一致
+      const backupData = await generateBackupData();
       const contactCount = backupData.contacts.length;
       const defaultFileName = formatBackupFileName(contactCount);
       const backupContent = JSON.stringify(backupData, null, 2);
