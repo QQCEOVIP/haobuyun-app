@@ -660,13 +660,18 @@ export default function HomeScreen() {
           })),
       };
 
+      // Generate filename: YYYY-MM-DD_HH-MM-SS_deviceModel_contactCount.json
       const now = new Date();
-      const dateStr = now.getFullYear().toString() +
-        (now.getMonth() + 1).toString().padStart(2, '0') +
+      const dateStr = now.getFullYear().toString() + '-' +
+        (now.getMonth() + 1).toString().padStart(2, '0') + '-' +
         now.getDate().toString().padStart(2, '0');
-      const defaultFileName = `号簿云备份_${dateStr}.hbyun`;
-      const backupContent = JSON.stringify(backupData, null, 2);
+      const timeStr = now.getHours().toString().padStart(2, '0') + '-' +
+        now.getMinutes().toString().padStart(2, '0') + '-' +
+        now.getSeconds().toString().padStart(2, '0');
+      const deviceModel = Constants.deviceName || 'device';
       const contactCount = backupData.contacts.length;
+      const defaultFileName = `${dateStr}_${timeStr}_${deviceModel}_${contactCount}.json`;
+      const backupContent = JSON.stringify(backupData, null, 2);
 
       // On Android, use StorageAccessFramework to let user pick save location
       if (Platform.OS === 'android') {
@@ -1241,7 +1246,6 @@ export default function HomeScreen() {
       device: 'mobile',
       device_model: Constants.deviceName || ((Platform as any).constants?.Brand || '') + ' ' + ((Platform as any).constants?.Model || '') || 'Unknown',
       contacts: allContacts
-        .filter(c => c.phoneNumbers && c.phoneNumbers.length > 0)
         .map(c => ({
           name: c.name || '',
           phones: (c.phoneNumbers || []).map(p => ({
@@ -1527,6 +1531,19 @@ export default function HomeScreen() {
         }
       } else {
         console.warn('[Home] Contacts permission not granted:', status);
+      }
+
+      // Bug 5 fix: If no contacts, reset all stats to 0
+      if (deviceContactsCount === 0) {
+        console.log('[Home] No contacts found, resetting stats to 0');
+        setStats({
+          total: 0,
+          active: 0,
+          maybeInvalid: 0,
+          invalid: 0,
+          unknown: 0,
+        });
+        return;
       }
 
       // 2. 从 AsyncStorage 读取状态分布（真正的标签数据源）

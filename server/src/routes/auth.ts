@@ -269,9 +269,9 @@ router.post('/forgot-password', async (req, res) => {
       });
     }
 
-    // Update password using Admin API
+    // Update password using Admin API (use freshClient to ensure correct database)
     console.log('[Auth] forgot-password: updating password for user:', targetUser.id);
-    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+    const { error: updateError } = await freshClient.auth.admin.updateUserById(
       targetUser.id,
       { password: newPassword }
     );
