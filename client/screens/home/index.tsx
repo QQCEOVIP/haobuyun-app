@@ -442,7 +442,7 @@ export default function HomeScreen() {
             company: c.company || undefined,
             jobTitle: c.jobTitle || undefined,
             note: c.note || undefined,
-          })).filter((c: any) => c.phone);
+          }));
         } else if (Array.isArray(parsed)) {
           // 兼容旧格式：直接是联系人数组
           contacts = parsed;
@@ -504,6 +504,7 @@ export default function HomeScreen() {
       }
       let msg = `成功导入 ${successCount} 个联系人`;
       if (failCount > 0) msg += `，${failCount} 个失败`;
+      fetchStats();
       Alert.alert("导入完成", msg);
     } catch (error) {
       console.error("导入失败:", error);

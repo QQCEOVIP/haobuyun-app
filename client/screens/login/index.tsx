@@ -151,6 +151,7 @@ export default function LoginScreen() {
                 autoCorrect={false}
                 autoComplete="off"
                 textContentType="none"
+                importantForAutofill="no"
               />
             </View>
 
@@ -167,6 +168,7 @@ export default function LoginScreen() {
                   autoCapitalize="none"
                   autoComplete="off"
                   textContentType="none"
+                  importantForAutofill="no"
                 />
                 <TouchableOpacity
                   style={styles.eyeButton}
