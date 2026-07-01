@@ -1471,6 +1471,12 @@ export default function HomeScreen() {
 
                 await Contacts.addContactAsync(contactData);
                 successCount++;
+                // Restore status tags to AsyncStorage
+                for (const phone of contact.phones || []) {
+                  if (phone.status && phone.number) {
+                    await AsyncStorage.setItem('@contact_status_' + phone.number, phone.status);
+                  }
+                }
               } catch (_e) { /* skip failed contact */ }
             }
 
