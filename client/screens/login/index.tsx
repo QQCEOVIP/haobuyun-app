@@ -14,14 +14,20 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
-import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '@/contexts/AuthContext';
 import Logo from '@/components/Logo';
 
 const APP_NAME = '号簿云';
-const SECURE_PHONE_KEY = 'saved_login_phone';
-const SECURE_PASSWORD_KEY = 'saved_login_password';
 const APP_DOMAIN = 'haobuyun.app';
+const SAVED_ACCOUNTS_KEY = '@saved_login_accounts';
+const MAX_SAVED_ACCOUNTS = 5;
+
+interface SavedAccount {
+  phone: string;
+  password: string;
+  lastLoginAt: string;
+}
 
 export default function LoginScreen() {
   const router = useSafeRouter();
@@ -32,34 +38,66 @@ export default function LoginScreen() {
   const [idCard, setIdCard] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
+  const [savedAccounts, setSavedAccounts] = useState<SavedAccount[]>([]);
   const { signInWithEmail, signUpWithEmail } = useAuth();
 
-  // Load saved credentials on mount
+  // Load saved accounts on mount
   useEffect(() => {
-    (async () => {
-      try {
-        const savedPhone = await SecureStore.getItemAsync(SECURE_PHONE_KEY);
-        const savedPassword = await SecureStore.getItemAsync(SECURE_PASSWORD_KEY);
-        if (savedPhone) setPhone(savedPhone);
-        if (savedPassword) {
-          setPassword(savedPassword);
-          setRememberMe(true);
-        }
-      } catch {}
-    })();
+    loadSavedAccounts();
   }, []);
 
-  const saveCredentials = async () => {
+  const loadSavedAccounts = async () => {
     try {
-      if (rememberMe) {
-        await SecureStore.setItemAsync(SECURE_PHONE_KEY, phone);
-        await SecureStore.setItemAsync(SECURE_PASSWORD_KEY, password);
-      } else {
-        await SecureStore.deleteItemAsync(SECURE_PHONE_KEY);
-        await SecureStore.deleteItemAsync(SECURE_PASSWORD_KEY);
+      const data = await AsyncStorage.getItem(SAVED_ACCOUNTS_KEY);
+      if (data) {
+        const accounts: SavedAccount[] = JSON.parse(data);
+        setSavedAccounts(accounts);
+        // Auto-fill the most recent account
+        if (accounts.length > 0) {
+          const latest = accounts[0];
+          setPhone(latest.phone);
+          setPassword(latest.password);
+        }
       }
     } catch {}
+  };
+
+  const saveAccount = async (phoneNumber: string, pwd: string) => {
+    try {
+      let accounts = [...savedAccounts];
+      // Remove existing entry for this phone if present
+      accounts = accounts.filter(a => a.phone !== phoneNumber);
+      // Add new entry at the beginning (most recent first)
+      accounts.unshift({
+        phone: phoneNumber,
+        password: pwd,
+        lastLoginAt: new Date().toISOString(),
+      });
+      // Keep only the latest MAX_SAVED_ACCOUNTS
+      if (accounts.length > MAX_SAVED_ACCOUNTS) {
+        accounts = accounts.slice(0, MAX_SAVED_ACCOUNTS);
+      }
+      await AsyncStorage.setItem(SAVED_ACCOUNTS_KEY, JSON.stringify(accounts));
+      setSavedAccounts(accounts);
+    } catch {}
+  };
+
+  const deleteAccount = async (phoneNumber: string) => {
+    try {
+      const accounts = savedAccounts.filter(a => a.phone !== phoneNumber);
+      await AsyncStorage.setItem(SAVED_ACCOUNTS_KEY, JSON.stringify(accounts));
+      setSavedAccounts(accounts);
+      // If deleted the currently filled account, clear fields
+      if (phone === phoneNumber) {
+        setPhone('');
+        setPassword('');
+      }
+    } catch {}
+  };
+
+  const selectAccount = (account: SavedAccount) => {
+    setPhone(account.phone);
+    setPassword(account.password);
   };
 
   // Convert phone to email for Supabase auth
@@ -101,7 +139,8 @@ export default function LoginScreen() {
         if (error) {
           Alert.alert('登录失败', error.message);
         } else {
-          await saveCredentials();
+          // Save account on successful login
+          await saveAccount(phone, password);
         }
       } else {
         const { error } = await signUpWithEmail(email, password, { phone, id_card: idCard });
@@ -155,6 +194,35 @@ export default function LoginScreen() {
               />
             </View>
 
+            {/* Saved accounts list */}
+            {isLogin && savedAccounts.length > 0 && (
+              <View style={styles.savedAccountsContainer}>
+                <Text style={styles.savedAccountsTitle}>已保存的账号</Text>
+                {savedAccounts.map((account) => (
+                  <View key={account.phone} style={styles.savedAccountRow}>
+                    <TouchableOpacity
+                      style={styles.savedAccountInfo}
+                      onPress={() => selectAccount(account)}
+                    >
+                      <Ionicons name="person-circle-outline" size={20} color="#4A90D9" />
+                      <View style={styles.savedAccountText}>
+                        <Text style={styles.savedAccountPhone}>{account.phone}</Text>
+                        <Text style={styles.savedAccountDate}>
+                          {new Date(account.lastLoginAt).toLocaleDateString('zh-CN')}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.savedAccountDelete}
+                      onPress={() => deleteAccount(account.phone)}
+                    >
+                      <Ionicons name="close-circle" size={20} color="#C0C4CC" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            )}
+
             <View style={styles.inputContainer}>
               <Text style={styles.label}>密码</Text>
               <View style={styles.passwordContainer}>
@@ -182,18 +250,6 @@ export default function LoginScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-
-            {isLogin && (
-              <TouchableOpacity
-                style={styles.rememberRow}
-                onPress={() => setRememberMe(!rememberMe)}
-              >
-                <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
-                  {rememberMe && <Ionicons name="checkmark" size={14} color="#FFF" />}
-                </View>
-                <Text style={styles.rememberText}>记住账号密码</Text>
-              </TouchableOpacity>
-            )}
 
             {!isLogin && (
               <>
@@ -348,28 +404,45 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
-  rememberRow: {
+  savedAccountsContainer: {
+    marginBottom: 16,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 12,
+  },
+  savedAccountsTitle: {
+    fontSize: 12,
+    color: '#909399',
+    marginBottom: 8,
+  },
+  savedAccountRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#EBEEF5',
   },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: '#DCDFE6',
-    marginRight: 8,
-    justifyContent: 'center',
+  savedAccountInfo: {
+    flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
   },
-  checkboxChecked: {
-    backgroundColor: '#4A90D9',
-    borderColor: '#4A90D9',
+  savedAccountText: {
+    marginLeft: 8,
   },
-  rememberText: {
+  savedAccountPhone: {
     fontSize: 14,
-    color: '#606266',
+    color: '#303133',
+    fontWeight: '500',
+  },
+  savedAccountDate: {
+    fontSize: 11,
+    color: '#C0C4CC',
+    marginTop: 2,
+  },
+  savedAccountDelete: {
+    padding: 4,
   },
   button: {
     backgroundColor: '#4A90D9',

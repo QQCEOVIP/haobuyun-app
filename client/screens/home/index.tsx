@@ -466,19 +466,16 @@ export default function HomeScreen() {
           const files = await FileSystemLegacy.readDirectoryAsync(dir).catch(() => []);
           for (const fileName of files) {
             if (fileName.endsWith('.json') || fileName.endsWith('.hbyun') || fileName.endsWith('.vcf')) {
-              // Check if it looks like a backup file
-              if (fileName.includes('备份') || fileName.includes('backup') || fileName.includes('号簿云') || fileName.endsWith('.hbyun')) {
-                const filePath = dir.endsWith('/') ? `${dir}${fileName}` : `${dir}/${fileName}`;
-                try {
-                  const fileInfo = await FileSystemLegacy.getInfoAsync(filePath);
-                  foundFiles.push({
-                    name: fileName,
-                    path: filePath,
-                    size: fileInfo.size || 0,
-                    modified: fileInfo.modificationTime ? new Date(fileInfo.modificationTime * 1000).toLocaleString() : '',
-                  });
-                } catch {}
-              }
+              const filePath = dir.endsWith('/') ? `${dir}${fileName}` : `${dir}/${fileName}`;
+              try {
+                const fileInfo = await FileSystemLegacy.getInfoAsync(filePath);
+                foundFiles.push({
+                  name: fileName,
+                  path: filePath,
+                  size: fileInfo.size || 0,
+                  modified: fileInfo.modificationTime ? new Date(fileInfo.modificationTime * 1000).toLocaleString() : '',
+                });
+              } catch {}
             }
           }
         } catch {}
