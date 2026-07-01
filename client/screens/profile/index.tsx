@@ -144,13 +144,9 @@ export default function ProfileScreen() {
       if (!response.ok) throw new Error('Upload failed');
       const result = await response.json();
       if (result.avatarUrl) {
-        setLocalAvatarUrl(result.avatarUrl);
-        // Also update context so other screens can access it immediately
-        setContextAvatarUrl(result.avatarUrl);
-        // Call refreshAvatar to ensure context is updated
+        // Call refreshAvatar to update context with fresh presigned URL
+        // refreshAvatar will also save to AsyncStorage
         await refreshAvatar();
-        // Sync avatar URL to AsyncStorage so other screens can access it
-        await AsyncStorage.setItem('@user_avatar', result.avatarUrl);
         Alert.alert('成功', '头像已更新');
       }
     } catch (error) {

@@ -189,9 +189,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const url = result.profile?.avatar_url;
         
         if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
-          await AsyncStorage.setItem('@user_avatar', url);
-          setAvatarUrl(url);
-          console.log('[refreshAvatar] Updated avatar from backend:', url);
+          // Add cache-busting parameter to force Image refresh
+          const urlWithCacheBust = `${url}${url.includes('?') ? '&' : '?'}v=${Date.now()}`;
+          await AsyncStorage.setItem('@user_avatar', urlWithCacheBust);
+          setAvatarUrl(urlWithCacheBust);
+          console.log('[refreshAvatar] Updated avatar from backend:', urlWithCacheBust);
           return;
         }
       }
@@ -202,9 +204,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Fallback to Supabase storage
     const storageUrl = await fetchAvatar(user.id);
     if (storageUrl) {
-      await AsyncStorage.setItem('@user_avatar', storageUrl);
-      setAvatarUrl(storageUrl);
-      console.log('[refreshAvatar] Updated avatar from storage:', storageUrl);
+      // Add cache-busting parameter to force Image refresh
+      const urlWithCacheBust = `${storageUrl}${storageUrl.includes('?') ? '&' : '?'}v=${Date.now()}`;
+      await AsyncStorage.setItem('@user_avatar', urlWithCacheBust);
+      setAvatarUrl(urlWithCacheBust);
+      console.log('[refreshAvatar] Updated avatar from storage:', urlWithCacheBust);
     }
   };
 
