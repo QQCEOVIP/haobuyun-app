@@ -595,15 +595,46 @@ export default function ContactsScreen() {
   const fetchCleanupStats = async () => {
     if (!userId) return;
     try {
-      // If contacts list is empty, reset all stats to 0
-      if (!contacts || contacts.length === 0) {
+      // Check device contacts directly (not just the loaded contacts state)
+      // to handle the case where contacts state is stale or not yet loaded
+      const { status: permStatus } = await Contacts.requestPermissionsAsync();
+      if (permStatus !== 'granted') {
         setCleanupStats({ duplicate: 0, stopped: 0, suspected: 0 });
         return;
       }
 
+      // Get actual device contact count to verify
+      let deviceContactCount = 0;
+      try {
+        let offset = 0;
+        const pageSize = 5000;
+        while (true) {
+          const { data: pageContacts } = await Contacts.getContactsAsync({
+            fields: [Contacts.Fields.PhoneNumbers],
+            pageSize,
+            pageOffset: offset,
+          });
+          if (!pageContacts || pageContacts.length === 0) break;
+          deviceContactCount += pageContacts.length;
+          offset += pageContacts.length;
+          if (pageContacts.length < pageSize) break;
+        }
+      } catch (e) {
+        console.warn('[fetchCleanupStats] Failed to count device contacts:', e);
+      }
+
+      // If device has 0 contacts, reset all stats to 0
+      if (deviceContactCount === 0) {
+        setCleanupStats({ duplicate: 0, stopped: 0, suspected: 0 });
+        return;
+      }
+
+      // If contacts list is empty but device has contacts, use device contacts for calculation
+      const contactList = (contacts && contacts.length > 0) ? contacts : [];
+
       // Build set of current phone numbers for filtering stale AsyncStorage entries
       const currentPhones = new Set<string>();
-      contacts.forEach(c => {
+      contactList.forEach(c => {
         if (c.phone) {
           currentPhones.add(c.phone.replace(/\D/g, ''));
         }
@@ -617,7 +648,6 @@ export default function ContactsScreen() {
       if (statusKeys.length > 0) {
         const statusEntries = await AsyncStorage.multiGet(statusKeys);
         for (const [key, value] of statusEntries) {
-          // Extract phone from key and check if it exists in current contacts
           const phone = key.replace('@contact_status_', '').replace(/\D/g, '');
           if (currentPhones.has(phone)) {
             if (value === 'stopped') stopped++;
@@ -628,7 +658,7 @@ export default function ContactsScreen() {
 
       // Count potential duplicates by phone number
       const phoneMap = new Map<string, number>();
-      contacts.forEach(c => {
+      contactList.forEach(c => {
         const normalized = c.phone.replace(/\D/g, '');
         if (normalized.length >= 7) {
           phoneMap.set(normalized, (phoneMap.get(normalized) || 0) + 1);

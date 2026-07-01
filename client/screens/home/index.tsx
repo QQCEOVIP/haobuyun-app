@@ -1122,14 +1122,14 @@ export default function HomeScreen() {
 
   const formatBackupFileName = (count: number = 0): string => {
     const now = new Date();
-    const ts = now.getFullYear().toString() + '-' +
-      (now.getMonth() + 1).toString().padStart(2, '0') + '-' +
-      now.getDate().toString().padStart(2, '0') + '_' +
-      now.getHours().toString().padStart(2, '0') + '-' +
-      now.getMinutes().toString().padStart(2, '0') + '-' +
+    const dateStr = now.getFullYear().toString() +
+      (now.getMonth() + 1).toString().padStart(2, '0') +
+      now.getDate().toString().padStart(2, '0');
+    const timeStr = now.getHours().toString().padStart(2, '0') +
+      now.getMinutes().toString().padStart(2, '0') +
       now.getSeconds().toString().padStart(2, '0');
     const device = getDeviceModel();
-    return `${ts}_${device}_${count}.json`;
+    return `号簿云备份_${dateStr}_${timeStr}_${device}_${count}.json`;
   };
 
   const parseBackupFilename = (fileName: string): { displayTime: string; device: string; count: number } => {
@@ -1501,12 +1501,9 @@ export default function HomeScreen() {
         const allDevice = await getAllDeviceContacts([Contacts.Fields.PhoneNumbers]);
         console.log('[Home] Total device contacts fetched:', allDevice.length);
         
-        // 统计有电话号码的联系人数量（与手机通讯录应用一致，统计人数而非号码总数）
-        const contactsWithPhones = allDevice.filter(c => {
-          return c.phoneNumbers && c.phoneNumbers.length > 0;
-        });
-        deviceContactsCount = contactsWithPhones.length;
-        console.log('[Home] Contacts with phones:', contactsWithPhones.length);
+        // Count ALL contacts (including those without phone numbers)
+        deviceContactsCount = allDevice.length;
+        console.log('[Home] Total contacts (all):', allDevice.length);
         
         // 调试：打印前3个联系人的结构
         if (allDevice.length > 0) {
