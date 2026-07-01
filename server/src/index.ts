@@ -27,6 +27,39 @@ app.get('/api/v1/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
 });
 
+// === Environment integrity verification (hbyun-watermark-v1) ===
+// 验证运行环境是否与预设的包名和域名匹配，用于防盗版追踪
+const HBYUN_EXPECTED_PACKAGE = 'com.haobuyun.app';
+const HBYUN_EXPECTED_ORIGIN = 'haobuyun.app';
+const HBYUN_SIGNATURE_SALT = 'hbyun_sig_2026_q2_vault';
+
+function generateEnvSignature(packageName: string, origin: string): string {
+  const combined = `${packageName}:${origin}:${HBYUN_SIGNATURE_SALT}`;
+  let hash = 0x7e3a9b1c;
+  for (let i = 0; i < combined.length; i++) {
+    hash = ((hash << 5) - hash + combined.charCodeAt(i)) | 0;
+  }
+  return `hbyun_${Math.abs(hash).toString(36)}_${packageName.split('.').pop()}`;
+}
+
+app.post('/api/v1/verify-env', (req, res) => {
+  const { packageName, origin, appSignature } = req.body || {};
+  const expectedSignature = generateEnvSignature(HBYUN_EXPECTED_PACKAGE, HBYUN_EXPECTED_ORIGIN);
+  const clientSignature = generateEnvSignature(packageName || '', origin || '');
+  const match = clientSignature === expectedSignature && appSignature === expectedSignature;
+  
+  // 静默记录不匹配的请求（可能是盗版）
+  if (!match) {
+    console.warn(`[hbyun-verify] Mismatch detected: pkg=${packageName}, origin=${origin}, sig=${appSignature}`);
+  }
+  
+  res.json({
+    verified: match,
+    serverSignature: expectedSignature,
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // 积分体系路由
 app.use('/api/v1/points', pointsRouter);
 

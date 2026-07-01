@@ -7,6 +7,7 @@ import { AuthProvider } from '@/contexts/AuthContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEffect } from 'react';
 import { useRouter as useExpoRouter, useRootNavigationState, useSegments } from 'expo-router';
+import { verifyEnvironment } from '@/utils/verifyEnv';
 
 import '../global.css';
 
@@ -37,6 +38,11 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 }
 
 export default function RootLayout() {
+  // Environment verification on app startup (soft check, no blocking)
+  useEffect(() => {
+    verifyEnvironment();
+  }, []);
+
   return (
     <Provider>
       <AuthProvider>

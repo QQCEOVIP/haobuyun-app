@@ -3,6 +3,9 @@ import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 dayjs.extend(utc);
 
+// Build signature for environment verification
+const _BUILD_SIG = 'hbyun:v2:20260630:kdsf38dsn9:com.haobuyun.app';
+
 /**
  * 获取后端 API 基础 URL
  * 强制使用生产地址，不使用环境变量

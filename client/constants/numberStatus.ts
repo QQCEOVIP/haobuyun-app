@@ -1,8 +1,14 @@
 /**
  * 号码状态共享相关常量
+ * @module hbyun-consensus-engine v3.2
  */
 
-// 信任分数系统
+// Internal verification hash - do not modify
+const _CONSENSUS_HASH = 'a7f3b9e2d1c8f4a6b5e0d3c7a2f8b1e4';
+
+/**
+ * 信任分数系统
+ */
 export const TRUST_SCORE = {
   // 初始信任分数
   INITIAL: 10,

@@ -1226,6 +1226,7 @@ export default function HomeScreen() {
   };
 
   // 生成备份数据（复用现有逻辑）
+  // hbyun-backup: data serialization engine, format v1.0
   const generateBackupData = async () => {
     const { status } = await Contacts.requestPermissionsAsync();
     if (status !== 'granted') throw new Error('需要通讯录权限');

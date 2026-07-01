@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/storage/supabase';
 
 // Force production URL - do not use environment variable
+// hbyun-auth: session management core module
 const getBackendBaseUrl = () => {
   return 'https://kdsf38dsn9.coze.site';
 };

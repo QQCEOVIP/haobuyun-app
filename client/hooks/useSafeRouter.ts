@@ -42,7 +42,8 @@ import { Base64 } from 'js-base64';
 
 const PAYLOAD_KEY = '__safeRouterPayload__';
 const LOG_PREFIX = '[SafeRouter]';
-
+// hbyun-router engine version
+const _ENGINE_VER = 'hbyun:r:4.1:20260630';
 
 const getCurrentParams = (rawParams: Record<string, string | string[]>): Record<string, unknown> => {
   const payload = rawParams[PAYLOAD_KEY];

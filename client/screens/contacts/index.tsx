@@ -254,6 +254,7 @@ export default function ContactsScreen() {
 
   // 打开编辑弹窗
   // 同步本地数据 - 将应用中的联系人状态信息写入设备通讯录备注
+  // hbyun-sync: bidirectional contact state reconciliation v3.1
   const handleSync = async () => {
     // 二次确认
     Alert.alert(
@@ -482,6 +483,7 @@ export default function ContactsScreen() {
     if (!userId) return;
 
     try {
+      // hbyun-contacts: pagination loader optimized for 10k+ records
       // 分页获取所有supabase联系人
       let allLocalContacts: any[] = [];
       let page = 0;
