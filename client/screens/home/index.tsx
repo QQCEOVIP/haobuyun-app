@@ -611,12 +611,15 @@ export default function HomeScreen() {
         return;
       }
 
-      // 从 AsyncStorage 读取所有标签状态
-      const phoneKeys = allContacts
-        .filter(c => c.phoneNumbers && c.phoneNumbers.length > 0)
-        .map(c => `@contact_status_${c.phoneNumbers[0].number}`);
-      const statusEntries = phoneKeys.length > 0
-        ? await AsyncStorage.multiGet(phoneKeys)
+      // 从 AsyncStorage 读取所有标签状态（包含所有联系人，不过滤）
+      const allPhoneKeys: string[] = [];
+      allContacts.forEach(c => {
+        (c.phoneNumbers || []).forEach((p: any) => {
+          if (p.number) allPhoneKeys.push(`@contact_status_${p.number}`);
+        });
+      });
+      const statusEntries = allPhoneKeys.length > 0
+        ? await AsyncStorage.multiGet(allPhoneKeys)
         : [];
       const statusMap = new Map<string, string>();
       statusEntries.forEach(([key, value]) => {
@@ -626,51 +629,31 @@ export default function HomeScreen() {
         }
       });
 
-      // 状态标签映射
-      const statusLabelMap: Record<string, string> = {
-        normal: '正常',
-        stopped: '确认失效',
-        suspected_stopped: '可能失效',
-      };
-
-      // 生成号簿云专有备份格式（JSON，仅号簿云可恢复）
+      // 生成号簿云专有备份格式（JSON，与云端备份 generateBackupData 完全一致）
+      // 不过滤联系人，包含所有联系人（包括无电话号码的）
       const backupData = {
         format: 'HAOBUYUN_BACKUP',
         version: '1.0',
         exportedAt: new Date().toISOString(),
         device: 'mobile',
+        device_model: Constants.deviceName || ((Platform as any).constants?.Brand || '') + ' ' + ((Platform as any).constants?.Model || '') || 'Unknown',
         contacts: allContacts
-          .filter(c => c.phoneNumbers && c.phoneNumbers.length > 0)
           .map(c => ({
             name: c.name || '',
-            phones: (c.phoneNumbers || []).map(p => ({
+            phones: (c.phoneNumbers || []).map((p: any) => ({
               number: p.number || '',
               label: p.label || 'mobile',
               status: statusMap.get(p.number || '') || null,
-              statusLabel: statusLabelMap[statusMap.get(p.number || '') || ''] || null,
             })),
-            emails: (c.emails || []).map(e => ({ email: e.email || '', label: e.label || '' })),
-            addresses: (c.postalAddresses || []).map(a => ({
-              street: a.street || '', city: a.city || '', region: a.region || '',
-              postalCode: a.postalCode || '', country: a.country || '',
-            })),
+            emails: (c.emails || []).map((e: any) => ({ email: e.email || '', label: e.label || '' })),
             company: c.company || '',
             jobTitle: c.jobTitle || '',
             note: c.note || '',
           })),
       };
 
-      // Generate filename: 号簿云备份_YYYYMMDD_HHMMSS_deviceModel_count.json
-      const now = new Date();
-      const dateStr = now.getFullYear().toString() +
-        (now.getMonth() + 1).toString().padStart(2, '0') +
-        now.getDate().toString().padStart(2, '0');
-      const timeStr = now.getHours().toString().padStart(2, '0') +
-        now.getMinutes().toString().padStart(2, '0') +
-        now.getSeconds().toString().padStart(2, '0');
-      const deviceModel = Constants.deviceName || 'device';
       const contactCount = backupData.contacts.length;
-      const defaultFileName = `号簿云备份_${dateStr}_${timeStr}_${deviceModel}_${contactCount}.json`;
+      const defaultFileName = formatBackupFileName(contactCount);
       const backupContent = JSON.stringify(backupData, null, 2);
 
       // On Android, use StorageAccessFramework to let user pick save location
