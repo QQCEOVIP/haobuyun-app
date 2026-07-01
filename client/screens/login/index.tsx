@@ -149,6 +149,8 @@ export default function LoginScreen() {
                 maxLength={11}
                 autoCapitalize="none"
                 autoCorrect={false}
+                autoComplete="off"
+                textContentType="none"
               />
             </View>
 
@@ -163,6 +165,8 @@ export default function LoginScreen() {
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
+                  autoComplete="off"
+                  textContentType="none"
                 />
                 <TouchableOpacity
                   style={styles.eyeButton}

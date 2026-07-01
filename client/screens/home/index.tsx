@@ -485,6 +485,7 @@ export default function HomeScreen() {
 
           const contactData: any = {
             name: contact.name || '',
+            firstName: contact.name || '',
             phoneNumbers: [{ number: phone }],
           };
           if (contact.email) contactData.emails = [{ email: contact.email }];
