@@ -696,6 +696,7 @@ export default function HomeScreen() {
         (global as any).__pendingVcard = backupContent;
         (global as any).__pendingVcardCount = contactCount;
         (global as any).__pendingVcardDefaultName = defaultFileName;
+        (global as any).__pendingBackupMode = false; // 明确标记为导出模式，防止被之前备份的残留状态污染
       }
     } catch (error) {
       // User canceled - don't show error
@@ -1477,17 +1478,18 @@ export default function HomeScreen() {
       const { status } = await Contacts.requestPermissionsAsync();
       console.log('[Home] Contacts permission status:', status);
       
+      let allDeviceContacts: any[] = [];
       if (status === 'granted') {
-        const allDevice = await getAllDeviceContacts([Contacts.Fields.PhoneNumbers]);
-        console.log('[Home] Total device contacts fetched:', allDevice.length);
+        allDeviceContacts = await getAllDeviceContacts([Contacts.Fields.PhoneNumbers]);
+        console.log('[Home] Total device contacts fetched:', allDeviceContacts.length);
         
         // Count ALL contacts (including those without phone numbers)
-        deviceContactsCount = allDevice.length;
-        console.log('[Home] Total contacts (all):', allDevice.length);
+        deviceContactsCount = allDeviceContacts.length;
+        console.log('[Home] Total contacts (all):', allDeviceContacts.length);
         
         // 调试：打印前3个联系人的结构
-        if (allDevice.length > 0) {
-          console.log('[Home] Sample contact structure:', JSON.stringify(allDevice[0], null, 2));
+        if (allDeviceContacts.length > 0) {
+          console.log('[Home] Sample contact structure:', JSON.stringify(allDeviceContacts[0], null, 2));
         }
       } else {
         console.warn('[Home] Contacts permission not granted:', status);
@@ -1507,36 +1509,55 @@ export default function HomeScreen() {
       }
 
       // 2. 从 AsyncStorage 读取状态分布（真正的标签数据源）
+      // 只统计当前设备联系人中存在的号码，忽略过期的 AsyncStorage 条目
       const allKeys = await AsyncStorage.getAllKeys();
       const statusKeys = allKeys.filter(k => k.startsWith('@contact_status_'));
+      
+      // 构建当前设备联系人电话号码集合（用于过滤过期条目）
+      const currentPhoneSet = new Set<string>();
+      allDeviceContacts.forEach(c => {
+        (c.phoneNumbers || []).forEach((p: any) => {
+          const num = (p.number || '').replace(/\D/g, '');
+          if (num.length >= 7) currentPhoneSet.add(num);
+        });
+      });
+      
       const contactStats: ContactStats = {
         total: deviceContactsCount,
         active: 0,
         maybeInvalid: 0,
         invalid: 0,
-        unknown: Math.max(0, deviceContactsCount - statusKeys.length),
+        unknown: 0,
       };
 
       if (statusKeys.length > 0) {
         const statusEntries = await AsyncStorage.multiGet(statusKeys);
-        for (const [, value] of statusEntries) {
+        let matchedCount = 0;
+        for (const [key, value] of statusEntries) {
+          if (!value) continue;
+          // 检查该条目对应的电话号码是否仍在设备联系人中
+          const phone = key.replace('@contact_status_', '').replace(/\D/g, '');
+          if (currentPhoneSet.size > 0 && !currentPhoneSet.has(phone)) {
+            continue; // 跳过过期的条目
+          }
+          matchedCount++;
           switch (value) {
             case 'normal':
               contactStats.active++;
-              contactStats.unknown = Math.max(0, contactStats.unknown - 1);
               break;
             case 'suspected_stopped':
               contactStats.maybeInvalid++;
-              contactStats.unknown = Math.max(0, contactStats.unknown - 1);
               break;
             case 'stopped':
               contactStats.invalid++;
-              contactStats.unknown = Math.max(0, contactStats.unknown - 1);
               break;
             default:
               break;
           }
         }
+        contactStats.unknown = Math.max(0, deviceContactsCount - matchedCount);
+      } else {
+        contactStats.unknown = deviceContactsCount;
       }
 
       console.log('[Home] Final stats:', JSON.stringify(contactStats));

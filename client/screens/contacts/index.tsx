@@ -306,7 +306,8 @@ export default function ContactsScreen() {
 
                   // 检查是否需要更新
                   const needsNoteUpdate = !!statusLabel && (!existing.note?.includes('[号簿云]') || !existing.note?.includes(statusLabel));
-                  const needsAvatarUpdate = hasAvatar && !!avatarUri;
+                  // 头像同步检查：只有当联系人还没有头像时才需要同步（避免重复写入）
+                  const needsAvatarUpdate = hasAvatar && !existing.image;
                   
                   if (!needsNoteUpdate && !needsAvatarUpdate) {
                     skipCount++;
@@ -526,13 +527,11 @@ export default function ContactsScreen() {
         }
 
         const mappedContacts: Contact[] = allDeviceContacts
-          .filter(c => c.phoneNumbers && c.phoneNumbers.length > 0)
           .map(c => {
-            // 保留所有有效号码，不过滤空字符串以外的格式
-            const allPhones = c.phoneNumbers!.map(p => (p.number || '').trim()).filter(n => n.length > 0);
+            // 保留所有有效号码
+            const allPhones = (c.phoneNumbers || []).map(p => (p.number || '').trim()).filter(n => n.length > 0);
             const phone = allPhones[0] || '';
-            if (!phone) return null; // 跳过完全没有有效号码的联系人
-            const localData = allLocalContacts?.find((lc: any) => lc.phone === phone);
+            const localData = allLocalContacts?.find((lc: any) => lc.phone === phone && phone.length > 0);
             return {
               id: c.id,
               deviceContactId: c.id,
