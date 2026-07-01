@@ -708,28 +708,6 @@ export default function HomeScreen() {
     }
   };
 
-  // 确认导出文件名并保存
-  const confirmExport = async () => {
-    const vcardContent = (global as any).__pendingVcard;
-    const contactCount = (global as any).__pendingVcardCount || 0;
-    const safeFileName = customFileName.trim().endsWith('.hbyun') 
-      ? customFileName.trim() 
-      : `${customFileName.trim()}.hbyun`;
-    const filePath = `${FileSystemLegacy.documentDirectory}${safeFileName}`;
-    
-    try {
-      await FileSystemLegacy.writeAsStringAsync(filePath, vcardContent);
-      Alert.alert('备份成功', `已备份 ${contactCount} 个联系人\n文件：${safeFileName}\n仅号簿云可恢复此格式`);
-    } catch (error) {
-      console.error('导出失败:', error);
-      Alert.alert('错误', '导出失败，请重试');
-    }
-    
-    setFileNameModalVisible(false);
-    (global as any).__pendingVcard = null;
-    (global as any).__pendingVcardCount = null;
-  };
-
   // 本地备份相关函数
   const handleBackup = async () => {
     try {
@@ -859,9 +837,11 @@ export default function HomeScreen() {
     const isBackupMode = (global as any).__pendingBackupMode;
     const vcardContent = isBackupMode ? (global as any).__pendingBackupVcard : (global as any).__pendingVcard;
     const contactCount = isBackupMode ? (global as any).__pendingBackupCount : (global as any).__pendingVcardCount || 0;
-    const safeFileName = customFileName.trim().endsWith('.vcf') 
+    // 根据模式选择正确的文件扩展名
+    const expectedExt = isBackupMode ? '.vcf' : '.json';
+    const safeFileName = customFileName.trim().endsWith(expectedExt) 
       ? customFileName.trim() 
-      : `${customFileName.trim()}.vcf`;
+      : `${customFileName.trim()}${expectedExt}`;
     const filePath = `${FileSystemLegacy.documentDirectory}${safeFileName}`;
     
     try {
