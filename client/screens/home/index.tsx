@@ -388,7 +388,14 @@ export default function HomeScreen() {
         const content = await FileSystemLegacy.readAsStringAsync(fileUri);
         
         if (fileName.endsWith('.json') || fileName.endsWith('.hbyun') || fileName.endsWith('.vcf')) {
-          await importFromContent(content, fileName);
+          setProgressVisible(true);
+          setProgressPercent(0);
+          setProgressText('正在解析文件...');
+          await importFromContent(content, fileName, (percent) => {
+            setProgressPercent(percent);
+            setProgressText(`正在导入... ${percent}%`);
+          });
+          setProgressVisible(false);
         } else {
           Alert.alert("提示", "请选择 .vcf、.json 或 .hbyun 格式的文件");
         }
@@ -410,6 +417,7 @@ export default function HomeScreen() {
         );
       }
     } catch (error) {
+      setProgressVisible(false);
       // User canceled - don't show error
       const errMsg = (error as any)?.message || '';
       if (errMsg.includes('cancel') || errMsg.includes('Cancel') || errMsg.includes('canceled') || errMsg.includes('User canceled')) {
@@ -420,7 +428,7 @@ export default function HomeScreen() {
     }
   };
 
-  const importFromContent = async (content: string, fileName: string) => {
+  const importFromContent = async (content: string, fileName: string, onProgress?: (percent: number) => void) => {
     try {
       let contacts: Array<{ name: string; phone: string; email?: string; company?: string; jobTitle?: string; note?: string }> = [];
       if (fileName.endsWith(".json") || fileName.endsWith(".hbyun")) {
@@ -467,34 +475,13 @@ export default function HomeScreen() {
       }
       let successCount = 0;
       let failCount = 0;
-      let skipCount = 0;
+      const totalCount = contacts.length;
 
-      // 加载设备已有联系人用于去重
-      const existingPhones = new Set<string>();
-      try {
-        const existing = await Contacts.getContactsAsync({
-          fields: [Contacts.Fields.PhoneNumbers],
-          pageSize: 9999,
-        });
-        for (const c of existing.data) {
-          if (c.phoneNumbers) {
-            for (const p of c.phoneNumbers) {
-              if (p.number) existingPhones.add(p.number.replace(/\D/g, ''));
-            }
-          }
-        }
-      } catch (e) {
-        console.warn('获取已有联系人失败:', e);
-      }
-
-      for (const contact of contacts) {
+      for (let i = 0; i < contacts.length; i++) {
+        const contact = contacts[i];
         try {
           const phone = contact.phone || contact.phones?.[0]?.number || '';
           if (!phone) { failCount++; continue; }
-
-          // 去重
-          const normalized = phone.replace(/\D/g, '');
-          if (existingPhones.has(normalized)) { skipCount++; continue; }
 
           const contactData: any = {
             name: contact.name || '',
@@ -505,14 +492,16 @@ export default function HomeScreen() {
           if (contact.jobTitle) contactData.jobTitle = contact.jobTitle;
           if (contact.note) contactData.note = contact.note;
           await Contacts.addContactAsync(contactData);
-          existingPhones.add(normalized);
           successCount++;
         } catch (e) {
           failCount++;
         }
+        // Update progress
+        if (onProgress) {
+          onProgress(Math.round(((i + 1) / totalCount) * 100));
+        }
       }
       let msg = `成功导入 ${successCount} 个联系人`;
-      if (skipCount > 0) msg += `，跳过 ${skipCount} 个已存在`;
       if (failCount > 0) msg += `，${failCount} 个失败`;
       Alert.alert("导入完成", msg);
     } catch (error) {
@@ -597,16 +586,22 @@ export default function HomeScreen() {
 
   const handleExport = async () => {
     try {
+      setProgressVisible(true);
+      setProgressPercent(0);
+      setProgressText('正在生成备份数据...');
       // 直接使用 generateBackupData 确保格式与云端备份完全一致
       const backupData = await generateBackupData();
       const contactCount = backupData.contacts.length;
       const defaultFileName = formatBackupFileName(contactCount);
       const backupContent = JSON.stringify(backupData, null, 2);
+      setProgressPercent(50);
+      setProgressText('正在写入文件...');
 
       // Android: Use StorageAccessFramework to let user choose save location (shows system save dialog, NOT share sheet)
       if (Platform.OS === 'android') {
         const permission = await StorageAccessFramework.requestDirectoryPermissionsAsync();
         if (!permission.granted) {
+          setProgressVisible(false);
           return; // User cancelled directory selection
         }
         const fileUri = await StorageAccessFramework.createFileAsync(
@@ -615,11 +610,15 @@ export default function HomeScreen() {
           'application/json'
         );
         await FileSystemLegacy.writeAsStringAsync(fileUri, backupContent, { encoding: FileSystemLegacy.EncodingType.UTF8 });
+        setProgressPercent(100);
+        setProgressText('导出完成！');
         Alert.alert('导出成功', `已导出 ${contactCount} 个联系人（含标签状态）\n仅号簿云可恢复此格式`);
       } else {
         // iOS: use cache directory + Sharing (iOS share sheet is the standard way to save files)
         const fileUri = FileSystemLegacy.cacheDirectory + defaultFileName;
         await FileSystemLegacy.writeAsStringAsync(fileUri, backupContent, { encoding: FileSystemLegacy.EncodingType.UTF8 });
+        setProgressPercent(100);
+        setProgressText('导出完成！');
         if (await Sharing.isAvailableAsync()) {
           await Sharing.shareAsync(fileUri, {
             mimeType: 'application/json',
@@ -632,10 +631,13 @@ export default function HomeScreen() {
       // User canceled - don't show error
       const errMsg = (error as any)?.message || '';
       if (errMsg.includes('cancel') || errMsg.includes('Cancel') || errMsg.includes('canceled') || errMsg.includes('User canceled')) {
+        setProgressVisible(false);
         return;
       }
       console.error("导出失败:", error);
       Alert.alert("错误", "导出失败: " + (errMsg || '请重试'));
+    } finally {
+      setProgressVisible(false);
     }
   };
 
@@ -1010,6 +1012,11 @@ export default function HomeScreen() {
   const [restoreSelectVisible, setRestoreSelectVisible] = useState(false);
   const [backupRecordsVisible, setBackupRecordsVisible] = useState(false);
 
+  // Progress modal state
+  const [progressVisible, setProgressVisible] = useState(false);
+  const [progressText, setProgressText] = useState('请勿离开，即将完成！');
+  const [progressPercent, setProgressPercent] = useState(0);
+
   // ========== Helper functions for backup ==========
   const getDeviceModel = (): string => {
     if (Constants.deviceName) return Constants.deviceName.replace(/[^a-z0-9\-]/gi, '-').substring(0, 20);
@@ -1128,18 +1135,24 @@ export default function HomeScreen() {
       device: 'mobile',
       device_model: Constants.deviceName || ((Platform as any).constants?.Brand || '') + ' ' + ((Platform as any).constants?.Model || '') || 'Unknown',
       contacts: allContacts
-        .map(c => ({
-          name: c.name || '',
-          phones: (c.phoneNumbers || []).map(p => ({
-            number: p.number || '',
-            label: p.label || 'mobile',
-            status: statusMap.get(p.number || '') || null,
-          })),
-          emails: (c.emails || []).map(e => ({ email: e.email || '', label: e.label || '' })),
-          company: c.company || '',
-          jobTitle: c.jobTitle || '',
-          note: c.note || '',
-        })),
+        .map(c => {
+          // Name fallback: prefer c.name, if empty or too short, use firstName + lastName
+          const fullName = c.name && c.name.length > 1
+            ? c.name
+            : ((c.firstName || '') + ' ' + (c.lastName || '')).trim() || c.name || '';
+          return {
+            name: fullName,
+            phones: (c.phoneNumbers || []).map(p => ({
+              number: p.number || '',
+              label: p.label || 'mobile',
+              status: statusMap.get(p.number || '') || null,
+            })),
+            emails: (c.emails || []).map(e => ({ email: e.email || '', label: e.label || '' })),
+            company: c.company || '',
+            jobTitle: c.jobTitle || '',
+            note: c.note || '',
+          };
+        }),
     };
   };
 
@@ -1165,7 +1178,9 @@ export default function HomeScreen() {
   const executeCloudBackup = async () => {
     setCloudLoading(true);
     setCloudBackupLoading('uploading');
-    setCloudProgress('正在生成备份数据...');
+    setProgressVisible(true);
+    setProgressPercent(0);
+    setProgressText('正在生成备份数据...');
     try {
       const backupData = await generateBackupData();
       const content = JSON.stringify(backupData, null, 2);
@@ -1173,11 +1188,13 @@ export default function HomeScreen() {
       const fileName = formatBackupFileName(contactCount);
 
       // Save local backup copy
-      setCloudProgress('正在保存本地副本...');
+      setProgressPercent(30);
+      setProgressText('正在保存本地副本...');
       await saveLocalBackup(fileName, content);
       await cleanupOldLocalBackups(10);
 
-      setCloudProgress('正在上传到云端...');
+      setProgressPercent(50);
+      setProgressText('正在上传到云端...');
       /**
        * 服务端文件：server/src/routes/backup.ts
        * 接口：POST /api/v1/backup/cloud
@@ -1196,6 +1213,8 @@ export default function HomeScreen() {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || '上传失败');
 
+      setProgressPercent(100);
+      setProgressText('备份完成！');
       Alert.alert('云端备份成功', `已备份 ${backupData.contacts.length} 个联系人到云端`);
       loadCloudBackups();
     } catch (err: any) {
@@ -1206,6 +1225,7 @@ export default function HomeScreen() {
       setCloudLoading(false);
       setCloudBackupLoading(null);
       setCloudProgress('');
+      setProgressVisible(false);
     }
   };
 
@@ -1284,7 +1304,9 @@ export default function HomeScreen() {
         onPress: async () => {
           setCloudLoading(true);
           setCloudBackupLoading('downloading');
-          setCloudProgress('正在下载备份...');
+          setProgressVisible(true);
+          setProgressPercent(0);
+          setProgressText('正在下载备份...');
           try {
             /**
              * 服务端文件：server/src/routes/backup.ts
@@ -1298,18 +1320,21 @@ export default function HomeScreen() {
             const result = await response.json();
             if (!response.ok || !result.success) throw new Error(result.error || '下载失败');
 
-            setCloudProgress('正在解析数据...');
+            setProgressPercent(20);
+            setProgressText('正在解析数据...');
             const backupData = JSON.parse(result.content);
 
             if (!backupData.contacts || backupData.contacts.length === 0) {
               Alert.alert('提示', '备份文件中没有联系人数据');
               setCloudLoading(false);
               setCloudBackupLoading(null);
+              setProgressVisible(false);
               return;
             }
 
             // Step 1: Delete ALL existing contacts from device
-            setCloudProgress('正在清空当前通讯录...');
+            setProgressPercent(30);
+            setProgressText('正在清空当前通讯录...');
             try {
               const { data: existingContacts } = await Contacts.getContactsAsync({
                 fields: [Contacts.Fields.PhoneNumbers],
@@ -1330,9 +1355,10 @@ export default function HomeScreen() {
             }
 
             // Step 2: Add restored contacts
-            setCloudProgress(`正在恢复 ${backupData.contacts.length} 个联系人...`);
+            const totalContacts = backupData.contacts.length;
             let successCount = 0;
-            for (const contact of backupData.contacts) {
+            for (let i = 0; i < backupData.contacts.length; i++) {
+              const contact = backupData.contacts[i];
               try {
                 const contactName = contact.name || '';
                 const contactData: any = {
@@ -1364,8 +1390,13 @@ export default function HomeScreen() {
                   }
                 }
               } catch (_e) { /* skip failed contact */ }
+              // Update progress (30% to 100%)
+              setProgressPercent(30 + Math.round(((i + 1) / totalContacts) * 70));
+              setProgressText(`正在恢复... ${i + 1}/${totalContacts}`);
             }
 
+            setProgressPercent(100);
+            setProgressText('恢复完成！');
             Alert.alert('恢复成功', `已替换通讯录，恢复 ${successCount} 个联系人`);
             loadCloudBackups();
           } catch (err: any) {
@@ -1375,6 +1406,7 @@ export default function HomeScreen() {
             setCloudLoading(false);
             setCloudBackupLoading(null);
             setCloudProgress('');
+            setProgressVisible(false);
           }
         },
       },
@@ -1385,6 +1417,40 @@ export default function HomeScreen() {
   const openCloudBackupModal = () => {
     setCloudBackupVisible(true);
     loadCloudBackups();
+  };
+
+  // 分享备份文件
+  const handleShareBackup = async () => {
+    try {
+      setProgressVisible(true);
+      setProgressPercent(0);
+      setProgressText('正在生成备份数据...');
+      const backupData = await generateBackupData();
+      const contactCount = backupData.contacts.length;
+      const defaultFileName = formatBackupFileName(contactCount);
+      const backupContent = JSON.stringify(backupData, null, 2);
+
+      setProgressPercent(60);
+      setProgressText('正在准备分享...');
+      const fileUri = FileSystemLegacy.cacheDirectory + defaultFileName;
+      await FileSystemLegacy.writeAsStringAsync(fileUri, backupContent, { encoding: FileSystemLegacy.EncodingType.UTF8 });
+
+      setProgressPercent(100);
+      setProgressText('正在调起分享...');
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: 'application/json',
+          dialogTitle: '号簿云备份',
+        });
+      } else {
+        Alert.alert('提示', '当前设备不支持分享功能');
+      }
+    } catch (error) {
+      console.error('分享备份失败:', error);
+      Alert.alert('错误', '分享备份失败: ' + ((error as any)?.message || '请重试'));
+    } finally {
+      setProgressVisible(false);
+    }
   };
 
   const fetchStats = async () => {
@@ -1734,13 +1800,26 @@ export default function HomeScreen() {
 
                 {/* 备份记录 */}
                 <TouchableOpacity
-                  style={[styles.cloudListItem, { borderBottomWidth: 0 }]}
+                  style={styles.cloudListItem}
                   onPress={() => { loadCloudBackups(); setBackupRecordsVisible(true); }}
                 >
                   <View style={[styles.cloudListIcon, { backgroundColor: 'rgba(230, 162, 60, 0.12)' }]}>
                     <Ionicons name="time" size={22} color="#E6A23C" />
                   </View>
                   <Text style={styles.cloudListText}>备份记录</Text>
+                  <Ionicons name="chevron-forward" size={18} color="#C0C4CC" />
+                </TouchableOpacity>
+
+                {/* 分享备份 */}
+                <TouchableOpacity
+                  style={[styles.cloudListItem, { borderBottomWidth: 0 }]}
+                  onPress={handleShareBackup}
+                  disabled={cloudBackupLoading !== null}
+                >
+                  <View style={[styles.cloudListIcon, { backgroundColor: 'rgba(144, 147, 153, 0.12)' }]}>
+                    <Ionicons name="share-outline" size={22} color="#909399" />
+                  </View>
+                  <Text style={styles.cloudListText}>分享备份</Text>
                   <Ionicons name="chevron-forward" size={18} color="#C0C4CC" />
                 </TouchableOpacity>
               </View>
@@ -1941,6 +2020,26 @@ export default function HomeScreen() {
                 <Text style={styles.fileNameButtonText}>确定</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+      )}
+
+      {/* 操作进度弹窗 */}
+      {progressVisible && (
+      <Modal
+        visible={true}
+        transparent
+        animationType="fade"
+        onRequestClose={() => { /* prevent close */ }}
+      >
+        <View style={styles.progressOverlay}>
+          <View style={styles.progressCard}>
+            <ActivityIndicator size="large" color="#4A90D9" />
+            <View style={styles.progressBarBg}>
+              <View style={[styles.progressBarFill, { width: `${Math.min(Math.max(progressPercent, 0), 100)}%` }]} />
+            </View>
+            <Text style={styles.progressText}>{progressText}</Text>
           </View>
         </View>
       </Modal>
@@ -2267,5 +2366,42 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  progressOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  progressCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 28,
+    width: 260,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  progressBarBg: {
+    width: '100%',
+    height: 6,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 3,
+    marginTop: 20,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: '#4A90D9',
+    borderRadius: 3,
+  },
+  progressText: {
+    marginTop: 14,
+    fontSize: 14,
+    color: '#606266',
+    textAlign: 'center',
   },
 });
