@@ -559,7 +559,7 @@ export default function ContactsScreen() {
               phoneNumbers: allPhones,
               status: localData?.status || null,
               lastContactDate: localData?.last_contact_date,
-              image: (c.image?.available && c.image?.uri) ? c.image.uri : null,
+              image: c.image?.uri ? c.image.uri : ((c as any).photo || null),
             };
           });
 

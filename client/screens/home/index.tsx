@@ -1169,8 +1169,7 @@ export default function HomeScreen() {
     const timeStr = now.getHours().toString().padStart(2, '0') +
       now.getMinutes().toString().padStart(2, '0') +
       now.getSeconds().toString().padStart(2, '0');
-    const device = getDeviceModel();
-    return `号簿云备份_${dateStr}_${timeStr}_${device}_${count}.json`;
+    return `号簿云备份_${dateStr}_${timeStr}.json`;
   };
 
   const parseBackupFilename = (fileName: string): { displayTime: string; device: string; count: number } => {
@@ -1179,15 +1178,22 @@ export default function HomeScreen() {
     let device = '';
     let count = 0;
 
-    // New format: 号簿云备份_YYYYMMDD_HHMMSS_Device_Count
+    // Format 1: 号簿云备份_YYYYMMDD_HHmmss (current)
+    const simpleMatch = base.match(/^号簿云备份_(\d{8})_(\d{6})$/);
+    if (simpleMatch) {
+      const dateStr = simpleMatch[1];
+      const timeStr = simpleMatch[2];
+      displayTime = `${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}-${dateStr.slice(6, 8)} ${timeStr.slice(0, 2)}:${timeStr.slice(2, 4)}:${timeStr.slice(4, 6)}`;
+      return { displayTime, device, count };
+    }
+
+    // Format 2: 号簿云备份_YYYYMMDD_HHmmss_Device_Count (legacy)
     const newFormatMatch = base.match(/^号簿云备份_(\d{8})_(\d{6})_(.*)$/);
     if (newFormatMatch) {
-      const dateStr = newFormatMatch[1]; // 20260701
-      const timeStr = newFormatMatch[2]; // 130122
-      const rest = newFormatMatch[3]; // Device_Count or just Device
-      // Format date as YYYY-MM-DD HH:MM:SS
+      const dateStr = newFormatMatch[1];
+      const timeStr = newFormatMatch[2];
+      const rest = newFormatMatch[3];
       displayTime = `${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}-${dateStr.slice(6, 8)} ${timeStr.slice(0, 2)}:${timeStr.slice(2, 4)}:${timeStr.slice(4, 6)}`;
-      // Parse rest: last part might be count
       const restParts = rest.split('_');
       const lastPart = restParts[restParts.length - 1];
       if (/^\d+$/.test(lastPart) && restParts.length > 1) {
@@ -1199,15 +1205,15 @@ export default function HomeScreen() {
       return { displayTime, device, count };
     }
 
-    // Old format: YYYY-MM-DD_HH-MM-SS_Device_Count or similar
+    // Format 3: YYYY-MM-DD_HH-MM-SS_Device_Count (old)
     const parts = base.split('_');
     if (parts.length >= 2) {
-      const datePart = parts[0]; // 2026-06-28
-      const timePart = parts[1]; // 20-41-46
+      const datePart = parts[0];
+      const timePart = parts[1];
       displayTime = `${datePart} ${timePart.replace(/-/g, ':')}`;
     }
 
-    // Last part might be count (if it's a number)
+    // Last part might be count
     const lastPart = parts[parts.length - 1];
     if (/^\d+$/.test(lastPart)) {
       count = parseInt(lastPart, 10);
@@ -2281,14 +2287,45 @@ export default function HomeScreen() {
                 )}
 
                 {/* Footer */}
-                <TouchableOpacity
-                  style={styles.scanRescanButton}
-                  onPress={handleScanLocalFiles}
-                  disabled={scanLoading}
-                >
-                  <Ionicons name="refresh" size={16} color="#4A90D9" />
-                  <Text style={styles.scanRescanText}>重新扫描</Text>
-                </TouchableOpacity>
+                <View style={styles.scanFooterRow}>
+                  <TouchableOpacity
+                    style={styles.scanRescanButton}
+                    onPress={handleScanLocalFiles}
+                    disabled={scanLoading}
+                  >
+                    <Ionicons name="refresh" size={16} color="#4A90D9" />
+                    <Text style={styles.scanRescanText}>重新扫描</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.scanRescanButton}
+                    onPress={async () => {
+                      setScanModalVisible(false);
+                      try {
+                        const result = await DocumentPicker.getDocumentAsync({
+                          type: ['application/json', 'text/plain', '*/*'],
+                          copyToCacheDirectory: true,
+                        });
+                        if (result.canceled || !result.assets?.length) return;
+                        const file = result.assets[0];
+                        const content = await FileSystemLegacy.readAsStringAsync(file.uri);
+                        setProgressVisible(true);
+                        setProgressPercent(0);
+                        setProgressText('正在解析文件...');
+                        await importFromContent(content, file.name, (percent) => {
+                          setProgressPercent(percent);
+                          setProgressText(`正在导入... ${percent}%`);
+                        });
+                        setProgressVisible(false);
+                      } catch (error) {
+                        setProgressVisible(false);
+                        Alert.alert('错误', '导入失败: ' + ((error as any)?.message || '请重试'));
+                      }
+                    }}
+                  >
+                    <Ionicons name="folder-open" size={16} color="#4A90D9" />
+                    <Text style={styles.scanRescanText}>文件选择器</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </TouchableWithoutFeedback>
           </View>
@@ -2771,5 +2808,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#4A90D9',
     fontWeight: '500',
+  },
+  scanFooterRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 16,
+    marginHorizontal: 20,
+    gap: 12,
   },
 });

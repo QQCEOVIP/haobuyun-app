@@ -181,7 +181,7 @@ export default function LoginScreen() {
           </View>
 
           <View style={styles.form} importantForAutofill="noExcludeDescendants">
-            <View style={styles.inputContainer}>
+            <View style={styles.inputContainer} importantForAutofill="noExcludeDescendants">
               <Text style={styles.label}>手机号</Text>
               <TextInput
                 style={styles.input}
@@ -229,7 +229,7 @@ export default function LoginScreen() {
               </View>
             )}
 
-            <View style={styles.inputContainer}>
+            <View style={styles.inputContainer} importantForAutofill="noExcludeDescendants">
               <Text style={styles.label}>密码</Text>
               <View style={styles.passwordContainer}>
                 <TextInput
@@ -287,7 +287,7 @@ export default function LoginScreen() {
               </>
             )}
 
-            {/* 协议勾选 */}
+            {/* 协议勾选 - 使用 View + TouchableOpacity 平级布局，兼容 Android */}
             <View style={styles.agreementRow}>
               <TouchableOpacity
                 style={styles.agreementCheckbox}
@@ -297,24 +297,16 @@ export default function LoginScreen() {
                   {agreed && <Ionicons name="checkmark" size={12} color="#fff" />}
                 </View>
               </TouchableOpacity>
-              <Text style={styles.agreementText}>
-                我已阅读并同意
-                <Text
-                  style={[styles.agreementLink, { textDecorationLine: 'underline' }]}
-                  onPress={() => router.push('/agreement')}
-                  hitSlop={{ top: 10, bottom: 10, left: 5, right: 5 }}
-                >
-                  《用户协议》
-                </Text>
-                和
-                <Text
-                  style={[styles.agreementLink, { textDecorationLine: 'underline' }]}
-                  onPress={() => router.push('/privacy')}
-                  hitSlop={{ top: 10, bottom: 10, left: 5, right: 5 }}
-                >
-                  《隐私政策》
-                </Text>
-              </Text>
+              <View style={styles.agreementTextWrap}>
+                <Text style={styles.agreementText}>我已阅读并同意</Text>
+                <TouchableOpacity onPress={() => router.push('/agreement')}>
+                  <Text style={styles.agreementLink}>《用户协议》</Text>
+                </TouchableOpacity>
+                <Text style={styles.agreementText}>和</Text>
+                <TouchableOpacity onPress={() => router.push('/privacy')}>
+                  <Text style={styles.agreementLink}>《隐私政策》</Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
             <TouchableOpacity
@@ -503,13 +495,19 @@ const styles = StyleSheet.create({
     borderColor: '#4A90D9',
   },
   agreementText: {
-    flex: 1,
     fontSize: 13,
     color: '#909399',
     lineHeight: 20,
   },
+  agreementTextWrap: {
+    flex: 1,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+  },
   agreementLink: {
     color: '#4A90D9',
+    fontSize: 13,
   },
   button: {
     backgroundColor: '#4A90D9',
