@@ -1169,7 +1169,8 @@ export default function HomeScreen() {
     const timeStr = now.getHours().toString().padStart(2, '0') +
       now.getMinutes().toString().padStart(2, '0') +
       now.getSeconds().toString().padStart(2, '0');
-    return `号簿云备份_${dateStr}_${timeStr}.json`;
+    const device = getDeviceModel();
+    return '号簿云备份_' + device + '_' + count + '个号码_' + dateStr + '_' + timeStr + '.json';
   };
 
   const parseBackupFilename = (fileName: string): { displayTime: string; device: string; count: number } => {
@@ -1178,7 +1179,18 @@ export default function HomeScreen() {
     let device = '';
     let count = 0;
 
-    // Format 1: 号簿云备份_YYYYMMDD_HHmmss (current)
+    // Format 1: 号簿云备份_Device_Count个号码_YYYYMMDD_HHmmss (newest)
+    const fullMatch = base.match(/^号簿云备份_(.+)_(\d+)个号码_(\d{8})_(\d{6})$/);
+    if (fullMatch) {
+      device = fullMatch[1];
+      count = parseInt(fullMatch[2], 10);
+      const dateStr = fullMatch[3];
+      const timeStr = fullMatch[4];
+      displayTime = `${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}-${dateStr.slice(6, 8)} ${timeStr.slice(0, 2)}:${timeStr.slice(2, 4)}:${timeStr.slice(4, 6)}`;
+      return { displayTime, device, count };
+    }
+
+    // Format 2: 号簿云备份_YYYYMMDD_HHmmss (simple)
     const simpleMatch = base.match(/^号簿云备份_(\d{8})_(\d{6})$/);
     if (simpleMatch) {
       const dateStr = simpleMatch[1];
@@ -1187,12 +1199,12 @@ export default function HomeScreen() {
       return { displayTime, device, count };
     }
 
-    // Format 2: 号簿云备份_YYYYMMDD_HHmmss_Device_Count (legacy)
-    const newFormatMatch = base.match(/^号簿云备份_(\d{8})_(\d{6})_(.*)$/);
-    if (newFormatMatch) {
-      const dateStr = newFormatMatch[1];
-      const timeStr = newFormatMatch[2];
-      const rest = newFormatMatch[3];
+    // Format 3: 号簿云备份_YYYYMMDD_HHmmss_Device_Count (legacy)
+    const legacyMatch = base.match(/^号簿云备份_(\d{8})_(\d{6})_(.*)$/);
+    if (legacyMatch) {
+      const dateStr = legacyMatch[1];
+      const timeStr = legacyMatch[2];
+      const rest = legacyMatch[3];
       displayTime = `${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}-${dateStr.slice(6, 8)} ${timeStr.slice(0, 2)}:${timeStr.slice(2, 4)}:${timeStr.slice(4, 6)}`;
       const restParts = rest.split('_');
       const lastPart = restParts[restParts.length - 1];
@@ -1204,8 +1216,6 @@ export default function HomeScreen() {
       }
       return { displayTime, device, count };
     }
-
-    // Format 3: YYYY-MM-DD_HH-MM-SS_Device_Count (old)
     const parts = base.split('_');
     if (parts.length >= 2) {
       const datePart = parts[0];

@@ -10,6 +10,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -41,6 +42,8 @@ export default function LoginScreen() {
   const [agreed, setAgreed] = useState(false);
   const [savedAccounts, setSavedAccounts] = useState<SavedAccount[]>([]);
   const [rememberPassword, setRememberPassword] = useState(true);
+  const [showAgreement, setShowAgreement] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
   const { signInWithEmail, signUpWithEmail } = useAuth();
 
   // Load saved accounts on mount
@@ -226,7 +229,7 @@ export default function LoginScreen() {
                       style={styles.savedAccountDelete}
                       onPress={() => deleteAccount(account.phone)}
                     >
-                      <Ionicons name="close" size={22} color="#999" />
+                      <Ionicons name="close" size={18} color="#F56C6C" />
                     </TouchableOpacity>
                   </View>
                 ))}
@@ -318,11 +321,11 @@ export default function LoginScreen() {
               </TouchableOpacity>
               <View style={styles.agreementTextWrap}>
                 <Text style={styles.agreementText}>我已阅读并同意</Text>
-                <TouchableOpacity onPress={() => router.push('/agreement')}>
+                <TouchableOpacity onPress={() => setShowAgreement(true)}>
                   <Text style={styles.agreementLink}>《用户协议》</Text>
                 </TouchableOpacity>
                 <Text style={styles.agreementText}>和</Text>
-                <TouchableOpacity onPress={() => router.push('/privacy')}>
+                <TouchableOpacity onPress={() => setShowPrivacy(true)}>
                   <Text style={styles.agreementLink}>《隐私政策》</Text>
                 </TouchableOpacity>
               </View>
@@ -375,6 +378,41 @@ export default function LoginScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* 用户协议 Modal */}
+      <Modal visible={showAgreement} transparent animationType="slide" onRequestClose={() => setShowAgreement(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: '#FFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '80%', paddingBottom: 40 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#EBEEF5' }}>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: '#303133' }}>用户协议</Text>
+              <TouchableOpacity onPress={() => setShowAgreement(false)}><Ionicons name="close" size={24} color="#909399" /></TouchableOpacity>
+            </View>
+            <ScrollView style={{ padding: 16 }}>
+              <Text style={{ fontSize: 14, color: '#303133', lineHeight: 24 }}>
+                {'号簿云用户协议\n\n更新日期：2026年1月1日\n\n一、服务条款\n欢迎使用号簿云通讯录管理服务。本协议是您与号簿云之间关于使用号簿云服务所订立的协议。\n\n二、服务内容\n号簿云为用户提供通讯录备份、恢复、清理、号码标记等服务。\n\n三、用户责任\n1. 用户应妥善保管账号和密码，因用户原因导致的安全问题由用户自行承担。\n2. 用户不得利用本服务从事违法活动。\n3. 用户应确保上传的数据合法合规。\n\n四、隐私保护\n号簿云重视用户隐私保护，具体内容请参见《隐私政策》。\n\n五、免责声明\n1. 因不可抗力导致的服务中断，号簿云不承担责任。\n2. 号簿云不对第三方服务质量做任何保证。\n3. 号码标记功能仅供参考，不保证标记结果的准确性。\n4. 通讯录备份服务不承诺100%数据完整性。\n\n六、协议修改\n号簿云有权修改本协议，修改后将在应用内通知用户。'}
+              </Text>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 隐私政策 Modal */}
+      <Modal visible={showPrivacy} transparent animationType="slide" onRequestClose={() => setShowPrivacy(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: '#FFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '80%', paddingBottom: 40 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#EBEEF5' }}>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: '#303133' }}>隐私政策</Text>
+              <TouchableOpacity onPress={() => setShowPrivacy(false)}><Ionicons name="close" size={24} color="#909399" /></TouchableOpacity>
+            </View>
+            <ScrollView style={{ padding: 16 }}>
+              <Text style={{ fontSize: 14, color: '#303133', lineHeight: 24 }}>
+                {'号簿云隐私政策\n\n更新日期：2026年1月1日\n\n一、信息收集\n我们收集以下信息：\n1. 注册信息：手机号、身份证号（用于找回密码）\n2. 通讯录数据：联系人姓名、电话号码（用于备份和恢复服务）\n3. 设备信息：设备型号、操作系统版本\n\n二、信息使用\n收集的信息仅用于：\n1. 提供通讯录备份和恢复服务\n2. 号码状态检测和标记\n3. 改进服务质量\n\n三、信息存储\n1. 数据通过加密方式存储在安全的服务器上（使用Supabase安全基础设施）\n2. 用户可随时删除自己的数据\n\n四、信息共享\n未经用户同意，我们不会向第三方共享用户个人信息，法律法规要求除外。\n\n五、数据安全\n我们采用行业标准的安全措施保护用户数据。\n\n六、用户权利\n1. 查询和更正个人信息\n2. 删除个人信息\n3. 撤回授权同意\n4. 注销账号\n\n七、第三方服务\n本应用使用Supabase作为后端基础设施，其隐私政策请参阅Supabase官方网站。'}
+              </Text>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 }
@@ -489,7 +527,14 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   savedAccountDelete: {
-    padding: 4,
+    padding: 8,
+    marginLeft: 8,
+    backgroundColor: '#FEE2E2',
+    borderRadius: 12,
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   agreementRow: {
     flexDirection: 'row',
