@@ -1202,14 +1202,13 @@ export default function HomeScreen() {
 
   const formatBackupFileName = (count: number = 0): string => {
     const now = new Date();
-    const dateStr = now.getFullYear().toString() +
-      (now.getMonth() + 1).toString().padStart(2, '0') +
+    const dateStr = now.getFullYear().toString() + '-' +
+      (now.getMonth() + 1).toString().padStart(2, '0') + '-' +
       now.getDate().toString().padStart(2, '0');
-    const timeStr = now.getHours().toString().padStart(2, '0') +
-      now.getMinutes().toString().padStart(2, '0') +
+    const timeStr = now.getHours().toString().padStart(2, '0') + '-' +
+      now.getMinutes().toString().padStart(2, '0') + '-' +
       now.getSeconds().toString().padStart(2, '0');
-    const device = getDeviceModel();
-    return '号簿云备份_' + device + '_' + count + '个号码_' + dateStr + '_' + timeStr + '.json';
+    return '号簿云备份' + dateStr + '_' + timeStr + '.json';
   };
 
   const parseBackupFilename = (fileName: string): { displayTime: string; device: string; count: number } => {
@@ -1218,7 +1217,14 @@ export default function HomeScreen() {
     let device = '';
     let count = 0;
 
-    // Format 1: 号簿云备份_Device_Count个号码_YYYYMMDD_HHmmss (newest)
+    // Format 0: 号簿云备份YYYY-MM-DD_HH-mm-ss (newest)
+    const newMatch = base.match(/^号簿云备份(\d{4}-\d{2}-\d{2})_(\d{2}-\d{2}-\d{2})$/);
+    if (newMatch) {
+      displayTime = `${newMatch[1]} ${newMatch[2].replace(/-/g, ':')}`;
+      return { displayTime, device, count };
+    }
+
+    // Format 1: 号簿云备份_Device_Count个号码_YYYYMMDD_HHmmss (old)
     const fullMatch = base.match(/^号簿云备份_(.+)_(\d+)个号码_(\d{8})_(\d{6})$/);
     if (fullMatch) {
       device = fullMatch[1];
