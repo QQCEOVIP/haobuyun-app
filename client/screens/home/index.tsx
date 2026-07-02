@@ -80,8 +80,13 @@ export default function HomeScreen() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load avatar from AsyncStorage as fallback and listen for avatar updates
+  // Also reset any stuck modal states to prevent screen darkening
   useFocusEffect(
     useCallback(() => {
+      // Safety: reset any stuck modal/progress states when screen regains focus
+      setProgressVisible(false);
+      setScanModalVisible(false);
+
       (async () => {
         try {
           const cached = await AsyncStorage.getItem('@user_avatar');
@@ -449,13 +454,14 @@ export default function HomeScreen() {
     try {
       const foundFiles: Array<{ name: string; path: string; size: number; modified: string }> = [];
       
-      // Directories to scan
+      // Directories to scan - prioritize app-owned directories that are always accessible
       const scanDirs = [
         FileSystemLegacy.documentDirectory,
         FileSystemLegacy.cacheDirectory,
+        FileSystemLegacy.externalFilesDirectory,
+        // Try common shared directories (may fail on Android 11+ due to scoped storage)
         '/storage/emulated/0/Download',
         '/storage/emulated/0/Documents',
-        '/storage/emulated/0/Android/data',
       ].filter(Boolean) as string[];
 
       for (const dir of scanDirs) {
@@ -469,16 +475,21 @@ export default function HomeScreen() {
               const filePath = dir.endsWith('/') ? `${dir}${fileName}` : `${dir}/${fileName}`;
               try {
                 const fileInfo = await FileSystemLegacy.getInfoAsync(filePath);
-                foundFiles.push({
-                  name: fileName,
-                  path: filePath,
-                  size: fileInfo.size || 0,
-                  modified: fileInfo.modificationTime ? new Date(fileInfo.modificationTime * 1000).toLocaleString() : '',
-                });
+                // Only include files > 100 bytes (skip empty/tiny files)
+                if (fileInfo.size && fileInfo.size > 100) {
+                  foundFiles.push({
+                    name: fileName,
+                    path: filePath,
+                    size: fileInfo.size || 0,
+                    modified: fileInfo.modificationTime ? new Date(fileInfo.modificationTime * 1000).toLocaleString() : '',
+                  });
+                }
               } catch {}
             }
           }
-        } catch {}
+        } catch {
+          // Directory not accessible (scoped storage), skip silently
+        }
       }
 
       // Also scan app's own backups directory
@@ -492,14 +503,16 @@ export default function HomeScreen() {
               const filePath = backupsDir.endsWith('/') ? `${backupsDir}${fileName}` : `${backupsDir}/${fileName}`;
               try {
                 const fileInfo = await FileSystemLegacy.getInfoAsync(filePath);
-                // Avoid duplicates
-                if (!foundFiles.some(f => f.name === fileName)) {
-                  foundFiles.push({
-                    name: fileName,
-                    path: filePath,
-                    size: fileInfo.size || 0,
-                    modified: fileInfo.modificationTime ? new Date(fileInfo.modificationTime * 1000).toLocaleString() : '',
-                  });
+                if (fileInfo.size && fileInfo.size > 100) {
+                  // Avoid duplicates
+                  if (!foundFiles.some(f => f.name === fileName)) {
+                    foundFiles.push({
+                      name: fileName,
+                      path: filePath,
+                      size: fileInfo.size || 0,
+                      modified: fileInfo.modificationTime ? new Date(fileInfo.modificationTime * 1000).toLocaleString() : '',
+                    });
+                  }
                 }
               } catch {}
             }
@@ -1161,36 +1174,52 @@ export default function HomeScreen() {
   };
 
   const parseBackupFilename = (fileName: string): { displayTime: string; device: string; count: number } => {
-    // Format: 2026-06-28_20-41-46_DeviceModel_1905.json
     const base = fileName.replace('.json', '');
-    const parts = base.split('_');
-    
-    // Try to extract timestamp (first 2 parts: YYYY-MM-DD and HH-MM-SS)
     let displayTime = fileName;
     let device = '';
     let count = 0;
-    
+
+    // New format: 号簿云备份_YYYYMMDD_HHMMSS_Device_Count
+    const newFormatMatch = base.match(/^号簿云备份_(\d{8})_(\d{6})_(.*)$/);
+    if (newFormatMatch) {
+      const dateStr = newFormatMatch[1]; // 20260701
+      const timeStr = newFormatMatch[2]; // 130122
+      const rest = newFormatMatch[3]; // Device_Count or just Device
+      // Format date as YYYY-MM-DD HH:MM:SS
+      displayTime = `${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}-${dateStr.slice(6, 8)} ${timeStr.slice(0, 2)}:${timeStr.slice(2, 4)}:${timeStr.slice(4, 6)}`;
+      // Parse rest: last part might be count
+      const restParts = rest.split('_');
+      const lastPart = restParts[restParts.length - 1];
+      if (/^\d+$/.test(lastPart) && restParts.length > 1) {
+        count = parseInt(lastPart, 10);
+        device = restParts.slice(0, -1).join('_');
+      } else {
+        device = rest;
+      }
+      return { displayTime, device, count };
+    }
+
+    // Old format: YYYY-MM-DD_HH-MM-SS_Device_Count or similar
+    const parts = base.split('_');
     if (parts.length >= 2) {
       const datePart = parts[0]; // 2026-06-28
       const timePart = parts[1]; // 20-41-46
       displayTime = `${datePart} ${timePart.replace(/-/g, ':')}`;
     }
-    
+
     // Last part might be count (if it's a number)
     const lastPart = parts[parts.length - 1];
     if (/^\d+$/.test(lastPart)) {
       count = parseInt(lastPart, 10);
-      // Device is everything between time and count
       if (parts.length >= 4) {
         device = parts.slice(2, -1).join('_');
       }
     } else {
-      // No count, device is everything after time
       if (parts.length >= 3) {
         device = parts.slice(2).join('_');
       }
     }
-    
+
     return { displayTime, device, count };
   };
 
@@ -2197,7 +2226,36 @@ export default function HomeScreen() {
                   <View style={styles.scanEmptyContainer}>
                     <Ionicons name="folder-open-outline" size={48} color="#C0C4CC" />
                     <Text style={styles.scanEmptyText}>未找到备份文件</Text>
-                    <Text style={styles.scanEmptyHint}>将备份文件(.json/.hbyun)放入 Download 或 Documents 目录</Text>
+                    <Text style={styles.scanEmptyHint}>将备份文件(.json/.hbyun)放入 Download 或 Documents 目录，或使用系统文件选择器</Text>
+                    <TouchableOpacity
+                      style={styles.scanPickerButton}
+                      onPress={async () => {
+                        setScanModalVisible(false);
+                        try {
+                          const result = await DocumentPicker.getDocumentAsync({
+                            type: ['application/json', 'text/plain', '*/*'],
+                            copyToCacheDirectory: true,
+                          });
+                          if (result.canceled || !result.assets?.length) return;
+                          const file = result.assets[0];
+                          const content = await FileSystemLegacy.readAsStringAsync(file.uri);
+                          setProgressVisible(true);
+                          setProgressPercent(0);
+                          setProgressText('正在解析文件...');
+                          await importFromContent(content, file.name, (percent) => {
+                            setProgressPercent(percent);
+                            setProgressText(`正在导入... ${percent}%`);
+                          });
+                          setProgressVisible(false);
+                        } catch (error) {
+                          setProgressVisible(false);
+                          Alert.alert('错误', '导入失败: ' + ((error as any)?.message || '请重试'));
+                        }
+                      }}
+                    >
+                      <Ionicons name="folder-open" size={16} color="#4A90D9" />
+                      <Text style={styles.scanPickerButtonText}>使用系统文件选择器</Text>
+                    </TouchableOpacity>
                   </View>
                 ) : (
                   <ScrollView style={styles.scanList} showsVerticalScrollIndicator={false}>
@@ -2647,6 +2705,22 @@ const styles = StyleSheet.create({
     color: '#909399',
     textAlign: 'center',
     paddingHorizontal: 20,
+  },
+  scanPickerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    backgroundColor: 'rgba(74,144,217,0.1)',
+  },
+  scanPickerButtonText: {
+    marginLeft: 6,
+    fontSize: 14,
+    color: '#4A90D9',
+    fontWeight: '500',
   },
   scanList: {
     maxHeight: 400,

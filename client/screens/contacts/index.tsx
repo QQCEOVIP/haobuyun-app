@@ -27,7 +27,23 @@ import * as ImagePicker from 'expo-image-picker';
 import { CONSENSUS, type NumberStatus } from '@/constants/numberStatus';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ContactAvatar from '@/components/ContactAvatar';
-import { LinearGradient } from 'expo-linear-gradient';
+
+// Avatar component with error fallback for device contact images
+function DeviceAvatar({ uri, name, size }: { uri: string | null | undefined; name: string; size: number }) {
+  const [loadError, setLoadError] = useState(false);
+
+  if (!uri || loadError) {
+    return <ContactAvatar name={name} size={size} />;
+  }
+
+  return (
+    <Image
+      source={{ uri }}
+      style={{ width: size, height: size, borderRadius: size / 2 }}
+      onError={() => setLoadError(true)}
+    />
+  );
+}
 
 interface Contact {
   id: string;
@@ -543,7 +559,7 @@ export default function ContactsScreen() {
               phoneNumbers: allPhones,
               status: localData?.status || null,
               lastContactDate: localData?.last_contact_date,
-              image: c.image?.available ? c.image.uri : null,
+              image: (c.image?.available && c.image?.uri) ? c.image.uri : null,
             };
           });
 
@@ -813,7 +829,7 @@ export default function ContactsScreen() {
         {customAvatarUri ? (
           <Image source={{ uri: customAvatarUri }} style={styles.customAvatar} />
         ) : item.image ? (
-          <Image source={{ uri: item.image }} style={styles.customAvatar} />
+          <DeviceAvatar uri={item.image} name={item.name} size={44} />
         ) : (
           <ContactAvatar name={item.name} size={44} />
         )}

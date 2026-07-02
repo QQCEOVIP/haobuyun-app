@@ -180,7 +180,7 @@ export default function LoginScreen() {
             </Text>
           </View>
 
-          <View style={styles.form} importantForAutofill="no">
+          <View style={styles.form} importantForAutofill="noExcludeDescendants">
             <View style={styles.inputContainer}>
               <Text style={styles.label}>手机号</Text>
               <TextInput
@@ -196,6 +196,7 @@ export default function LoginScreen() {
                 autoComplete="off"
                 textContentType="none"
                 importantForAutofill="no"
+                readOnly={false}
               />
             </View>
 
@@ -298,9 +299,21 @@ export default function LoginScreen() {
               </TouchableOpacity>
               <Text style={styles.agreementText}>
                 我已阅读并同意
-                <Text style={styles.agreementLink} onPress={() => router.push('/agreement')}>《用户协议》</Text>
+                <Text
+                  style={[styles.agreementLink, { textDecorationLine: 'underline' }]}
+                  onPress={() => router.push('/agreement')}
+                  hitSlop={{ top: 10, bottom: 10, left: 5, right: 5 }}
+                >
+                  《用户协议》
+                </Text>
                 和
-                <Text style={styles.agreementLink} onPress={() => router.push('/privacy')}>《隐私政策》</Text>
+                <Text
+                  style={[styles.agreementLink, { textDecorationLine: 'underline' }]}
+                  onPress={() => router.push('/privacy')}
+                  hitSlop={{ top: 10, bottom: 10, left: 5, right: 5 }}
+                >
+                  《隐私政策》
+                </Text>
               </Text>
             </View>
 
