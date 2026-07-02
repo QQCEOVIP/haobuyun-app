@@ -360,7 +360,7 @@ export default function ContactsScreen() {
                   const updateData: any = {
                     id: existing.id,
                     name: existing.name || contact.name,
-                    phoneNumbers: existing.phoneNumbers?.map((p: any) => ({ number: p.number, label: p.label || 'mobile' })) || [],
+                    phoneNumbers: existing.phoneNumbers?.map((p: any) => ({ number: p.number, label: (p.label && p.label !== 'null' && p.label !== 'undefined') ? p.label : 'mobile' })) || [],
                   };
                   
                   // iOS 需要单独设置 firstName
@@ -395,7 +395,7 @@ export default function ContactsScreen() {
                   
                   // 保留其他字段
                   if (existing.emails && existing.emails.length > 0) {
-                    updateData.emails = existing.emails.map((e: any) => ({ email: e.email, label: e.label || 'home' }));
+                    updateData.emails = existing.emails.map((e: any) => ({ email: e.email, label: (e.label && e.label !== 'null' && e.label !== 'undefined') ? e.label : 'home' }));
                   }
                   if (existing.company) updateData.company = existing.company;
                   if (existing.jobTitle) updateData.jobTitle = existing.jobTitle;

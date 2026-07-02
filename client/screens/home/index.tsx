@@ -848,7 +848,8 @@ export default function HomeScreen() {
         vcardLines.push(`N:${lastName};${firstName};;;`);
         
         for (const phone of c.phoneNumbers) {
-          const label = phone.label || 'CELL';
+          const rawLabel = phone.label;
+          const label = (rawLabel && rawLabel !== 'null' && rawLabel !== 'undefined') ? rawLabel : 'CELL';
           const typeMap: Record<string, string> = {
             'mobile': 'CELL',
             'home': 'HOME',
@@ -1349,7 +1350,7 @@ export default function HomeScreen() {
           avatar: avatarBase64,
           phones: (c.phoneNumbers || []).map(p => ({
             number: p.number || '',
-            label: p.label || 'mobile',
+            label: (p.label && p.label !== 'null' && p.label !== 'undefined') ? p.label : 'mobile',
             status: statusMap.get(p.number || '') || null,
           })),
           emails: (c.emails || []).map(e => ({ email: e.email || '', label: e.label || '' })),
@@ -1591,10 +1592,10 @@ export default function HomeScreen() {
                   // Android 使用 name，iOS 使用 firstName/lastName
                   name: contactName,
                   firstName: contactName,
-                  phoneNumbers: contact.phones?.map((p: any) => ({ number: p.number, label: p.label || 'mobile' })) || [{ number: '', label: 'mobile' }],
+                  phoneNumbers: contact.phones?.map((p: any) => ({ number: p.number, label: (p.label && p.label !== 'null' && p.label !== 'undefined') ? p.label : 'mobile' })) || [{ number: '', label: 'mobile' }],
                 };
                 if (contact.emails?.length) {
-                  contactData.emails = contact.emails.map((e: any) => ({ email: e.email, label: e.label || 'home' }));
+                  contactData.emails = contact.emails.map((e: any) => ({ email: e.email, label: (e.label && e.label !== 'null' && e.label !== 'undefined') ? e.label : 'home' }));
                 }
                 if (contact.addresses?.length) {
                   contactData.postalAddresses = contact.addresses.map((a: any) => ({
