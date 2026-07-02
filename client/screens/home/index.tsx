@@ -1345,6 +1345,9 @@ export default function HomeScreen() {
       const contactCount = backupData.contacts?.length || 0;
       const fileName = formatBackupFileName(contactCount);
 
+      // Log for debugging 0KB issue
+      console.log(`[CloudBackup] fileName=${fileName}, contactCount=${contactCount}, contentLength=${content.length}`);
+
       // Save local backup copy
       setProgressPercent(30);
       setProgressText('正在保存本地副本...');

@@ -40,6 +40,7 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [savedAccounts, setSavedAccounts] = useState<SavedAccount[]>([]);
+  const [rememberPassword, setRememberPassword] = useState(true);
   const { signInWithEmail, signUpWithEmail } = useAuth();
 
   // Load saved accounts on mount
@@ -58,6 +59,7 @@ export default function LoginScreen() {
           const latest = accounts[0];
           setPhone(latest.phone);
           setPassword(latest.password);
+          setRememberPassword(true);
         }
       }
     } catch {}
@@ -144,8 +146,10 @@ export default function LoginScreen() {
         if (error) {
           Alert.alert('登录失败', error.message);
         } else {
-          // Save account on successful login
-          await saveAccount(phone, password);
+          // Save account on successful login if rememberPassword is checked
+          if (rememberPassword) {
+            await saveAccount(phone, password);
+          }
         }
       } else {
         const { error } = await signUpWithEmail(email, password, { phone, id_card: idCard });
@@ -222,7 +226,7 @@ export default function LoginScreen() {
                       style={styles.savedAccountDelete}
                       onPress={() => deleteAccount(account.phone)}
                     >
-                      <Ionicons name="close-circle" size={20} color="#C0C4CC" />
+                      <Ionicons name="close" size={22} color="#999" />
                     </TouchableOpacity>
                   </View>
                 ))}
@@ -285,6 +289,21 @@ export default function LoginScreen() {
                   />
                 </View>
               </>
+            )}
+
+            {/* 记住密码勾选 */}
+            {isLogin && (
+              <View style={styles.agreementRow}>
+                <TouchableOpacity
+                  style={styles.agreementCheckbox}
+                  onPress={() => setRememberPassword(!rememberPassword)}
+                >
+                  <View style={[styles.checkboxInner, rememberPassword && styles.checkboxInnerChecked]}>
+                    {rememberPassword && <Ionicons name="checkmark" size={12} color="#fff" />}
+                  </View>
+                </TouchableOpacity>
+                <Text style={styles.agreementText}>记住密码</Text>
+              </View>
             )}
 
             {/* 协议勾选 - 使用 View + TouchableOpacity 平级布局，兼容 Android */}

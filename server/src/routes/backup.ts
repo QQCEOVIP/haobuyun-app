@@ -36,16 +36,21 @@ router.post('/cloud', async (req, res) => {
       return res.status(400).json({ error: 'Missing fileName or content' });
     }
 
+    // Log upload details for debugging
+    const contentLength = typeof content === 'string' ? content.length : 0;
+    console.log(`[Backup] Upload: fileName=${fileName}, contentLength=${contentLength}, userId=${userId}`);
+
     const supabase = getSupabaseAdmin();
     await ensureBucket(supabase);
 
     const storagePath = `${userId}/${fileName}`;
-    const { error } = await supabase.storage
+    const { data, error } = await supabase.storage
       .from(BUCKET_NAME)
       .upload(storagePath, content, { contentType: 'application/json', upsert: true });
 
     if (error) throw error;
 
+    console.log(`[Backup] Upload success: ${storagePath}, size=${contentLength} bytes`);
     res.json({ success: true, fileName });
   } catch (error: any) {
     console.error('Cloud backup upload error:', error?.message || error);
