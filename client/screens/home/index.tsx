@@ -87,6 +87,11 @@ export default function HomeScreen() {
       // Safety: reset any stuck modal/progress states when screen regains focus
       setProgressVisible(false);
       setScanModalVisible(false);
+      setCloudBackupVisible(false);
+      setRestoreSelectVisible(false);
+      setBackupRecordsVisible(false);
+      setFileNameModalVisible(false);
+      setDetectionResult(null);
 
       (async () => {
         try {
@@ -426,7 +431,7 @@ export default function HomeScreen() {
       if (fileName.endsWith('.json') || fileName.endsWith('.hbyun') || fileName.endsWith('.vcf')) {
         setProgressVisible(true);
         setProgressPercent(0);
-        setProgressText('正在解析文件...');
+        setProgressText('正在导入，请稍后...');
         await importFromContent(content, fileName, (percent) => {
           setProgressPercent(percent);
           setProgressText(`正在导入... ${percent}%`);
@@ -719,7 +724,7 @@ export default function HomeScreen() {
     try {
       setProgressVisible(true);
       setProgressPercent(0);
-      setProgressText('正在生成备份数据...');
+      setProgressText('正在导出，请稍后...');
       // 直接使用 generateBackupData 确保格式与云端备份完全一致
       const backupData = await generateBackupData();
       const contactCount = backupData.contacts.length;
@@ -1274,9 +1279,16 @@ export default function HomeScreen() {
   const processAvatar = async (imageUri: string | null | undefined): Promise<string | null> => {
     if (!imageUri) return null;
     try {
-      const base64 = await FileSystem.readAsStringAsync(imageUri, {
+      // Strip file:// prefix for expo-file-system compatibility
+      let cleanUri = imageUri;
+      if (cleanUri.startsWith('file://')) {
+        cleanUri = cleanUri.replace('file://', '');
+      }
+      console.log(`[Backup] Reading avatar: ${cleanUri.substring(0, 80)}...`);
+      const base64 = await FileSystem.readAsStringAsync(cleanUri, {
         encoding: FileSystem.EncodingType.Base64,
       });
+      console.log(`[Backup] Avatar base64 length: ${base64.length}`);
       return 'data:image/jpeg;base64,' + base64;
     } catch (e) {
       console.log('[Backup] Avatar read failed:', imageUri, e);
@@ -1363,7 +1375,7 @@ export default function HomeScreen() {
     setCloudBackupLoading('uploading');
     setProgressVisible(true);
     setProgressPercent(0);
-    setProgressText('正在生成备份数据...');
+    setProgressText('正在备份，请稍后...');
     try {
       const backupData = await generateBackupData();
       const contactCount = backupData.contacts?.length || 0;
@@ -1509,7 +1521,7 @@ export default function HomeScreen() {
           setCloudBackupLoading('downloading');
           setProgressVisible(true);
           setProgressPercent(0);
-          setProgressText('正在下载备份...');
+          setProgressText('正在恢复，请稍后...');
           try {
             /**
              * 服务端文件：server/src/routes/backup.ts

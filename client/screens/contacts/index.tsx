@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useFocusEffect } from 'expo-router';
 import {
   View,
   Text,
@@ -98,6 +99,17 @@ export default function ContactsScreen() {
   const [initialLoaded, setInitialLoaded] = useState(false);
 
   const userId = (user as any)?.id;
+
+  // Safety: reset any stuck modal states when screen regains focus to prevent screen darkening
+  useFocusEffect(
+    useCallback(() => {
+      setInfoModalVisible(false);
+      setStatusMenuContact(null);
+      setAvatarMenuContact(null);
+      setEditModalVisible(false);
+      setVotePanelVisible(false);
+    }, [])
+  );
 
   // 阈值配置（与服务端保持一致）
   const CONFIRMED_THRESHOLD = 3;

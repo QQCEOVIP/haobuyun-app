@@ -28,7 +28,7 @@ export default function AboutScreen() {
         <View style={styles.logoContainer}>
           <Logo size={80} />
           <Text style={styles.appName}>号簿云</Text>
-          <Text style={styles.version}>版本 1.0.0</Text>
+          <Text style={styles.version}>内测版本 1.0.0</Text>
           <TouchableOpacity
             style={styles.updateButton}
             onPress={handleCheckUpdate}

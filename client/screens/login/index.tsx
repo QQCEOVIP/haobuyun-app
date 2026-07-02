@@ -254,9 +254,10 @@ export default function LoginScreen() {
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.savedAccountDelete}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                       onPress={() => deleteAccount(account.phone)}
                     >
-                      <Ionicons name="close" size={18} color="#F56C6C" />
+                      <Ionicons name="close" size={14} color="#FFFFFF" />
                     </TouchableOpacity>
                   </View>
                 ))}
@@ -564,14 +565,13 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   savedAccountDelete: {
-    padding: 8,
-    marginLeft: 8,
-    backgroundColor: '#FEE2E2',
-    borderRadius: 12,
-    width: 32,
-    height: 32,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#F56C6C',
     justifyContent: 'center',
     alignItems: 'center',
+    marginLeft: 8,
   },
   agreementRow: {
     flexDirection: 'row',
