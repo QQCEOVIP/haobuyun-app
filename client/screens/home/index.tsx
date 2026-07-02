@@ -1324,6 +1324,7 @@ export default function HomeScreen() {
       Contacts.Fields.Image,
     ]);
     if (!allContacts || allContacts.length === 0) throw new Error('通讯录中没有联系人');
+    console.log("[Backup] Reading contacts... Found:", allContacts.length);
 
     const phoneKeys = allContacts
       .filter(c => c.phoneNumbers && c.phoneNumbers.length > 0)
@@ -1334,13 +1335,7 @@ export default function HomeScreen() {
       if (value) statusMap.set(key.replace('@contact_status_', ''), value);
     });
 
-    return {
-      format: 'HAOBUYUN_BACKUP',
-      version: '1.0',
-      exportedAt: new Date().toISOString(),
-      device: 'mobile',
-      device_model: Constants.deviceName || ((Platform as any).constants?.Brand || '') + ' ' + ((Platform as any).constants?.Model || '') || 'Unknown',
-      contacts: await Promise.all(allContacts.map(async c => {
+    const contactsData = await Promise.all(allContacts.map(async c => {
         const fullName = c.name && c.name.length > 1
           ? c.name
           : ((c.firstName || '') + ' ' + (c.lastName || '')).trim() || c.name || '';
@@ -1358,7 +1353,18 @@ export default function HomeScreen() {
           jobTitle: c.jobTitle || '',
           note: c.note || '',
         };
-      })),
+      }));
+    const withAvatar = contactsData.filter(c => c.avatar !== null).length;
+    const withoutAvatar = contactsData.length - withAvatar;
+    console.log("[Backup] Total contacts:", contactsData.length, ", with avatar:", withAvatar, ", without avatar:", withoutAvatar);
+
+    return {
+      format: 'HAOBUYUN_BACKUP',
+      version: '1.0',
+      exportedAt: new Date().toISOString(),
+      device: 'mobile',
+      device_model: Constants.deviceName || ((Platform as any).constants?.Brand || '') + ' ' + ((Platform as any).constants?.Model || '') || 'Unknown',
+      contacts: contactsData,
     };
   };
 
@@ -1382,6 +1388,7 @@ export default function HomeScreen() {
   };
 
   const executeCloudBackup = async () => {
+    console.log("[Backup] Starting full backup...");
     setCloudLoading(true);
     setCloudBackupLoading('uploading');
     setProgressVisible(true);
@@ -1416,6 +1423,7 @@ export default function HomeScreen() {
 
       setProgressPercent(50);
       setProgressText('正在上传到云端...');
+      console.log("[Backup] Content length:", content.length, "bytes");
       /**
        * 服务端文件：server/src/routes/backup.ts
        * 接口：POST /api/v1/backup/cloud
@@ -1975,7 +1983,7 @@ export default function HomeScreen() {
       <Modal
         visible={true}
         transparent
-        animationType="slide"
+        animationType="none"
         onRequestClose={() => setCloudBackupVisible(false)}
       >
         <TouchableWithoutFeedback onPress={() => setCloudBackupVisible(false)}>
@@ -2062,7 +2070,7 @@ export default function HomeScreen() {
       <Modal
         visible={true}
         transparent
-        animationType="slide"
+        animationType="none"
         onRequestClose={() => setRestoreSelectVisible(false)}
       >
         <TouchableWithoutFeedback onPress={() => setRestoreSelectVisible(false)}>
@@ -2141,7 +2149,7 @@ export default function HomeScreen() {
       <Modal
         visible={true}
         transparent
-        animationType="slide"
+        animationType="none"
         onRequestClose={() => setBackupRecordsVisible(false)}
       >
         <TouchableWithoutFeedback onPress={() => setBackupRecordsVisible(false)}>
@@ -2275,7 +2283,7 @@ export default function HomeScreen() {
       <Modal
         visible={scanModalVisible}
         transparent
-        animationType="slide"
+        animationType="none"
         onRequestClose={() => setScanModalVisible(false)}
       >
         <TouchableWithoutFeedback onPress={() => setScanModalVisible(false)} disabled={scanLoading}>
