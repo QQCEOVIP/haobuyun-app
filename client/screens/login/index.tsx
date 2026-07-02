@@ -100,35 +100,62 @@ export default function LoginScreen() {
   const saveAccount = async (phoneNumber: string, pwd: string) => {
     console.log('[Login] Saving account:', phoneNumber);
     try {
-      let accounts = [...savedAccounts];
-      // Remove existing entry for this phone if present
+      // 从 AsyncStorage 重新读取最新数据，避免闭包陷阱
+      const rawData = await AsyncStorage.getItem(SAVED_ACCOUNTS_KEY);
+      let accounts: SavedAccount[] = rawData ? JSON.parse(rawData) : [];
+      
+      // 移除已存在的同号码账号
       accounts = accounts.filter(a => a.phone !== phoneNumber);
-      // Add new entry at the beginning (most recent first)
+      
+      // 添加到列表头部
       accounts.unshift({
         phone: phoneNumber,
         password: pwd,
         lastLoginAt: new Date().toISOString(),
       });
-      // Keep only the latest MAX_SAVED_ACCOUNTS
+      
+      // 限制最多保存5个账号
       if (accounts.length > MAX_SAVED_ACCOUNTS) {
         accounts = accounts.slice(0, MAX_SAVED_ACCOUNTS);
       }
+      
+      // 保存到 AsyncStorage
       await AsyncStorage.setItem(SAVED_ACCOUNTS_KEY, JSON.stringify(accounts));
+      
+      // 更新 state
       setSavedAccounts(accounts);
-    } catch {}
+      console.log('[Login] Account saved successfully, total:', accounts.length);
+    } catch (error) {
+      console.error('[Login] saveAccount failed:', error);
+      Alert.alert('保存账号失败', '无法保存登录记录，请重试');
+    }
   };
 
   const deleteAccount = async (phoneNumber: string) => {
     try {
-      const accounts = savedAccounts.filter(a => a.phone !== phoneNumber);
+      // 从 AsyncStorage 重新读取最新数据
+      const rawData = await AsyncStorage.getItem(SAVED_ACCOUNTS_KEY);
+      let accounts: SavedAccount[] = rawData ? JSON.parse(rawData) : [];
+      
+      // 过滤掉要删除的账号
+      accounts = accounts.filter(a => a.phone !== phoneNumber);
+      
+      // 保存回 AsyncStorage
       await AsyncStorage.setItem(SAVED_ACCOUNTS_KEY, JSON.stringify(accounts));
+      
+      // 更新 state
       setSavedAccounts(accounts);
-      // If deleted the currently filled account, clear fields
+      console.log('[Login] Account deleted, remaining:', accounts.length);
+      
+      // 如果删除的是当前填充的账号，清空输入框
       if (phone === phoneNumber) {
         setPhone('');
         setPassword('');
       }
-    } catch {}
+    } catch (error) {
+      console.error('[Login] deleteAccount failed:', error);
+      Alert.alert('删除失败', '无法删除账号记录');
+    }
   };
 
   const selectAccount = (account: SavedAccount) => {
