@@ -1341,12 +1341,24 @@ export default function HomeScreen() {
     setProgressText('正在生成备份数据...');
     try {
       const backupData = await generateBackupData();
-      const content = JSON.stringify(backupData, null, 2);
       const contactCount = backupData.contacts?.length || 0;
+      
+      if (contactCount === 0) {
+        Alert.alert('提示', '通讯录中没有联系人，无法备份');
+        return;
+      }
+      
+      const content = JSON.stringify(backupData, null, 2);
       const fileName = formatBackupFileName(contactCount);
 
       // Log for debugging 0KB issue
       console.log(`[CloudBackup] fileName=${fileName}, contactCount=${contactCount}, contentLength=${content.length}`);
+
+      if (content.length < 100) {
+        console.error('[CloudBackup] Content too short, possible empty backup');
+        Alert.alert('备份失败', '备份数据异常，请检查通讯录权限');
+        return;
+      }
 
       // Save local backup copy
       setProgressPercent(30);
@@ -1372,11 +1384,16 @@ export default function HomeScreen() {
       });
 
       const result = await response.json();
+      console.log(`[CloudBackup] Server response: ok=${response.ok}, fileName=${result.fileName}`);
+      
       if (!response.ok) throw new Error(result.error || '上传失败');
+      if (!result.success || result.fileName !== fileName) {
+        console.warn(`[CloudBackup] Unexpected response: expected fileName=${fileName}, got=${result.fileName}`);
+      }
 
       setProgressPercent(100);
       setProgressText('备份完成！');
-      Alert.alert('云端备份成功', `已备份 ${backupData.contacts.length} 个联系人到云端`);
+      Alert.alert('云端备份成功', `已备份 ${contactCount} 个联系人到云端`);
       loadCloudBackups();
     } catch (err: any) {
       console.error('Cloud backup error:', err);

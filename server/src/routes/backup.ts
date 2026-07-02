@@ -33,12 +33,17 @@ router.post('/cloud', async (req, res) => {
     }
     const { fileName, content } = req.body;
     if (!fileName || !content) {
+      console.error(`[Backup] Missing fileName or content: fileName=${fileName}, content=${content ? 'present' : 'MISSING'}`);
       return res.status(400).json({ error: 'Missing fileName or content' });
     }
 
     // Log upload details for debugging
     const contentLength = typeof content === 'string' ? content.length : 0;
     console.log(`[Backup] Upload: fileName=${fileName}, contentLength=${contentLength}, userId=${userId}`);
+
+    if (contentLength < 100) {
+      console.warn(`[Backup] Content suspiciously short: ${contentLength} bytes`);
+    }
 
     const supabase = getSupabaseAdmin();
     await ensureBucket(supabase);
@@ -48,12 +53,15 @@ router.post('/cloud', async (req, res) => {
       .from(BUCKET_NAME)
       .upload(storagePath, content, { contentType: 'application/json', upsert: true });
 
-    if (error) throw error;
+    if (error) {
+      console.error(`[Backup] Supabase upload error: ${error.message}`);
+      throw error;
+    }
 
     console.log(`[Backup] Upload success: ${storagePath}, size=${contentLength} bytes`);
     res.json({ success: true, fileName });
   } catch (error: any) {
-    console.error('Cloud backup upload error:', error?.message || error);
+    console.error('[Backup] Cloud backup upload error:', error?.message || error);
     res.status(500).json({ error: `Upload failed: ${error?.message || 'Unknown error'}` });
   }
 });
