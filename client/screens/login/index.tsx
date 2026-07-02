@@ -158,6 +158,46 @@ export default function LoginScreen() {
     }
   };
 
+  const clearAllAccounts = async () => {
+    Alert.alert(
+      '确认清除',
+      '确定要清除所有保存的登录账号吗？此操作不可恢复。',
+      [
+        { text: '取消', style: 'cancel' },
+        {
+          text: '确认清除',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // 清空 AsyncStorage
+              await AsyncStorage.removeItem(SAVED_ACCOUNTS_KEY);
+              console.log('[Login] AsyncStorage cleared');
+              
+              // 清空 SecureStore（兼容旧版本）
+              try {
+                await SecureStore.deleteItemAsync('saved_phone');
+                await SecureStore.deleteItemAsync('saved_password');
+                console.log('[Login] SecureStore cleared');
+              } catch (e) {
+                console.log('[Login] SecureStore clear failed (may not exist):', e);
+              }
+              
+              // 清空 state
+              setSavedAccounts([]);
+              setPhone('');
+              setPassword('');
+              
+              Alert.alert('已清除', '所有保存的登录账号已清除');
+            } catch (error) {
+              console.error('[Login] clearAllAccounts failed:', error);
+              Alert.alert('清除失败', '无法清除账号记录，请重试');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const selectAccount = (account: SavedAccount) => {
     setPhone(account.phone);
     setPassword(account.password);
@@ -267,7 +307,13 @@ export default function LoginScreen() {
             {/* Saved accounts list */}
             {isLogin && savedAccounts.length > 0 && (
               <View style={styles.savedAccountsContainer}>
-                <Text style={styles.savedAccountsTitle}>已保存的账号</Text>
+                <View style={styles.savedAccountsHeader}>
+                  <Text style={styles.savedAccountsTitle}>已保存的账号</Text>
+                  <TouchableOpacity onPress={clearAllAccounts} style={styles.clearAllButton}>
+                    <Ionicons name="trash-outline" size={18} color="#F56C6C" />
+                    <Text style={styles.clearAllText}>全部清除</Text>
+                  </TouchableOpacity>
+                </View>
                 {savedAccounts.map((account) => (
                   <View key={account.phone} style={styles.savedAccountRow}>
                     <TouchableOpacity
@@ -563,10 +609,26 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 12,
   },
+  savedAccountsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   savedAccountsTitle: {
     fontSize: 12,
     color: '#909399',
-    marginBottom: 8,
+  },
+  clearAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  clearAllText: {
+    fontSize: 12,
+    color: '#F56C6C',
+    marginLeft: 4,
   },
   savedAccountRow: {
     flexDirection: 'row',
