@@ -1284,6 +1284,7 @@ export default function HomeScreen() {
       Contacts.Fields.JobTitle,
       Contacts.Fields.Company,
       Contacts.Fields.Note,
+      Contacts.Fields.Image,
     ]);
     if (!allContacts || allContacts.length === 0) throw new Error('通讯录中没有联系人');
 
@@ -1310,6 +1311,7 @@ export default function HomeScreen() {
             : ((c.firstName || '') + ' ' + (c.lastName || '')).trim() || c.name || '';
           return {
             name: fullName,
+            avatar: (c.image?.available && c.image?.uri) ? c.image.uri : null,
             phones: (c.phoneNumbers || []).map(p => ({
               number: p.number || '',
               label: p.label || 'mobile',

@@ -84,6 +84,10 @@ export default function ContactsScreen() {
   const [editPhones, setEditPhones] = useState<string[]>([]);
   const [editSaving, setEditSaving] = useState(false);
   const [editAvatarUri, setEditAvatarUri] = useState<string | null>(null);
+  const [editEmails, setEditEmails] = useState<string[]>([]);
+  const [editCompany, setEditCompany] = useState('');
+  const [editJobTitle, setEditJobTitle] = useState('');
+  const [editNote, setEditNote] = useState('');
 
   // 社区投票相关状态
   const [communityVotes, setCommunityVotes] = useState<Map<string, { stoppedCount: number; communityStatus: string | null }>>(new Map());
@@ -400,12 +404,28 @@ export default function ContactsScreen() {
     );
   };
 
-  const handleOpenEdit = (contact: Contact) => {
+  const handleOpenEdit = async (contact: Contact) => {
     setStatusMenuContact(null);
     setEditingContact(contact);
     setEditName(contact.name);
     setEditPhones(contact.phoneNumbers.length > 0 ? [...contact.phoneNumbers] : [contact.phone]);
     setEditAvatarUri(contactAvatars[contact.phone] || null);
+    // Load full contact details (email, company, jobTitle, note)
+    try {
+      const fullContact = await Contacts.getContactByIdAsync(contact.deviceContactId);
+      if (fullContact) {
+        const emails = (fullContact.emails || []).map((e: any) => e.email || '').filter((e: string) => e.length > 0);
+        setEditEmails(emails.length > 0 ? emails : []);
+        setEditCompany(fullContact.company || '');
+        setEditJobTitle(fullContact.jobTitle || '');
+        setEditNote(fullContact.note || '');
+      }
+    } catch {
+      setEditEmails([]);
+      setEditCompany('');
+      setEditJobTitle('');
+      setEditNote('');
+    }
     setEditModalVisible(true);
   };
 
@@ -454,6 +474,12 @@ export default function ContactsScreen() {
         label: 'mobile' as const,
       }));
 
+      // Build emails array from the editable list
+      const updatedEmails = editEmails
+        .map(e => e.trim())
+        .filter(e => e.length > 0)
+        .map(email => ({ email, label: 'home' as const }));
+
       // Update device contact directly - pass both name formats for cross-platform compatibility
       console.log('[Contacts] Updating contact:', editingContact.deviceContactId, 'name:', editName.trim(), 'phones:', updatedPhones.length);
       await Contacts.updateContactAsync({
@@ -462,6 +488,10 @@ export default function ContactsScreen() {
         firstName: editName.trim(),
         lastName: '',
         phoneNumbers: updatedPhones,
+        emails: updatedEmails,
+        company: editCompany.trim(),
+        jobTitle: editJobTitle.trim(),
+        note: editNote.trim(),
       });
 
       // Update local state
@@ -1241,6 +1271,75 @@ export default function ContactsScreen() {
                   <Ionicons name="add-circle-outline" size={20} color="#4A90D9" />
                   <Text style={styles.editPhoneAddText}>添加号码</Text>
                 </TouchableOpacity>
+
+                {/* 邮箱 */}
+                <Text style={[styles.editLabel, { marginTop: 16 }]}>邮箱</Text>
+                {editEmails.map((email, index) => (
+                  <View key={`email-${index}`} style={styles.editPhoneRow}>
+                    <TextInput
+                      style={[styles.editInput, { flex: 1 }]}
+                      value={email}
+                      onChangeText={(text) => {
+                        const updated = [...editEmails];
+                        updated[index] = text;
+                        setEditEmails(updated);
+                      }}
+                      placeholder="请输入邮箱"
+                      placeholderTextColor="#B2BEC3"
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                    />
+                    {editEmails.length > 1 && (
+                      <TouchableOpacity
+                        style={styles.editPhoneDeleteBtn}
+                        onPress={() => {
+                          const updated = editEmails.filter((_, i) => i !== index);
+                          setEditEmails(updated);
+                        }}
+                      >
+                        <Ionicons name="close-circle" size={22} color="#F56C6C" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                ))}
+                <TouchableOpacity
+                  style={styles.editPhoneAddBtn}
+                  onPress={() => setEditEmails([...editEmails, ''])}
+                >
+                  <Ionicons name="add-circle-outline" size={20} color="#4A90D9" />
+                  <Text style={styles.editPhoneAddText}>添加邮箱</Text>
+                </TouchableOpacity>
+
+                {/* 公司 */}
+                <Text style={[styles.editLabel, { marginTop: 16 }]}>公司</Text>
+                <TextInput
+                  style={styles.editInput}
+                  value={editCompany}
+                  onChangeText={setEditCompany}
+                  placeholder="请输入公司名称"
+                  placeholderTextColor="#B2BEC3"
+                />
+
+                {/* 职位 */}
+                <Text style={[styles.editLabel, { marginTop: 16 }]}>职位</Text>
+                <TextInput
+                  style={styles.editInput}
+                  value={editJobTitle}
+                  onChangeText={setEditJobTitle}
+                  placeholder="请输入职位"
+                  placeholderTextColor="#B2BEC3"
+                />
+
+                {/* 备注 */}
+                <Text style={[styles.editLabel, { marginTop: 16 }]}>备注</Text>
+                <TextInput
+                  style={[styles.editInput, { minHeight: 80, textAlignVertical: 'top' }]}
+                  value={editNote}
+                  onChangeText={setEditNote}
+                  placeholder="请输入备注"
+                  placeholderTextColor="#B2BEC3"
+                  multiline
+                />
               </ScrollView>
               <View style={styles.editModalFooter}>
                 <TouchableOpacity
