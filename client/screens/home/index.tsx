@@ -21,6 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import * as Contacts from 'expo-contacts';
 import * as FileSystemLegacy from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 import { StorageAccessFramework } from 'expo-file-system/legacy';
 import Constants from 'expo-constants';
 
@@ -1270,6 +1271,19 @@ export default function HomeScreen() {
     }
   };
 
+  const processAvatar = async (imageUri: string | null | undefined): Promise<string | null> => {
+    if (!imageUri) return null;
+    try {
+      const base64 = await FileSystem.readAsStringAsync(imageUri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      return 'data:image/jpeg;base64,' + base64;
+    } catch (e) {
+      console.log('[Backup] Avatar read failed:', imageUri, e);
+      return null;
+    }
+  };
+
   // 生成备份数据（复用现有逻辑）
   // hbyun-backup: data serialization engine, format v1.0
   const generateBackupData = async () => {
@@ -1303,26 +1317,25 @@ export default function HomeScreen() {
       exportedAt: new Date().toISOString(),
       device: 'mobile',
       device_model: Constants.deviceName || ((Platform as any).constants?.Brand || '') + ' ' + ((Platform as any).constants?.Model || '') || 'Unknown',
-      contacts: allContacts
-        .map(c => {
-          // Name fallback: prefer c.name, if empty or too short, use firstName + lastName
-          const fullName = c.name && c.name.length > 1
-            ? c.name
-            : ((c.firstName || '') + ' ' + (c.lastName || '')).trim() || c.name || '';
-          return {
-            name: fullName,
-            avatar: (c.image?.available && c.image?.uri) ? c.image.uri : null,
-            phones: (c.phoneNumbers || []).map(p => ({
-              number: p.number || '',
-              label: p.label || 'mobile',
-              status: statusMap.get(p.number || '') || null,
-            })),
-            emails: (c.emails || []).map(e => ({ email: e.email || '', label: e.label || '' })),
-            company: c.company || '',
-            jobTitle: c.jobTitle || '',
-            note: c.note || '',
-          };
-        }),
+      contacts: await Promise.all(allContacts.map(async c => {
+        const fullName = c.name && c.name.length > 1
+          ? c.name
+          : ((c.firstName || '') + ' ' + (c.lastName || '')).trim() || c.name || '';
+        const avatarBase64 = await processAvatar(c.image?.uri || (c as any).photo);
+        return {
+          name: fullName,
+          avatar: avatarBase64,
+          phones: (c.phoneNumbers || []).map(p => ({
+            number: p.number || '',
+            label: p.label || 'mobile',
+            status: statusMap.get(p.number || '') || null,
+          })),
+          emails: (c.emails || []).map(e => ({ email: e.email || '', label: e.label || '' })),
+          company: c.company || '',
+          jobTitle: c.jobTitle || '',
+          note: c.note || '',
+        };
+      })),
     };
   };
 
