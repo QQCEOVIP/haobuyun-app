@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   TextInput,
   RefreshControl,
-  Modal,
   TouchableWithoutFeedback,
   Alert,
   Image,
@@ -28,6 +27,26 @@ import * as ImagePicker from 'expo-image-picker';
 import { CONSENSUS, type NumberStatus } from '@/constants/numberStatus';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ContactAvatar from '@/components/ContactAvatar';
+
+// 替代 Modal 的轻量级遮罩组件，避免 Modal 原生行为导致的闪屏
+const Overlay = ({ visible, children, onClose }: { visible: boolean; children: React.ReactNode; onClose?: () => void }) => {
+  if (!visible) return null;
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+      <TouchableWithoutFeedback onPress={onClose} disabled={!onClose}>
+        <View
+          style={{
+            ...StyleSheet.absoluteFillObject,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          }}
+        />
+      </TouchableWithoutFeedback>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }} pointerEvents="box-none">
+        {children}
+      </View>
+    </View>
+  );
+};
 
 // Avatar component with error fallback for device contact images
 function DeviceAvatar({ uri, name, size }: { uri: string | null | undefined; name: string; size: number }) {
@@ -1071,397 +1090,340 @@ export default function ContactsScreen() {
       />
 
       {/* 说明弹窗 */}
-      {infoModalVisible && (
-      <Modal
-        visible={true}
-        transparent
-        animationType="none"
-        onRequestClose={() => setInfoModalVisible(false)}
-      >
-        <TouchableWithoutFeedback onPress={() => setInfoModalVisible(false)}>
-          <View style={styles.modalOverlay}>
-            <TouchableWithoutFeedback>
-              <View style={styles.infoCard}>
-                <Text style={styles.infoTitle}>状态说明</Text>
-                <View style={styles.infoItem}>
-                  <View style={[styles.infoDot, { backgroundColor: '#67C23A' }]} />
-                  <Text style={styles.infoText}>
-                    <Text style={{ fontWeight: '600' }}>正常</Text>：号码可正常使用
-                  </Text>
-                </View>
-                <View style={styles.infoItem}>
-                  <View style={[styles.infoDot, { backgroundColor: '#F56C6C' }]} />
-                  <Text style={styles.infoText}>
-                    <Text style={{ fontWeight: '600' }}>停机</Text>：号码已确认停机或空号
-                  </Text>
-                </View>
-                <View style={styles.infoItem}>
-                  <View style={[styles.infoDot, { backgroundColor: '#E6A23C' }]} />
-                  <Text style={styles.infoText}>
-                    <Text style={{ fontWeight: '600' }}>疑似停机</Text>：号码可能已停机，建议核实
-                  </Text>
-                </View>
-                <View style={styles.infoItem}>
-                  <View style={[styles.infoDot, { backgroundColor: '#909399' }]} />
-                  <Text style={styles.infoText}>
-                    <Text style={{ fontWeight: '600' }}>未标记</Text>：尚未设置状态
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  style={{ marginTop: 16, alignItems: 'center' }}
-                  onPress={() => setInfoModalVisible(false)}
-                >
-                  <Text style={{ color: '#4A90D9', fontSize: 15, fontWeight: '600' }}>知道了</Text>
-                </TouchableOpacity>
-              </View>
-            </TouchableWithoutFeedback>
+      <Overlay visible={infoModalVisible} onClose={() => setInfoModalVisible(false)}>
+        <View style={styles.infoCard}>
+          <Text style={styles.infoTitle}>状态说明</Text>
+          <View style={styles.infoItem}>
+            <View style={[styles.infoDot, { backgroundColor: '#67C23A' }]} />
+            <Text style={styles.infoText}>
+              <Text style={{ fontWeight: '600' }}>正常</Text>：号码可正常使用
+            </Text>
           </View>
-        </TouchableWithoutFeedback>
-      </Modal>
-      )}
+          <View style={styles.infoItem}>
+            <View style={[styles.infoDot, { backgroundColor: '#F56C6C' }]} />
+            <Text style={styles.infoText}>
+              <Text style={{ fontWeight: '600' }}>停机</Text>：号码已确认停机或空号
+            </Text>
+          </View>
+          <View style={styles.infoItem}>
+            <View style={[styles.infoDot, { backgroundColor: '#E6A23C' }]} />
+            <Text style={styles.infoText}>
+              <Text style={{ fontWeight: '600' }}>疑似停机</Text>：号码可能已停机，建议核实
+            </Text>
+          </View>
+          <View style={styles.infoItem}>
+            <View style={[styles.infoDot, { backgroundColor: '#909399' }]} />
+            <Text style={styles.infoText}>
+              <Text style={{ fontWeight: '600' }}>未标记</Text>：尚未设置状态
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={{ marginTop: 16, alignItems: 'center' }}
+            onPress={() => setInfoModalVisible(false)}
+          >
+            <Text style={{ color: '#4A90D9', fontSize: 15, fontWeight: '600' }}>知道了</Text>
+          </TouchableOpacity>
+        </View>
+      </Overlay>
 
       {/* 状态选择菜单 */}
-      {statusMenuContact !== null && (
-      <Modal
-        visible={true}
-        transparent
-        animationType="none"
-        onRequestClose={() => setStatusMenuContact(null)}
-      >
-        <TouchableWithoutFeedback onPress={() => setStatusMenuContact(null)}>
-          <View style={styles.modalOverlay}>
-            <TouchableWithoutFeedback>
-              <View style={styles.statusMenuCard}>
-                <Text style={styles.statusMenuTitle}>选择状态</Text>
-                <Text style={styles.statusMenuContactName}>
-                  {statusMenuContact?.name} ({statusMenuContact?.phone})
-                </Text>
-                <TouchableOpacity
-                  style={[styles.statusMenuOption, { backgroundColor: '#E7F7E7' }]}
-                  onPress={() => updateContactStatus(statusMenuContact, 'normal')}
-                >
-                  <Ionicons name="checkmark-circle" size={20} color="#67C23A" />
-                  <Text style={[styles.statusMenuOptionText, { color: '#67C23A' }]}>正常</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.statusMenuOption, { backgroundColor: '#FEF0F0' }]}
-                  onPress={() => updateContactStatus(statusMenuContact, 'stopped')}
-                >
-                  <Ionicons name="close-circle" size={20} color="#F56C6C" />
-                  <Text style={[styles.statusMenuOptionText, { color: '#F56C6C' }]}>停机</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.statusMenuCancel}
-                  onPress={() => setStatusMenuContact(null)}
-                >
-                  <Text style={styles.statusMenuCancelText}>取消</Text>
-                </TouchableOpacity>
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
-      )}
+      <Overlay visible={statusMenuContact !== null} onClose={() => setStatusMenuContact(null)}>
+        <View style={styles.statusMenuCard}>
+          <Text style={styles.statusMenuTitle}>选择状态</Text>
+          <Text style={styles.statusMenuContactName}>
+            {statusMenuContact?.name} ({statusMenuContact?.phone})
+          </Text>
+          <TouchableOpacity
+            style={[styles.statusMenuOption, { backgroundColor: '#E7F7E7' }]}
+            onPress={() => updateContactStatus(statusMenuContact, 'normal')}
+          >
+            <Ionicons name="checkmark-circle" size={20} color="#67C23A" />
+            <Text style={[styles.statusMenuOptionText, { color: '#67C23A' }]}>正常</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.statusMenuOption, { backgroundColor: '#FEF0F0' }]}
+            onPress={() => updateContactStatus(statusMenuContact, 'stopped')}
+          >
+            <Ionicons name="close-circle" size={20} color="#F56C6C" />
+            <Text style={[styles.statusMenuOptionText, { color: '#F56C6C' }]}>停机</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.statusMenuCancel}
+            onPress={() => setStatusMenuContact(null)}
+          >
+            <Text style={styles.statusMenuCancelText}>取消</Text>
+          </TouchableOpacity>
+        </View>
+      </Overlay>
 
       {/* 头像设置菜单 */}
-      {avatarMenuContact !== null && (
-      <Modal
-        visible={true}
-        transparent
-        animationType="none"
-        onRequestClose={() => setAvatarMenuContact(null)}
-      >
-        <TouchableWithoutFeedback onPress={() => setAvatarMenuContact(null)}>
-          <View style={styles.modalOverlay}>
-            <TouchableWithoutFeedback>
-              <View style={styles.statusMenuCard}>
-                <Text style={styles.statusMenuTitle}>
-                  {contactAvatars[avatarMenuContact.phone] ? '管理头像' : '设置头像'}
-                </Text>
-                <Text style={styles.statusMenuContactName}>
-                  {avatarMenuContact.name} ({avatarMenuContact.phone})
-                </Text>
-                <TouchableOpacity
-                  style={[styles.statusMenuOption, { backgroundColor: '#E8F0FE' }]}
-                  onPress={() => handleSetAvatar(avatarMenuContact)}
-                >
-                  <Ionicons name="camera" size={20} color="#4A90D9" />
-                  <Text style={[styles.statusMenuOptionText, { color: '#4A90D9' }]}>
-                    {contactAvatars[avatarMenuContact.phone] ? '更换头像' : '设置头像'}
-                  </Text>
-                </TouchableOpacity>
-                {contactAvatars[avatarMenuContact.phone] && (
-                  <TouchableOpacity
-                    style={[styles.statusMenuOption, { backgroundColor: '#FEF0F0' }]}
-                    onPress={() => handleRemoveAvatar(avatarMenuContact)}
-                  >
-                    <Ionicons name="trash" size={20} color="#F56C6C" />
-                    <Text style={[styles.statusMenuOptionText, { color: '#F56C6C' }]}>删除头像</Text>
-                  </TouchableOpacity>
-                )}
-                <TouchableOpacity
-                  style={styles.statusMenuCancel}
-                  onPress={() => setAvatarMenuContact(null)}
-                >
-                  <Text style={styles.statusMenuCancelText}>取消</Text>
-                </TouchableOpacity>
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
-      )}
+      <Overlay visible={avatarMenuContact !== null} onClose={() => setAvatarMenuContact(null)}>
+        <View style={styles.statusMenuCard}>
+          <Text style={styles.statusMenuTitle}>
+            {contactAvatars[avatarMenuContact?.phone ?? ''] ? '管理头像' : '设置头像'}
+          </Text>
+          <Text style={styles.statusMenuContactName}>
+            {avatarMenuContact?.name} ({avatarMenuContact?.phone})
+          </Text>
+          <TouchableOpacity
+            style={[styles.statusMenuOption, { backgroundColor: '#E8F0FE' }]}
+            onPress={() => handleSetAvatar(avatarMenuContact)}
+          >
+            <Ionicons name="camera" size={20} color="#4A90D9" />
+            <Text style={[styles.statusMenuOptionText, { color: '#4A90D9' }]}>
+              {contactAvatars[avatarMenuContact?.phone ?? ''] ? '更换头像' : '设置头像'}
+            </Text>
+          </TouchableOpacity>
+          {contactAvatars[avatarMenuContact?.phone ?? ''] && (
+            <TouchableOpacity
+              style={[styles.statusMenuOption, { backgroundColor: '#FEF0F0' }]}
+              onPress={() => handleRemoveAvatar(avatarMenuContact)}
+            >
+              <Ionicons name="trash" size={20} color="#F56C6C" />
+              <Text style={[styles.statusMenuOptionText, { color: '#F56C6C' }]}>删除头像</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            style={styles.statusMenuCancel}
+            onPress={() => setAvatarMenuContact(null)}
+          >
+            <Text style={styles.statusMenuCancelText}>取消</Text>
+          </TouchableOpacity>
+        </View>
+      </Overlay>
 
       {/* 编辑联系人弹窗 */}
-      {editModalVisible && (
-        <Modal
-          visible={true}
-          transparent
-          animationType="none"
-          onRequestClose={() => setEditModalVisible(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.editModalCard}>
-              <View style={styles.editModalHeader}>
-                <Text style={styles.editModalTitle}>编辑联系人</Text>
-                <TouchableOpacity onPress={() => setEditModalVisible(false)}>
-                  <Ionicons name="close" size={24} color="#909399" />
-                </TouchableOpacity>
-              </View>
-              <ScrollView style={styles.editModalBody} showsVerticalScrollIndicator={false}>
-                {/* 头像选择 */}
-                <View style={styles.editAvatarSection}>
-                  <TouchableOpacity
-                    style={styles.editAvatarContainer}
-                    onPress={handlePickEditAvatar}
-                  >
-                    {editAvatarUri ? (
-                      <Image source={{ uri: editAvatarUri }} style={styles.editAvatarImage} />
-                    ) : (
-                      <View style={styles.editAvatarPlaceholder}>
-                        <Ionicons name="camera" size={24} color="#B2BEC3" />
-                      </View>
-                    )}
-                    <View style={styles.editAvatarEditIcon}>
-                      <Ionicons name="create" size={12} color="#FFF" />
-                    </View>
-                  </TouchableOpacity>
-                  <Text style={styles.editAvatarHint}>点击更换头像</Text>
-                </View>
-                <Text style={styles.editLabel}>姓名</Text>
-                <TextInput
-                  style={styles.editInput}
-                  value={editName}
-                  onChangeText={setEditName}
-                  placeholder="请输入姓名"
-                  placeholderTextColor="#B2BEC3"
-                />
-                <Text style={[styles.editLabel, { marginTop: 16 }]}>号码</Text>
-                {editPhones.map((phone, index) => (
-                  <View key={index} style={styles.editPhoneRow}>
-                    <TextInput
-                      style={[styles.editInput, { flex: 1 }]}
-                      value={phone}
-                      onChangeText={(text) => {
-                        const updated = [...editPhones];
-                        updated[index] = text;
-                        setEditPhones(updated);
-                      }}
-                      placeholder="请输入号码"
-                      placeholderTextColor="#B2BEC3"
-                      keyboardType="phone-pad"
-                    />
-                    {editPhones.length > 1 && (
-                      <TouchableOpacity
-                        style={styles.editPhoneDeleteBtn}
-                        onPress={() => {
-                          const updated = editPhones.filter((_, i) => i !== index);
-                          setEditPhones(updated);
-                        }}
-                      >
-                        <Ionicons name="close-circle" size={22} color="#F56C6C" />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                ))}
-                <TouchableOpacity
-                  style={styles.editPhoneAddBtn}
-                  onPress={() => setEditPhones([...editPhones, ''])}
-                >
-                  <Ionicons name="add-circle-outline" size={20} color="#4A90D9" />
-                  <Text style={styles.editPhoneAddText}>添加号码</Text>
-                </TouchableOpacity>
-
-                {/* 邮箱 */}
-                <Text style={[styles.editLabel, { marginTop: 16 }]}>邮箱</Text>
-                {editEmails.map((email, index) => (
-                  <View key={`email-${index}`} style={styles.editPhoneRow}>
-                    <TextInput
-                      style={[styles.editInput, { flex: 1 }]}
-                      value={email}
-                      onChangeText={(text) => {
-                        const updated = [...editEmails];
-                        updated[index] = text;
-                        setEditEmails(updated);
-                      }}
-                      placeholder="请输入邮箱"
-                      placeholderTextColor="#B2BEC3"
-                      keyboardType="email-address"
-                      autoCapitalize="none"
-                    />
-                    {editEmails.length > 1 && (
-                      <TouchableOpacity
-                        style={styles.editPhoneDeleteBtn}
-                        onPress={() => {
-                          const updated = editEmails.filter((_, i) => i !== index);
-                          setEditEmails(updated);
-                        }}
-                      >
-                        <Ionicons name="close-circle" size={22} color="#F56C6C" />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                ))}
-                <TouchableOpacity
-                  style={styles.editPhoneAddBtn}
-                  onPress={() => setEditEmails([...editEmails, ''])}
-                >
-                  <Ionicons name="add-circle-outline" size={20} color="#4A90D9" />
-                  <Text style={styles.editPhoneAddText}>添加邮箱</Text>
-                </TouchableOpacity>
-
-                {/* 公司 */}
-                <Text style={[styles.editLabel, { marginTop: 16 }]}>公司</Text>
-                <TextInput
-                  style={styles.editInput}
-                  value={editCompany}
-                  onChangeText={setEditCompany}
-                  placeholder="请输入公司名称"
-                  placeholderTextColor="#B2BEC3"
-                />
-
-                {/* 职位 */}
-                <Text style={[styles.editLabel, { marginTop: 16 }]}>职位</Text>
-                <TextInput
-                  style={styles.editInput}
-                  value={editJobTitle}
-                  onChangeText={setEditJobTitle}
-                  placeholder="请输入职位"
-                  placeholderTextColor="#B2BEC3"
-                />
-
-                {/* 备注 */}
-                <Text style={[styles.editLabel, { marginTop: 16 }]}>备注</Text>
-                <TextInput
-                  style={[styles.editInput, { minHeight: 80, textAlignVertical: 'top' }]}
-                  value={editNote}
-                  onChangeText={setEditNote}
-                  placeholder="请输入备注"
-                  placeholderTextColor="#B2BEC3"
-                  multiline
-                />
-              </ScrollView>
-              <View style={styles.editModalFooter}>
-                <TouchableOpacity
-                  style={styles.editCancelButton}
-                  onPress={() => setEditModalVisible(false)}
-                >
-                  <Text style={styles.editCancelText}>取消</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.editSaveButton, editSaving && { opacity: 0.6 }]}
-                  onPress={handleSaveEdit}
-                  disabled={editSaving}
-                >
-                  <Text style={styles.editSaveText}>
-                    {editSaving ? '保存中...' : '保存'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+      <Overlay visible={editModalVisible} onClose={() => setEditModalVisible(false)}>
+        <View style={styles.editModalCard}>
+          <View style={styles.editModalHeader}>
+            <Text style={styles.editModalTitle}>编辑联系人</Text>
+            <TouchableOpacity onPress={() => setEditModalVisible(false)}>
+              <Ionicons name="close" size={24} color="#909399" />
+            </TouchableOpacity>
           </View>
-        </Modal>
-      )}
+          <ScrollView style={styles.editModalBody} showsVerticalScrollIndicator={false}>
+            {/* 头像选择 */}
+            <View style={styles.editAvatarSection}>
+              <TouchableOpacity
+                style={styles.editAvatarContainer}
+                onPress={handlePickEditAvatar}
+              >
+                {editAvatarUri ? (
+                  <Image source={{ uri: editAvatarUri }} style={styles.editAvatarImage} />
+                ) : (
+                  <View style={styles.editAvatarPlaceholder}>
+                    <Ionicons name="camera" size={24} color="#B2BEC3" />
+                  </View>
+                )}
+                <View style={styles.editAvatarEditIcon}>
+                  <Ionicons name="create" size={12} color="#FFF" />
+                </View>
+              </TouchableOpacity>
+              <Text style={styles.editAvatarHint}>点击更换头像</Text>
+            </View>
+            <Text style={styles.editLabel}>姓名</Text>
+            <TextInput
+              style={styles.editInput}
+              value={editName}
+              onChangeText={setEditName}
+              placeholder="请输入姓名"
+              placeholderTextColor="#B2BEC3"
+            />
+            <Text style={[styles.editLabel, { marginTop: 16 }]}>号码</Text>
+            {editPhones.map((phone, index) => (
+              <View key={index} style={styles.editPhoneRow}>
+                <TextInput
+                  style={[styles.editInput, { flex: 1 }]}
+                  value={phone}
+                  onChangeText={(text) => {
+                    const updated = [...editPhones];
+                    updated[index] = text;
+                    setEditPhones(updated);
+                  }}
+                  placeholder="请输入号码"
+                  placeholderTextColor="#B2BEC3"
+                  keyboardType="phone-pad"
+                />
+                {editPhones.length > 1 && (
+                  <TouchableOpacity
+                    style={styles.editPhoneDeleteBtn}
+                    onPress={() => {
+                      const updated = editPhones.filter((_, i) => i !== index);
+                      setEditPhones(updated);
+                    }}
+                  >
+                    <Ionicons name="close-circle" size={22} color="#F56C6C" />
+                  </TouchableOpacity>
+                )}
+              </View>
+            ))}
+            <TouchableOpacity
+              style={styles.editPhoneAddBtn}
+              onPress={() => setEditPhones([...editPhones, ''])}
+            >
+              <Ionicons name="add-circle-outline" size={20} color="#4A90D9" />
+              <Text style={styles.editPhoneAddText}>添加号码</Text>
+            </TouchableOpacity>
+
+            {/* 邮箱 */}
+            <Text style={[styles.editLabel, { marginTop: 16 }]}>邮箱</Text>
+            {editEmails.map((email, index) => (
+              <View key={`email-${index}`} style={styles.editPhoneRow}>
+                <TextInput
+                  style={[styles.editInput, { flex: 1 }]}
+                  value={email}
+                  onChangeText={(text) => {
+                    const updated = [...editEmails];
+                    updated[index] = text;
+                    setEditEmails(updated);
+                  }}
+                  placeholder="请输入邮箱"
+                  placeholderTextColor="#B2BEC3"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+                {editEmails.length > 1 && (
+                  <TouchableOpacity
+                    style={styles.editPhoneDeleteBtn}
+                    onPress={() => {
+                      const updated = editEmails.filter((_, i) => i !== index);
+                      setEditEmails(updated);
+                    }}
+                  >
+                    <Ionicons name="close-circle" size={22} color="#F56C6C" />
+                  </TouchableOpacity>
+                )}
+              </View>
+            ))}
+            <TouchableOpacity
+              style={styles.editPhoneAddBtn}
+              onPress={() => setEditEmails([...editEmails, ''])}
+            >
+              <Ionicons name="add-circle-outline" size={20} color="#4A90D9" />
+              <Text style={styles.editPhoneAddText}>添加邮箱</Text>
+            </TouchableOpacity>
+
+            {/* 公司 */}
+            <Text style={[styles.editLabel, { marginTop: 16 }]}>公司</Text>
+            <TextInput
+              style={styles.editInput}
+              value={editCompany}
+              onChangeText={setEditCompany}
+              placeholder="请输入公司名称"
+              placeholderTextColor="#B2BEC3"
+            />
+
+            {/* 职位 */}
+            <Text style={[styles.editLabel, { marginTop: 16 }]}>职位</Text>
+            <TextInput
+              style={styles.editInput}
+              value={editJobTitle}
+              onChangeText={setEditJobTitle}
+              placeholder="请输入职位"
+              placeholderTextColor="#B2BEC3"
+            />
+
+            {/* 备注 */}
+            <Text style={[styles.editLabel, { marginTop: 16 }]}>备注</Text>
+            <TextInput
+              style={[styles.editInput, { minHeight: 80, textAlignVertical: 'top' }]}
+              value={editNote}
+              onChangeText={setEditNote}
+              placeholder="请输入备注"
+              placeholderTextColor="#B2BEC3"
+              multiline
+            />
+          </ScrollView>
+          <View style={styles.editModalFooter}>
+            <TouchableOpacity
+              style={styles.editCancelButton}
+              onPress={() => setEditModalVisible(false)}
+            >
+              <Text style={styles.editCancelText}>取消</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.editSaveButton, editSaving && { opacity: 0.6 }]}
+              onPress={handleSaveEdit}
+              disabled={editSaving}
+            >
+              <Text style={styles.editSaveText}>
+                {editSaving ? '保存中...' : '保存'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Overlay>
 
       {/* 社区投票面板 */}
-      {votePanelVisible && votePanelContact && (
-        <Modal
-          visible={true}
-          transparent
-          animationType="none"
-          onRequestClose={() => setVotePanelVisible(false)}
-        >
-          <TouchableWithoutFeedback onPress={() => setVotePanelVisible(false)}>
-            <View style={styles.modalOverlay}>
-              <TouchableWithoutFeedback>
-                <View style={styles.votePanelCard}>
-                  <View style={styles.votePanelHeader}>
-                    <Text style={styles.votePanelTitle}>号码状态投票</Text>
-                    <TouchableOpacity onPress={() => setVotePanelVisible(false)}>
-                      <Ionicons name="close" size={24} color="#909399" />
-                    </TouchableOpacity>
+      <Overlay visible={votePanelVisible && votePanelContact !== null} onClose={() => setVotePanelVisible(false)}>
+        <View style={styles.votePanelCard}>
+          <View style={styles.votePanelHeader}>
+            <Text style={styles.votePanelTitle}>号码状态投票</Text>
+            <TouchableOpacity onPress={() => setVotePanelVisible(false)}>
+              <Ionicons name="close" size={24} color="#909399" />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.votePanelInfo}>
+            <Text style={styles.votePanelContactName}>{votePanelContact?.name}</Text>
+            <Text style={styles.votePanelPhone}>{votePanelContact?.phone}</Text>
+          </View>
+          {(() => {
+            const vote = votePanelContact ? communityVotes.get(votePanelContact.phone) : null;
+            if (vote && vote.stoppedCount > 0) {
+              return (
+                <View style={styles.votePanelSummary}>
+                  <Text style={styles.votePanelSummaryTitle}>社区投票结果</Text>
+                  <View style={styles.votePanelSummaryRow}>
+                    <Text style={[styles.votePanelSummaryText, { color: '#F56C6C' }]}>
+                      标记停机: {vote.stoppedCount}人
+                    </Text>
                   </View>
-                  <View style={styles.votePanelInfo}>
-                    <Text style={styles.votePanelContactName}>{votePanelContact.name}</Text>
-                    <Text style={styles.votePanelPhone}>{votePanelContact.phone}</Text>
-                  </View>
-                  {(() => {
-                    const vote = communityVotes.get(votePanelContact.phone);
-                    if (vote && vote.stoppedCount > 0) {
-                      return (
-                        <View style={styles.votePanelSummary}>
-                          <Text style={styles.votePanelSummaryTitle}>社区投票结果</Text>
-                          <View style={styles.votePanelSummaryRow}>
-                            <Text style={[styles.votePanelSummaryText, { color: '#F56C6C' }]}>
-                              标记停机: {vote.stoppedCount}人
-                            </Text>
-                          </View>
-                        </View>
-                      );
-                    }
-                    return null;
-                  })()}
-                  <View style={styles.votePanelOptions}>
-                    <Text style={styles.votePanelOptionsTitle}>你的投票</Text>
-                    <TouchableOpacity
-                      style={[styles.votePanelOption, { backgroundColor: '#FEF0F0' }]}
-                      onPress={async () => {
-                        await updateContactStatus(votePanelContact, 'stopped');
-                        setVotePanelVisible(false);
-                      }}
-                    >
-                      <Ionicons name="close-circle" size={22} color="#F56C6C" />
-                      <View style={styles.votePanelOptionText}>
-                        <Text style={[styles.votePanelOptionTitle, { color: '#F56C6C' }]}>停机</Text>
-                        <Text style={styles.votePanelOptionDesc}>该号码已停机/空号</Text>
-                      </View>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.votePanelOption, { backgroundColor: '#E7F7E7' }]}
-                      onPress={async () => {
-                        await updateContactStatus(votePanelContact, 'normal');
-                        setVotePanelVisible(false);
-                      }}
-                    >
-                      <Ionicons name="checkmark-circle" size={22} color="#67C23A" />
-                      <View style={styles.votePanelOptionText}>
-                        <Text style={[styles.votePanelOptionTitle, { color: '#67C23A' }]}>号码有效</Text>
-                        <Text style={styles.votePanelOptionDesc}>撤回之前的停机标记</Text>
-                      </View>
-                    </TouchableOpacity>
-                  </View>
-                  <TouchableOpacity
-                    style={styles.statusMenuCancel}
-                    onPress={() => setVotePanelVisible(false)}
-                  >
-                    <Text style={styles.statusMenuCancelText}>取消</Text>
-                  </TouchableOpacity>
                 </View>
-              </TouchableWithoutFeedback>
-            </View>
-          </TouchableWithoutFeedback>
-        </Modal>
-      )}
+              );
+            }
+            return null;
+          })()}
+          <View style={styles.votePanelOptions}>
+            <Text style={styles.votePanelOptionsTitle}>你的投票</Text>
+            <TouchableOpacity
+              style={[styles.votePanelOption, { backgroundColor: '#FEF0F0' }]}
+              onPress={async () => {
+                if (votePanelContact) {
+                  await updateContactStatus(votePanelContact, 'stopped');
+                }
+                setVotePanelVisible(false);
+              }}
+            >
+              <Ionicons name="close-circle" size={22} color="#F56C6C" />
+              <View style={styles.votePanelOptionText}>
+                <Text style={[styles.votePanelOptionTitle, { color: '#F56C6C' }]}>停机</Text>
+                <Text style={styles.votePanelOptionDesc}>该号码已停机/空号</Text>
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.votePanelOption, { backgroundColor: '#E7F7E7' }]}
+              onPress={async () => {
+                if (votePanelContact) {
+                  await updateContactStatus(votePanelContact, 'normal');
+                }
+                setVotePanelVisible(false);
+              }}
+            >
+              <Ionicons name="checkmark-circle" size={22} color="#67C23A" />
+              <View style={styles.votePanelOptionText}>
+                <Text style={[styles.votePanelOptionTitle, { color: '#67C23A' }]}>号码有效</Text>
+                <Text style={styles.votePanelOptionDesc}>撤回之前的停机标记</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity
+            style={styles.statusMenuCancel}
+            onPress={() => setVotePanelVisible(false)}
+          >
+            <Text style={styles.statusMenuCancelText}>取消</Text>
+          </TouchableOpacity>
+        </View>
+      </Overlay>
     </SafeAreaView>
   );
 }

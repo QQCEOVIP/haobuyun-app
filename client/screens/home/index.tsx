@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   TouchableWithoutFeedback,
   Alert,
-  Modal,
   TextInput,
   Platform,
   ActivityIndicator,
@@ -24,6 +23,26 @@ import * as FileSystemLegacy from 'expo-file-system/legacy';
 import * as FileSystem from 'expo-file-system';
 import { StorageAccessFramework } from 'expo-file-system/legacy';
 import Constants from 'expo-constants';
+
+// 替代 Modal 的轻量级遮罩组件，避免 Modal 原生行为导致的闪屏
+const Overlay = ({ visible, children, onClose }: { visible: boolean; children: React.ReactNode; onClose?: () => void }) => {
+  if (!visible) return null;
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+      <TouchableWithoutFeedback onPress={onClose} disabled={!onClose}>
+        <View
+          style={{
+            ...StyleSheet.absoluteFillObject,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          }}
+        />
+      </TouchableWithoutFeedback>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }} pointerEvents="box-none">
+        {children}
+      </View>
+    </View>
+  );
+};
 
 // Force production URL - do not use environment variable
 const getBackendBaseUrl = () => {
@@ -1933,63 +1952,45 @@ export default function HomeScreen() {
       </ScrollView>
 
       {/* 检测结果 Modal */}
-      {detectionResult !== null && (
-      <Modal
-        visible={true}
-        transparent
-        animationType="none"
-        onRequestClose={() => setDetectionResult(null)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>检测结果</Text>
-            {detectionResult && (
-              <>
-                <View style={styles.modalRow}>
-                  <Text style={styles.modalLabel}>检测总数</Text>
-                  <Text style={styles.modalValue}>{detectionResult.total}</Text>
-                </View>
-                <View style={styles.modalRow}>
-                  <Text style={styles.modalLabel}>活跃号码</Text>
-                  <Text style={[styles.modalValue, { color: '#67C23A' }]}>{detectionResult.active}</Text>
-                </View>
-                <View style={styles.modalRow}>
-                  <Text style={styles.modalLabel}>可能失效</Text>
-                  <Text style={[styles.modalValue, { color: '#E6A23C' }]}>{detectionResult.maybeInvalid}</Text>
-                </View>
-                <View style={styles.modalRow}>
-                  <Text style={styles.modalLabel}>确定失效</Text>
-                  <Text style={[styles.modalValue, { color: '#F56C6C' }]}>{detectionResult.invalid}</Text>
-                </View>
-                <View style={styles.modalRow}>
-                  <Text style={styles.modalLabel}>未知状态</Text>
-                  <Text style={[styles.modalValue, { color: '#909399' }]}>{detectionResult.unknown}</Text>
-                </View>
-              </>
-            )}
-            <TouchableOpacity
-              style={styles.modalButton}
-              onPress={() => setDetectionResult(null)}
-            >
-              <Text style={styles.modalButtonText}>知道了</Text>
-            </TouchableOpacity>
-          </View>
+      <Overlay visible={detectionResult !== null} onClose={() => setDetectionResult(null)}>
+        <View style={styles.modalContent}>
+          <Text style={styles.modalTitle}>检测结果</Text>
+          {detectionResult && (
+            <>
+              <View style={styles.modalRow}>
+                <Text style={styles.modalLabel}>检测总数</Text>
+                <Text style={styles.modalValue}>{detectionResult.total}</Text>
+              </View>
+              <View style={styles.modalRow}>
+                <Text style={styles.modalLabel}>活跃号码</Text>
+                <Text style={[styles.modalValue, { color: '#67C23A' }]}>{detectionResult.active}</Text>
+              </View>
+              <View style={styles.modalRow}>
+                <Text style={styles.modalLabel}>可能失效</Text>
+                <Text style={[styles.modalValue, { color: '#E6A23C' }]}>{detectionResult.maybeInvalid}</Text>
+              </View>
+              <View style={styles.modalRow}>
+                <Text style={styles.modalLabel}>确定失效</Text>
+                <Text style={[styles.modalValue, { color: '#F56C6C' }]}>{detectionResult.invalid}</Text>
+              </View>
+              <View style={styles.modalRow}>
+                <Text style={styles.modalLabel}>未知状态</Text>
+                <Text style={[styles.modalValue, { color: '#909399' }]}>{detectionResult.unknown}</Text>
+              </View>
+            </>
+          )}
+          <TouchableOpacity
+            style={styles.modalButton}
+            onPress={() => setDetectionResult(null)}
+          >
+            <Text style={styles.modalButtonText}>知道了</Text>
+          </TouchableOpacity>
         </View>
-      </Modal>
-      )}
+      </Overlay>
 
       {/* 本地备份模态框 */}
-      {cloudBackupVisible && (
-      <Modal
-        visible={true}
-        transparent
-        animationType="none"
-        onRequestClose={() => setCloudBackupVisible(false)}
-      >
-        <TouchableWithoutFeedback onPress={() => setCloudBackupVisible(false)}>
-        <View style={styles.cloudModalOverlay}>
-          <TouchableWithoutFeedback>
-          <View style={styles.cloudModalContent}>
+      <Overlay visible={cloudBackupVisible} onClose={() => setCloudBackupVisible(false)}>
+        <View style={styles.cloudModalContent}>
             <View style={styles.cloudModalHeader}>
               <Text style={styles.cloudModalTitle}>云端备份</Text>
               <TouchableOpacity onPress={() => setCloudBackupVisible(false)}>
@@ -2058,355 +2059,293 @@ export default function HomeScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-          </View>
-          </TouchableWithoutFeedback>
         </View>
-        </TouchableWithoutFeedback>
-      </Modal>
-      )}
+      </Overlay>
 
       {/* 恢复选择弹窗 */}
-      {restoreSelectVisible && (
-      <Modal
-        visible={true}
-        transparent
-        animationType="none"
-        onRequestClose={() => setRestoreSelectVisible(false)}
-      >
-        <TouchableWithoutFeedback onPress={() => setRestoreSelectVisible(false)}>
-        <View style={styles.cloudModalOverlay}>
-          <TouchableWithoutFeedback>
-          <View style={[styles.cloudModalContent, { maxHeight: '70%' }]}>
-            <View style={styles.cloudModalHeader}>
-              <Text style={styles.cloudModalTitle}>请选择要恢复的数据</Text>
-              <TouchableOpacity onPress={() => setRestoreSelectVisible(false)}>
-                <Ionicons name="close" size={24} color="#909399" />
-              </TouchableOpacity>
-            </View>
+      <Overlay visible={restoreSelectVisible} onClose={() => setRestoreSelectVisible(false)}>
+        <View style={[styles.cloudModalContent, { maxHeight: '70%' }]}>
+          <View style={styles.cloudModalHeader}>
+            <Text style={styles.cloudModalTitle}>请选择要恢复的数据</Text>
+            <TouchableOpacity onPress={() => setRestoreSelectVisible(false)}>
+              <Ionicons name="close" size={24} color="#909399" />
+            </TouchableOpacity>
+          </View>
 
-            <View style={styles.cloudModalBody}>
-              {cloudBackups.length > 0 ? (
-                cloudBackups.map((backup, index) => {
+          <View style={styles.cloudModalBody}>
+            {cloudBackups.length > 0 ? (
+              cloudBackups.map((backup, index) => {
+                const parsed = parseBackupFilename(backup.name);
+                return (
+                  <TouchableOpacity
+                    key={index}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      paddingVertical: 14,
+                      paddingHorizontal: 16,
+                      borderBottomWidth: StyleSheet.hairlineWidth,
+                      borderBottomColor: '#EBEEF5',
+                    }}
+                    onPress={() => {
+                      setRestoreSelectVisible(false);
+                      handleCloudRestore(backup.name);
+                    }}
+                    disabled={cloudBackupLoading !== null}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 15, color: '#303133', fontWeight: '500' }}>
+                        {parsed.displayTime}
+                      </Text>
+                      <Text style={{ fontSize: 12, color: '#909399', marginTop: 4 }}>
+                        {parsed.device ? `设备：${parsed.device} — ` : ''}{parsed.count}个号码
+                      </Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color="#C0C4CC" />
+                  </TouchableOpacity>
+                );
+              })
+            ) : (
+              <View style={{ padding: 40, alignItems: 'center' }}>
+                <Ionicons name="cloud-outline" size={48} color="#C0C4CC" />
+                <Text style={{ fontSize: 14, color: '#909399', marginTop: 12 }}>暂无云端备份记录</Text>
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={{
+                marginTop: 16,
+                paddingVertical: 12,
+                borderRadius: 8,
+                backgroundColor: '#F2F6FC',
+                alignItems: 'center',
+              }}
+              onPress={() => setRestoreSelectVisible(false)}
+            >
+              <Text style={{ fontSize: 15, color: '#909399', fontWeight: '500' }}>取消</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Overlay>
+
+      {/* 备份记录弹窗 */}
+      <Overlay visible={backupRecordsVisible} onClose={() => setBackupRecordsVisible(false)}>
+        <View style={[styles.cloudModalContent, { maxHeight: '70%' }]}>
+          <View style={styles.cloudModalHeader}>
+            <Text style={styles.cloudModalTitle}>备份记录</Text>
+            <TouchableOpacity onPress={() => setBackupRecordsVisible(false)}>
+              <Ionicons name="close" size={24} color="#909399" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>
+            {cloudBackups.length > 0 ? (
+              <View style={{ padding: 16, gap: 12 }}>
+                {cloudBackups.map((backup, index) => {
                   const parsed = parseBackupFilename(backup.name);
                   return (
                     <TouchableOpacity
                       key={index}
                       style={{
+                        backgroundColor: '#F8FAFC',
+                        borderRadius: 12,
+                        padding: 16,
                         flexDirection: 'row',
                         alignItems: 'center',
-                        paddingVertical: 14,
-                        paddingHorizontal: 16,
-                        borderBottomWidth: StyleSheet.hairlineWidth,
-                        borderBottomColor: '#EBEEF5',
+                        justifyContent: 'space-between',
                       }}
-                      onPress={() => {
-                        setRestoreSelectVisible(false);
-                        handleCloudRestore(backup.name);
-                      }}
-                      disabled={cloudBackupLoading !== null}
+                      onLongPress={() => handleDeleteBackup(backup.name)}
                     >
                       <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 15, color: '#303133', fontWeight: '500' }}>
+                        <Text style={{ fontSize: 14, fontWeight: '600', color: '#303133' }}>
                           {parsed.displayTime}
                         </Text>
                         <Text style={{ fontSize: 12, color: '#909399', marginTop: 4 }}>
                           {parsed.device ? `设备：${parsed.device} — ` : ''}{parsed.count}个号码
+                          {'  '}({Math.round((backup.metadata?.size || 0) / 1024)}KB)
                         </Text>
                       </View>
-                      <Ionicons name="chevron-forward" size={20} color="#C0C4CC" />
+                      <TouchableOpacity
+                        style={{ padding: 8 }}
+                        onPress={() => handleDeleteBackup(backup.name)}
+                      >
+                        <Ionicons name="trash-outline" size={20} color="#F56C6C" />
+                      </TouchableOpacity>
                     </TouchableOpacity>
                   );
-                })
-              ) : (
-                <View style={{ padding: 40, alignItems: 'center' }}>
-                  <Ionicons name="cloud-outline" size={48} color="#C0C4CC" />
-                  <Text style={{ fontSize: 14, color: '#909399', marginTop: 12 }}>暂无云端备份记录</Text>
-                </View>
-              )}
-
-              <TouchableOpacity
-                style={{
-                  marginTop: 16,
-                  paddingVertical: 12,
-                  borderRadius: 8,
-                  backgroundColor: '#F2F6FC',
-                  alignItems: 'center',
-                }}
-                onPress={() => setRestoreSelectVisible(false)}
-              >
-                <Text style={{ fontSize: 15, color: '#909399', fontWeight: '500' }}>取消</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-          </TouchableWithoutFeedback>
+                })}
+              </View>
+            ) : (
+              <View style={{ padding: 40, alignItems: 'center' }}>
+                <Ionicons name="cloud-outline" size={48} color="#DCDFE6" />
+                <Text style={{ fontSize: 14, color: '#909399', marginTop: 12 }}>暂无云端备份记录</Text>
+                <Text style={{ fontSize: 12, color: '#C0C4CC', marginTop: 4 }}>长按记录可删除</Text>
+              </View>
+            )}
+          </ScrollView>
         </View>
-        </TouchableWithoutFeedback>
-      </Modal>
-      )}
-
-      {/* 备份记录弹窗 */}
-      {backupRecordsVisible && (
-      <Modal
-        visible={true}
-        transparent
-        animationType="none"
-        onRequestClose={() => setBackupRecordsVisible(false)}
-      >
-        <TouchableWithoutFeedback onPress={() => setBackupRecordsVisible(false)}>
-        <View style={styles.cloudModalOverlay}>
-          <TouchableWithoutFeedback>
-          <View style={[styles.cloudModalContent, { maxHeight: '70%' }]}>
-            <View style={styles.cloudModalHeader}>
-              <Text style={styles.cloudModalTitle}>备份记录</Text>
-              <TouchableOpacity onPress={() => setBackupRecordsVisible(false)}>
-                <Ionicons name="close" size={24} color="#909399" />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>
-              {cloudBackups.length > 0 ? (
-                <View style={{ padding: 16, gap: 12 }}>
-                  {cloudBackups.map((backup, index) => {
-                    const parsed = parseBackupFilename(backup.name);
-                    return (
-                      <TouchableOpacity
-                        key={index}
-                        style={{
-                          backgroundColor: '#F8FAFC',
-                          borderRadius: 12,
-                          padding: 16,
-                          flexDirection: 'row',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                        }}
-                        onLongPress={() => handleDeleteBackup(backup.name)}
-                      >
-                        <View style={{ flex: 1 }}>
-                          <Text style={{ fontSize: 14, fontWeight: '600', color: '#303133' }}>
-                            {parsed.displayTime}
-                          </Text>
-                          <Text style={{ fontSize: 12, color: '#909399', marginTop: 4 }}>
-                            {parsed.device ? `设备：${parsed.device} — ` : ''}{parsed.count}个号码
-                            {'  '}({Math.round((backup.metadata?.size || 0) / 1024)}KB)
-                          </Text>
-                        </View>
-                        <TouchableOpacity
-                          style={{ padding: 8 }}
-                          onPress={() => handleDeleteBackup(backup.name)}
-                        >
-                          <Ionicons name="trash-outline" size={20} color="#F56C6C" />
-                        </TouchableOpacity>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              ) : (
-                <View style={{ padding: 40, alignItems: 'center' }}>
-                  <Ionicons name="cloud-outline" size={48} color="#DCDFE6" />
-                  <Text style={{ fontSize: 14, color: '#909399', marginTop: 12 }}>暂无云端备份记录</Text>
-                  <Text style={{ fontSize: 12, color: '#C0C4CC', marginTop: 4 }}>长按记录可删除</Text>
-                </View>
-              )}
-            </ScrollView>
-          </View>
-          </TouchableWithoutFeedback>
-        </View>
-        </TouchableWithoutFeedback>
-      </Modal>
-      )}
+      </Overlay>
 
       {/* 文件名输入弹窗 */}
-      {fileNameModalVisible && (
-      <Modal
-        visible={true}
-        transparent
-        animationType="none"
-        onRequestClose={() => {
-          setFileNameModalVisible(false);
-          setBackupLoading(false);
-        }}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.fileNameModalContent}>
-            <Text style={styles.modalTitle}>自定义文件名</Text>
-            <TextInput
-              style={styles.fileNameInput}
-              value={customFileName}
-              onChangeText={setCustomFileName}
-              placeholder="输入文件名"
-              placeholderTextColor="#909399"
-              autoFocus
-            />
-            <View style={styles.fileNameButtons}>
-              <TouchableOpacity
-                style={[styles.fileNameButton, { backgroundColor: '#909399' }]}
-                onPress={() => {
-                  setFileNameModalVisible(false);
-                  setBackupLoading(false);
-                }}
-              >
-                <Text style={styles.fileNameButtonText}>取消</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.fileNameButton, { backgroundColor: '#4A90D9' }]}
-                onPress={confirmFileSave}
-              >
-                <Text style={styles.fileNameButtonText}>确定</Text>
-              </TouchableOpacity>
-            </View>
+      <Overlay visible={fileNameModalVisible} onClose={() => { setFileNameModalVisible(false); setBackupLoading(false); }}>
+        <View style={styles.fileNameModalContent}>
+          <Text style={styles.modalTitle}>自定义文件名</Text>
+          <TextInput
+            style={styles.fileNameInput}
+            value={customFileName}
+            onChangeText={setCustomFileName}
+            placeholder="输入文件名"
+            placeholderTextColor="#909399"
+            autoFocus
+          />
+          <View style={styles.fileNameButtons}>
+            <TouchableOpacity
+              style={[styles.fileNameButton, { backgroundColor: '#909399' }]}
+              onPress={() => {
+                setFileNameModalVisible(false);
+                setBackupLoading(false);
+              }}
+            >
+              <Text style={styles.fileNameButtonText}>取消</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.fileNameButton, { backgroundColor: '#4A90D9' }]}
+              onPress={confirmFileSave}
+            >
+              <Text style={styles.fileNameButtonText}>确定</Text>
+            </TouchableOpacity>
           </View>
         </View>
-      </Modal>
-      )}
+      </Overlay>
 
       {/* 操作进度弹窗 */}
-      {progressVisible && (
-      <Modal
-        visible={true}
-        transparent
-        animationType="none"
-        onRequestClose={() => { /* prevent close */ }}
-      >
-        <View style={styles.progressOverlay}>
-          <View style={styles.progressCard}>
-            <ActivityIndicator size="large" color="#4A90D9" />
-            <View style={styles.progressBarBg}>
-              <View style={[styles.progressBarFill, { width: `${Math.min(Math.max(progressPercent, 0), 100)}%` }]} />
-            </View>
-            <Text style={styles.progressText}>{progressText}</Text>
+      <Overlay visible={progressVisible}>
+        <View style={styles.progressCard}>
+          <ActivityIndicator size="large" color="#4A90D9" />
+          <View style={styles.progressBarBg}>
+            <View style={[styles.progressBarFill, { width: `${Math.min(Math.max(progressPercent, 0), 100)}%` }]} />
           </View>
+          <Text style={styles.progressText}>{progressText}</Text>
         </View>
-      </Modal>
-      )}
+      </Overlay>
 
       {/* Scan Local Files Modal */}
-      <Modal
-        visible={scanModalVisible}
-        transparent
-        animationType="none"
-        onRequestClose={() => setScanModalVisible(false)}
-      >
-        <TouchableWithoutFeedback onPress={() => setScanModalVisible(false)} disabled={scanLoading}>
-          <View style={styles.scanOverlay}>
-            <TouchableWithoutFeedback>
-              <View style={styles.scanCard}>
-                {/* Header */}
-                <View style={styles.scanHeader}>
-                  <Text style={styles.scanTitle}>扫描到的备份文件</Text>
-                  <TouchableOpacity onPress={() => setScanModalVisible(false)}>
-                    <Ionicons name="close" size={24} color="#606266" />
-                  </TouchableOpacity>
-                </View>
-
-                {/* Content */}
-                {scanLoading ? (
-                  <View style={styles.scanLoadingContainer}>
-                    <ActivityIndicator size="large" color="#4A90D9" />
-                    <Text style={styles.scanLoadingText}>正在扫描本地文件...</Text>
-                  </View>
-                ) : scannedFiles.length === 0 ? (
-                  <View style={styles.scanEmptyContainer}>
-                    <Ionicons name="folder-open-outline" size={48} color="#C0C4CC" />
-                    <Text style={styles.scanEmptyText}>未找到备份文件</Text>
-                    <Text style={styles.scanEmptyHint}>将备份文件(.json/.hbyun)放入 Download 或 Documents 目录，或使用系统文件选择器</Text>
-                    <TouchableOpacity
-                      style={styles.scanPickerButton}
-                      onPress={async () => {
-                        setScanModalVisible(false);
-                        try {
-                          const result = await DocumentPicker.getDocumentAsync({
-                            type: ['application/json', 'text/plain', '*/*'],
-                            copyToCacheDirectory: true,
-                          });
-                          if (result.canceled || !result.assets?.length) return;
-                          const file = result.assets[0];
-                          const content = await FileSystemLegacy.readAsStringAsync(file.uri);
-                          setProgressVisible(true);
-                          setProgressPercent(0);
-                          setProgressText('正在解析文件...');
-                          await importFromContent(content, file.name, (percent) => {
-                            setProgressPercent(percent);
-                            setProgressText(`正在导入... ${percent}%`);
-                          });
-                          setProgressVisible(false);
-                        } catch (error) {
-                          setProgressVisible(false);
-                          Alert.alert('错误', '导入失败: ' + ((error as any)?.message || '请重试'));
-                        }
-                      }}
-                    >
-                      <Ionicons name="folder-open" size={16} color="#4A90D9" />
-                      <Text style={styles.scanPickerButtonText}>使用系统文件选择器</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <ScrollView style={styles.scanList} showsVerticalScrollIndicator={false}>
-                    {scannedFiles.map((file, index) => (
-                      <TouchableOpacity
-                        key={`${file.name}-${index}`}
-                        style={styles.scanFileItem}
-                        onPress={() => handleImportFromScannedFile(file.path, file.name)}
-                      >
-                        <View style={styles.scanFileIcon}>
-                          <Ionicons name="document-text" size={24} color="#4A90D9" />
-                        </View>
-                        <View style={styles.scanFileInfo}>
-                          <Text style={styles.scanFileName} numberOfLines={1}>{file.name}</Text>
-                          <Text style={styles.scanFileMeta}>
-                            {formatFileSize(file.size)}{file.modified ? ` · ${file.modified}` : ''}
-                          </Text>
-                        </View>
-                        <Ionicons name="chevron-forward" size={20} color="#C0C4CC" />
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                )}
-
-                {/* Footer */}
-                <View style={styles.scanFooterRow}>
-                  <TouchableOpacity
-                    style={styles.scanRescanButton}
-                    onPress={handleScanLocalFiles}
-                    disabled={scanLoading}
-                  >
-                    <Ionicons name="refresh" size={16} color="#4A90D9" />
-                    <Text style={styles.scanRescanText}>重新扫描</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.scanRescanButton}
-                    onPress={async () => {
-                      setScanModalVisible(false);
-                      try {
-                        const result = await DocumentPicker.getDocumentAsync({
-                          type: ['application/json', 'text/plain', '*/*'],
-                          copyToCacheDirectory: true,
-                        });
-                        if (result.canceled || !result.assets?.length) return;
-                        const file = result.assets[0];
-                        const content = await FileSystemLegacy.readAsStringAsync(file.uri);
-                        setProgressVisible(true);
-                        setProgressPercent(0);
-                        setProgressText('正在解析文件...');
-                        await importFromContent(content, file.name, (percent) => {
-                          setProgressPercent(percent);
-                          setProgressText(`正在导入... ${percent}%`);
-                        });
-                        setProgressVisible(false);
-                      } catch (error) {
-                        setProgressVisible(false);
-                        Alert.alert('错误', '导入失败: ' + ((error as any)?.message || '请重试'));
-                      }
-                    }}
-                  >
-                    <Ionicons name="folder-open" size={16} color="#4A90D9" />
-                    <Text style={styles.scanRescanText}>文件选择器</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </TouchableWithoutFeedback>
+      <Overlay visible={scanModalVisible} onClose={scanLoading ? undefined : () => setScanModalVisible(false)}>
+        <View style={styles.scanCard}>
+          {/* Header */}
+          <View style={styles.scanHeader}>
+            <Text style={styles.scanTitle}>扫描到的备份文件</Text>
+            <TouchableOpacity onPress={() => setScanModalVisible(false)}>
+              <Ionicons name="close" size={24} color="#606266" />
+            </TouchableOpacity>
           </View>
-        </TouchableWithoutFeedback>
-      </Modal>
+
+          {/* Content */}
+          {scanLoading ? (
+            <View style={styles.scanLoadingContainer}>
+              <ActivityIndicator size="large" color="#4A90D9" />
+              <Text style={styles.scanLoadingText}>正在扫描本地文件...</Text>
+            </View>
+          ) : scannedFiles.length === 0 ? (
+            <View style={styles.scanEmptyContainer}>
+              <Ionicons name="folder-open-outline" size={48} color="#C0C4CC" />
+              <Text style={styles.scanEmptyText}>未找到备份文件</Text>
+              <Text style={styles.scanEmptyHint}>将备份文件(.json/.hbyun)放入 Download 或 Documents 目录，或使用系统文件选择器</Text>
+              <TouchableOpacity
+                style={styles.scanPickerButton}
+                onPress={async () => {
+                  setScanModalVisible(false);
+                  try {
+                    const result = await DocumentPicker.getDocumentAsync({
+                      type: ['application/json', 'text/plain', '*/*'],
+                      copyToCacheDirectory: true,
+                    });
+                    if (result.canceled || !result.assets?.length) return;
+                    const file = result.assets[0];
+                    const content = await FileSystemLegacy.readAsStringAsync(file.uri);
+                    setProgressVisible(true);
+                    setProgressPercent(0);
+                    setProgressText('正在解析文件...');
+                    await importFromContent(content, file.name, (percent) => {
+                      setProgressPercent(percent);
+                      setProgressText(`正在导入... ${percent}%`);
+                    });
+                    setProgressVisible(false);
+                  } catch (error) {
+                    setProgressVisible(false);
+                    Alert.alert('错误', '导入失败: ' + ((error as any)?.message || '请重试'));
+                  }
+                }}
+              >
+                <Ionicons name="folder-open" size={16} color="#4A90D9" />
+                <Text style={styles.scanPickerButtonText}>使用系统文件选择器</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <ScrollView style={styles.scanList} showsVerticalScrollIndicator={false}>
+              {scannedFiles.map((file, index) => (
+                <TouchableOpacity
+                  key={`${file.name}-${index}`}
+                  style={styles.scanFileItem}
+                  onPress={() => handleImportFromScannedFile(file.path, file.name)}
+                >
+                  <View style={styles.scanFileIcon}>
+                    <Ionicons name="document-text" size={24} color="#4A90D9" />
+                  </View>
+                  <View style={styles.scanFileInfo}>
+                    <Text style={styles.scanFileName} numberOfLines={1}>{file.name}</Text>
+                    <Text style={styles.scanFileMeta}>
+                      {formatFileSize(file.size)}{file.modified ? ` · ${file.modified}` : ''}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color="#C0C4CC" />
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
+
+          {/* Footer */}
+          <View style={styles.scanFooterRow}>
+            <TouchableOpacity
+              style={styles.scanRescanButton}
+              onPress={handleScanLocalFiles}
+              disabled={scanLoading}
+            >
+              <Ionicons name="refresh" size={16} color="#4A90D9" />
+              <Text style={styles.scanRescanText}>重新扫描</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.scanRescanButton}
+              onPress={async () => {
+                setScanModalVisible(false);
+                try {
+                  const result = await DocumentPicker.getDocumentAsync({
+                    type: ['application/json', 'text/plain', '*/*'],
+                    copyToCacheDirectory: true,
+                  });
+                  if (result.canceled || !result.assets?.length) return;
+                  const file = result.assets[0];
+                  const content = await FileSystemLegacy.readAsStringAsync(file.uri);
+                  setProgressVisible(true);
+                  setProgressPercent(0);
+                  setProgressText('正在解析文件...');
+                  await importFromContent(content, file.name, (percent) => {
+                    setProgressPercent(percent);
+                    setProgressText(`正在导入... ${percent}%`);
+                  });
+                  setProgressVisible(false);
+                } catch (error) {
+                  setProgressVisible(false);
+                  Alert.alert('错误', '导入失败: ' + ((error as any)?.message || '请重试'));
+                }
+              }}
+            >
+              <Ionicons name="folder-open" size={16} color="#4A90D9" />
+              <Text style={styles.scanRescanText}>文件选择器</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Overlay>
     </SafeAreaView>
   );
 }
