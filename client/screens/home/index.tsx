@@ -69,6 +69,24 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [initialLoaded, setInitialLoaded] = useState(false);
 
+  // ========== Cloud backup/restore state ==========
+  const [cloudBackups, setCloudBackups] = useState<any[]>([]);
+  const [cloudLoading, setCloudLoading] = useState(false);
+  const [cloudProgress, setCloudProgress] = useState('');
+  const [cloudBackupLoading, setCloudBackupLoading] = useState<'uploading' | 'downloading' | null>(null);
+  const [restoreSelectVisible, setRestoreSelectVisible] = useState(false);
+  const [backupRecordsVisible, setBackupRecordsVisible] = useState(false);
+
+  // Progress modal state
+  const [progressVisible, setProgressVisible] = useState(false);
+  const [progressText, setProgressText] = useState('请勿离开，即将完成！');
+  const [progressPercent, setProgressPercent] = useState(0);
+
+  // Scan local files state
+  const [scanModalVisible, setScanModalVisible] = useState(false);
+  const [scannedFiles, setScannedFiles] = useState<Array<{ name: string; path: string; size: number; modified: string }>>([]);
+  const [scanLoading, setScanLoading] = useState(false);
+
   const userId = (user as any)?.id;
   const userEmail = (user as any)?.email || '';
 
@@ -84,7 +102,7 @@ export default function HomeScreen() {
   // Also reset any stuck modal states to prevent screen darkening
   useFocusEffect(
     useCallback(() => {
-      // Safety: reset any stuck modal/progress states when screen regains focus
+      // 页面获得焦点时重置所有可能卡住的Modal状态
       setProgressVisible(false);
       setScanModalVisible(false);
       setCloudBackupVisible(false);
@@ -103,6 +121,17 @@ export default function HomeScreen() {
           // ignore
         }
       })();
+
+      // 页面失焦时也重置，防止Modal遮罩卡在原生层
+      return () => {
+        setProgressVisible(false);
+        setScanModalVisible(false);
+        setCloudBackupVisible(false);
+        setRestoreSelectVisible(false);
+        setBackupRecordsVisible(false);
+        setFileNameModalVisible(false);
+        setDetectionResult(null);
+      };
     }, [])
   );
 
@@ -1141,22 +1170,6 @@ export default function HomeScreen() {
   };
 
   // ========== Supabase Storage 云端备份/恢复 ==========
-  const [cloudBackups, setCloudBackups] = useState<any[]>([]);
-  const [cloudLoading, setCloudLoading] = useState(false);
-  const [cloudProgress, setCloudProgress] = useState('');
-  const [cloudBackupLoading, setCloudBackupLoading] = useState<'uploading' | 'downloading' | null>(null);
-  const [restoreSelectVisible, setRestoreSelectVisible] = useState(false);
-  const [backupRecordsVisible, setBackupRecordsVisible] = useState(false);
-
-  // Progress modal state
-  const [progressVisible, setProgressVisible] = useState(false);
-  const [progressText, setProgressText] = useState('请勿离开，即将完成！');
-  const [progressPercent, setProgressPercent] = useState(0);
-
-  // Scan local files state
-  const [scanModalVisible, setScanModalVisible] = useState(false);
-  const [scannedFiles, setScannedFiles] = useState<Array<{ name: string; path: string; size: number; modified: string }>>([]);
-  const [scanLoading, setScanLoading] = useState(false);
 
   // ========== Helper functions for backup ==========
   const getDeviceModel = (): string => {
@@ -1279,19 +1292,16 @@ export default function HomeScreen() {
   const processAvatar = async (imageUri: string | null | undefined): Promise<string | null> => {
     if (!imageUri) return null;
     try {
-      // Strip file:// prefix for expo-file-system compatibility
-      let cleanUri = imageUri;
-      if (cleanUri.startsWith('file://')) {
-        cleanUri = cleanUri.replace('file://', '');
-      }
-      console.log(`[Backup] Reading avatar: ${cleanUri.substring(0, 80)}...`);
-      const base64 = await FileSystem.readAsStringAsync(cleanUri, {
+      // 确保路径有file://前缀，expo-file-system需要
+      const normalizedUri = imageUri.startsWith('file://') ? imageUri : 'file://' + imageUri;
+      console.log('[Backup] Reading avatar from:', normalizedUri.substring(0, 80));
+      const base64 = await FileSystem.readAsStringAsync(normalizedUri, {
         encoding: FileSystem.EncodingType.Base64,
       });
-      console.log(`[Backup] Avatar base64 length: ${base64.length}`);
+      console.log('[Backup] Avatar base64 length:', base64.length);
       return 'data:image/jpeg;base64,' + base64;
-    } catch (e) {
-      console.log('[Backup] Avatar read failed:', imageUri, e);
+    } catch (e: any) {
+      console.log('[Backup] Avatar read failed:', imageUri, (e as any)?.message || e);
       return null;
     }
   };
@@ -2245,7 +2255,7 @@ export default function HomeScreen() {
       <Modal
         visible={true}
         transparent
-        animationType="fade"
+        animationType="none"
         onRequestClose={() => { /* prevent close */ }}
       >
         <View style={styles.progressOverlay}>

@@ -53,11 +53,13 @@ export default function LoginScreen() {
   }, []);
 
   const loadSavedAccounts = async () => {
+    console.log('[Login] Loading saved accounts...');
     try {
       // 1. Try loading from AsyncStorage first
       const data = await AsyncStorage.getItem(SAVED_ACCOUNTS_KEY);
       if (data) {
         const accounts: SavedAccount[] = JSON.parse(data);
+        console.log('[Login] Loaded', accounts.length, 'saved accounts');
         setSavedAccounts(accounts);
         if (accounts.length > 0) {
           const latest = accounts[0];
@@ -96,6 +98,7 @@ export default function LoginScreen() {
   };
 
   const saveAccount = async (phoneNumber: string, pwd: string) => {
+    console.log('[Login] Saving account:', phoneNumber);
     try {
       let accounts = [...savedAccounts];
       // Remove existing entry for this phone if present

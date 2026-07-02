@@ -108,6 +108,14 @@ export default function ContactsScreen() {
       setAvatarMenuContact(null);
       setEditModalVisible(false);
       setVotePanelVisible(false);
+
+      return () => {
+        setInfoModalVisible(false);
+        setStatusMenuContact(null);
+        setAvatarMenuContact(null);
+        setEditModalVisible(false);
+        setVotePanelVisible(false);
+      };
     }, [])
   );
 
@@ -1209,7 +1217,7 @@ export default function ContactsScreen() {
         <Modal
           visible={true}
           transparent
-          animationType="slide"
+          animationType="none"
           onRequestClose={() => setEditModalVisible(false)}
         >
           <View style={styles.modalOverlay}>
@@ -1380,7 +1388,7 @@ export default function ContactsScreen() {
         <Modal
           visible={true}
           transparent
-          animationType="slide"
+          animationType="none"
           onRequestClose={() => setVotePanelVisible(false)}
         >
           <TouchableWithoutFeedback onPress={() => setVotePanelVisible(false)}>
