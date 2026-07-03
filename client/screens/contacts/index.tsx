@@ -1409,13 +1409,7 @@ export default function ContactsScreen() {
             />
           </ScrollView>
           <View style={styles.editModalFooter}>
-            <TouchableOpacity
-              style={styles.editDeleteButton}
-              onPress={handleDeleteContact}
-            >
-              <Ionicons name="trash-outline" size={18} color="#F56C6C" />
-              <Text style={styles.editDeleteText}>删除</Text>
-            </TouchableOpacity>
+            {/* 第一行：取消 + 保存 */}
             <View style={{ flexDirection: 'row', gap: 12 }}>
               <TouchableOpacity
                 style={styles.editCancelButton}
@@ -1433,6 +1427,14 @@ export default function ContactsScreen() {
                 </Text>
               </TouchableOpacity>
             </View>
+            {/* 第二行：删除联系人（全宽） */}
+            <TouchableOpacity
+              style={styles.editDeleteButton}
+              onPress={handleDeleteContact}
+            >
+              <Ionicons name="trash-outline" size={18} color="#FFFFFF" />
+              <Text style={styles.editDeleteText}>删除联系人</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Overlay>
@@ -1864,25 +1866,23 @@ const styles = StyleSheet.create({
     color: '#303133',
   },
   editModalFooter: {
-    flexDirection: 'row',
     paddingHorizontal: 20,
     paddingBottom: 20,
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    gap: 12,
   },
   editDeleteButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: 'rgba(245, 108, 108, 0.1)',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: '#F56C6C',
   },
   editDeleteText: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
-    color: '#F56C6C',
-    marginLeft: 4,
+    color: '#FFFFFF',
+    marginLeft: 6,
   },
   editCancelButton: {
     flex: 1,
