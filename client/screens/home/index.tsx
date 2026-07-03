@@ -776,7 +776,7 @@ export default function HomeScreen() {
       // 直接使用 generateBackupData 确保格式与云端备份完全一致
       const backupData = await generateBackupData();
       const contactCount = backupData.contacts.length;
-      const defaultFileName = formatBackupFileName(contactCount);
+      const defaultFileName = formatBackupFileName(contactCount, getDeviceModel());
       const backupContent = JSON.stringify(backupData, null, 2);
       setProgressPercent(50);
       setProgressText('正在写入文件...');
@@ -1200,7 +1200,7 @@ export default function HomeScreen() {
     return deviceStr.replace(/[^a-z0-9\-]/gi, '-').substring(0, 20);
   };
 
-  const formatBackupFileName = (count: number = 0): string => {
+  const formatBackupFileName = (count: number = 0, deviceName: string = ''): string => {
     const now = new Date();
     const dateStr = now.getFullYear().toString() + '-' +
       (now.getMonth() + 1).toString().padStart(2, '0') + '-' +
@@ -1208,7 +1208,8 @@ export default function HomeScreen() {
     const timeStr = now.getHours().toString().padStart(2, '0') + '-' +
       now.getMinutes().toString().padStart(2, '0') + '-' +
       now.getSeconds().toString().padStart(2, '0');
-    return '号簿云备份_' + count + '个号码_' + dateStr + '_' + timeStr + '.json';
+    const safeDevice = (deviceName || 'Unknown').replace(/[^a-z0-9\-]/gi, '-').substring(0, 20);
+    return '号簿云备份_' + safeDevice + '_' + count + '个号码_' + dateStr + '_' + timeStr + '.json';
   };
 
   const parseBackupFilename = (fileName: string): { displayTime: string; device: string; count: number } => {
@@ -1217,7 +1218,16 @@ export default function HomeScreen() {
     let device = '';
     let count = 0;
 
-    // Format 0: 号簿云备份_Count个号码_YYYY-MM-DD_HH-mm-ss (newest)
+    // Format 0: 号簿云备份_Device_Count个号码_YYYY-MM-DD_HH-mm-ss (newest)
+    const deviceCountMatch = base.match(/^号簿云备份_(.+?)_(\d+)个号码_(\d{4}-\d{2}-\d{2})_(\d{2}-\d{2}-\d{2})$/);
+    if (deviceCountMatch) {
+      device = deviceCountMatch[1];
+      count = parseInt(deviceCountMatch[2], 10);
+      displayTime = `${deviceCountMatch[3]} ${deviceCountMatch[4].replace(/-/g, ':')}`;
+      return { displayTime, device, count };
+    }
+
+    // Format 0b: 号簿云备份_Count个号码_YYYY-MM-DD_HH-mm-ss (no device)
     const countMatch = base.match(/^号簿云备份_(\d+)个号码_(\d{4}-\d{2}-\d{2})_(\d{2}-\d{2}-\d{2})$/);
     if (countMatch) {
       count = parseInt(countMatch[1], 10);
@@ -1437,7 +1447,7 @@ export default function HomeScreen() {
       }
       
       const content = JSON.stringify(backupData, null, 2);
-      const fileName = formatBackupFileName(contactCount);
+      const fileName = formatBackupFileName(contactCount, getDeviceModel());
 
       // Log for debugging 0KB issue
       console.log(`[CloudBackup] fileName=${fileName}, contactCount=${contactCount}, contentLength=${content.length}`);
@@ -1694,7 +1704,7 @@ export default function HomeScreen() {
       setProgressText('正在生成备份数据...');
       const backupData = await generateBackupData();
       const contactCount = backupData.contacts.length;
-      const defaultFileName = formatBackupFileName(contactCount);
+      const defaultFileName = formatBackupFileName(contactCount, getDeviceModel());
       const backupContent = JSON.stringify(backupData, null, 2);
 
       setProgressPercent(60);
