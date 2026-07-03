@@ -117,6 +117,11 @@ export default function ContactsScreen() {
   // 首次加载标记：防止Tab切换时闪屏
   const [initialLoaded, setInitialLoaded] = useState(false);
 
+  // 批量管理相关状态
+  const [batchMode, setBatchMode] = useState(false);
+  const [selectedPhones, setSelectedPhones] = useState<Set<string>>(new Set());
+  const [batchDeleting, setBatchDeleting] = useState(false);
+
   const userId = (user as any)?.id;
 
   // Safety: reset any stuck modal states when screen regains focus to prevent screen darkening
@@ -638,6 +643,98 @@ export default function ContactsScreen() {
     );
   };
 
+  // ========== 批量管理功能 ==========
+  const toggleBatchSelection = (contactId: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(contactId)) {
+        next.delete(contactId);
+      } else {
+        next.add(contactId);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredContacts.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredContacts.map(c => c.id)));
+    }
+  };
+
+  const exitBatchMode = () => {
+    setBatchMode(false);
+    setSelectedIds(new Set());
+  };
+
+  const handleBatchDelete = () => {
+    if (selectedIds.size === 0) return;
+    const count = selectedIds.size;
+    Alert.alert(
+      '批量删除',
+      `确定要删除选中的 ${count} 个联系人吗？`,
+      [
+        { text: '取消', style: 'cancel' },
+        {
+          text: '删除并加入回收站',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const selectedContacts = contacts.filter(c => selectedIds.has(c.id));
+              // Write to deleted_contacts for cloud sync
+              const deleteRecords = selectedContacts
+                .filter(c => c.deviceContactId)
+                .map(c => ({
+                  user_id: userId,
+                  device_contact_id: c.deviceContactId!,
+                  phone: c.phone || '',
+                  name: c.name || '',
+                  deleted_at: new Date().toISOString(),
+                }));
+              if (deleteRecords.length > 0) {
+                await supabase.from('deleted_contacts').upsert(deleteRecords, { onConflict: 'user_id,device_contact_id' });
+              }
+              // Remove from device
+              for (const c of selectedContacts) {
+                if (c.deviceContactId) {
+                  try { await Contacts.removeContactAsync(c.deviceContactId); } catch {}
+                }
+              }
+              setContacts(prev => prev.filter(c => !selectedIds.has(c.id)));
+              Alert.alert('已删除', `${count} 个联系人已移入回收站`);
+              exitBatchMode();
+            } catch (error) {
+              console.error('Batch recycle delete error:', error);
+              Alert.alert('删除失败', '无法删除联系人，请重试');
+            }
+          },
+        },
+        {
+          text: '直接永久删除',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const selectedContacts = contacts.filter(c => selectedIds.has(c.id));
+              for (const c of selectedContacts) {
+                if (c.deviceContactId) {
+                  try { await Contacts.removeContactAsync(c.deviceContactId); } catch {}
+                }
+              }
+              setContacts(prev => prev.filter(c => !selectedIds.has(c.id)));
+              Alert.alert('已删除', `${count} 个联系人已永久删除`);
+              exitBatchMode();
+            } catch (error) {
+              console.error('Batch permanent delete error:', error);
+              Alert.alert('删除失败', '无法删除联系人，请重试');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const loadContacts = useCallback(async () => {
     if (!userId) return;
 
@@ -962,13 +1059,30 @@ export default function ContactsScreen() {
     const communityVoteStyle = communityVote?.communityStatus ? getCommunityVoteStyle(communityVote.communityStatus) : null;
     const customAvatarUri = contactAvatars[item.phone];
     const totalCount = communityVote ? communityVote.stoppedCount : 0;
+    const isSelected = selectedContacts.has(item.phone);
 
     return (
       <TouchableOpacity
-        style={styles.contactCard}
-        onLongPress={() => setAvatarMenuContact(item)}
-        delayLongPress={500}
+        style={[styles.contactCard, batchMode && isSelected && { backgroundColor: '#E8F0FE' }]}
+        onLongPress={batchMode ? undefined : () => setAvatarMenuContact(item)}
+        onPress={batchMode ? () => toggleBatchSelection(item.phone) : () => {
+          setEditingContact(item);
+          setEditName(item.name || '');
+          setEditPhones(item.phones?.map(p => p.number || '') || ['']);
+          setEditEmails(item.emails?.map(e => e.email || '') || ['']);
+          setEditCompany(item.company || '');
+          setEditJobTitle(item.jobTitle || '');
+          setEditNote(item.note || '');
+          setEditAvatarUri(customAvatarUri || null);
+          setEditModalVisible(true);
+        }}
       >
+        {/* Batch mode checkbox */}
+        {batchMode && (
+          <View style={[styles.batchCheckbox, isSelected && styles.batchCheckboxSelected]}>
+            {isSelected && <Ionicons name="checkmark" size={16} color="#FFF" />}
+          </View>
+        )}
         {customAvatarUri ? (
           <Image source={{ uri: customAvatarUri }} style={styles.customAvatar} />
         ) : item.image ? (
@@ -1044,27 +1158,57 @@ export default function ContactsScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: '#F5F7FA' }]}>
       <View style={styles.header}>
         <View style={styles.titleRow}>
-          <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
-            <Text style={styles.title}>通讯录</Text>
-            <Text style={styles.titleCount}> ({filteredContacts.length})</Text>
-          </View>
-          <View style={styles.headerButtons}>
-            <TouchableOpacity
-              style={styles.syncTextButton}
-              onPress={handleSync}
-              disabled={syncLoading}
-            >
-              <Text style={[styles.syncTextButtonText, syncLoading && { color: '#909399' }]}>
-                {syncLoading ? '同步中...' : '同步'}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.headerButton}
-              onPress={() => setInfoModalVisible(true)}
-            >
-              <Ionicons name="information-circle-outline" size={24} color="#4A90D9" />
-            </TouchableOpacity>
-          </View>
+          {batchMode ? (
+            <>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <TouchableOpacity onPress={exitBatchMode} style={{ marginRight: 8 }}>
+                  <Ionicons name="close" size={24} color="#4A90D9" />
+                </TouchableOpacity>
+                <Text style={styles.title}>批量管理</Text>
+                <Text style={styles.titleCount}> (已选 {selectedContacts.size})</Text>
+              </View>
+              <View style={styles.headerButtons}>
+                <TouchableOpacity
+                  style={styles.syncTextButton}
+                  onPress={toggleSelectAll}
+                >
+                  <Text style={styles.syncTextButtonText}>
+                    {selectedContacts.size === filteredContacts.length && filteredContacts.length > 0 ? '取消全选' : '全选'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          ) : (
+            <>
+              <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+                <Text style={styles.title}>通讯录</Text>
+                <Text style={styles.titleCount}> ({filteredContacts.length})</Text>
+              </View>
+              <View style={styles.headerButtons}>
+                <TouchableOpacity
+                  style={styles.syncTextButton}
+                  onPress={enterBatchMode}
+                >
+                  <Text style={styles.syncTextButtonText}>批量管理</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.syncTextButton}
+                  onPress={handleSync}
+                  disabled={syncLoading}
+                >
+                  <Text style={[styles.syncTextButtonText, syncLoading && { color: '#909399' }]}>
+                    {syncLoading ? '同步中...' : '同步'}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.headerButton}
+                  onPress={() => setInfoModalVisible(true)}
+                >
+                  <Ionicons name="information-circle-outline" size={24} color="#4A90D9" />
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
         </View>
         <View style={styles.searchContainer}>
           <Ionicons name="search" size={18} color="#909399" style={styles.searchIcon} />
@@ -1509,6 +1653,26 @@ export default function ContactsScreen() {
           </TouchableOpacity>
         </View>
       </Overlay>
+
+      {/* Batch Mode Action Bar */}
+      {batchMode && (
+        <View style={styles.batchActionBar}>
+          <Text style={styles.batchActionBarCount}>已选 {selectedContacts.size} 个</Text>
+          <View style={styles.batchActionBarButtons}>
+            <TouchableOpacity style={styles.batchActionBarCancelBtn} onPress={exitBatchMode}>
+              <Text style={styles.batchActionBarCancelText}>取消</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.batchActionBarDeleteBtn, selectedContacts.size === 0 && { opacity: 0.5 }]}
+              onPress={handleBatchDelete}
+              disabled={selectedContacts.size === 0}
+            >
+              <Ionicons name="trash" size={18} color="#FFF" />
+              <Text style={styles.batchActionBarDeleteText}>删除</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -2123,5 +2287,64 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#909399',
     marginTop: 2,
+  },
+  // Batch Mode
+  batchCheckbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#DCDFE6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  batchCheckboxSelected: {
+    backgroundColor: '#409EFF',
+    borderColor: '#409EFF',
+  },
+  batchActionBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#FFF',
+    borderTopWidth: 1,
+    borderTopColor: '#EBEEF5',
+    paddingBottom: 34,
+  },
+  batchActionBarCount: {
+    fontSize: 15,
+    color: '#303133',
+    fontWeight: '500',
+  },
+  batchActionBarButtons: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  batchActionBarCancelBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#F4F4F5',
+  },
+  batchActionBarCancelText: {
+    fontSize: 14,
+    color: '#606266',
+  },
+  batchActionBarDeleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#F56C6C',
+    gap: 4,
+  },
+  batchActionBarDeleteText: {
+    fontSize: 14,
+    color: '#FFF',
+    fontWeight: '600',
   },
 });
