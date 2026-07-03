@@ -1409,7 +1409,15 @@ export default function ContactsScreen() {
             />
           </ScrollView>
           <View style={styles.editModalFooter}>
-            {/* 第一行：取消 + 保存 */}
+            {/* 第一行：删除联系人（全宽） */}
+            <TouchableOpacity
+              style={styles.editDeleteButton}
+              onPress={handleDeleteContact}
+            >
+              <Ionicons name="trash-outline" size={18} color="#FFFFFF" />
+              <Text style={styles.editDeleteText}>删除联系人</Text>
+            </TouchableOpacity>
+            {/* 第二行：取消 + 保存 */}
             <View style={{ flexDirection: 'row', gap: 12 }}>
               <TouchableOpacity
                 style={styles.editCancelButton}
@@ -1427,14 +1435,6 @@ export default function ContactsScreen() {
                 </Text>
               </TouchableOpacity>
             </View>
-            {/* 第二行：删除联系人（全宽） */}
-            <TouchableOpacity
-              style={styles.editDeleteButton}
-              onPress={handleDeleteContact}
-            >
-              <Ionicons name="trash-outline" size={18} color="#FFFFFF" />
-              <Text style={styles.editDeleteText}>删除联系人</Text>
-            </TouchableOpacity>
           </View>
         </View>
       </Overlay>
