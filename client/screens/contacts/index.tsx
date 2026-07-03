@@ -119,7 +119,7 @@ export default function ContactsScreen() {
 
   // 批量管理相关状态
   const [batchMode, setBatchMode] = useState(false);
-  const [selectedPhones, setSelectedPhones] = useState<Set<string>>(new Set());
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [batchDeleting, setBatchDeleting] = useState(false);
 
   const userId = (user as any)?.id;
@@ -1059,13 +1059,13 @@ export default function ContactsScreen() {
     const communityVoteStyle = communityVote?.communityStatus ? getCommunityVoteStyle(communityVote.communityStatus) : null;
     const customAvatarUri = contactAvatars[item.phone];
     const totalCount = communityVote ? communityVote.stoppedCount : 0;
-    const isSelected = selectedContacts.has(item.phone);
+    const isSelected = selectedIds.has(item.id);
 
     return (
       <TouchableOpacity
         style={[styles.contactCard, batchMode && isSelected && { backgroundColor: '#E8F0FE' }]}
         onLongPress={batchMode ? undefined : () => setAvatarMenuContact(item)}
-        onPress={batchMode ? () => toggleBatchSelection(item.phone) : () => {
+        onPress={batchMode ? () => toggleBatchSelection(item.id) : () => {
           setEditingContact(item);
           setEditName(item.name || '');
           setEditPhones(item.phones?.map(p => p.number || '') || ['']);
@@ -1165,7 +1165,7 @@ export default function ContactsScreen() {
                   <Ionicons name="close" size={24} color="#4A90D9" />
                 </TouchableOpacity>
                 <Text style={styles.title}>批量管理</Text>
-                <Text style={styles.titleCount}> (已选 {selectedContacts.size})</Text>
+                <Text style={styles.titleCount}> (已选 {selectedIds.size})</Text>
               </View>
               <View style={styles.headerButtons}>
                 <TouchableOpacity
@@ -1173,7 +1173,7 @@ export default function ContactsScreen() {
                   onPress={toggleSelectAll}
                 >
                   <Text style={styles.syncTextButtonText}>
-                    {selectedContacts.size === filteredContacts.length && filteredContacts.length > 0 ? '取消全选' : '全选'}
+                    {selectedIds.size === filteredContacts.length && filteredContacts.length > 0 ? '取消全选' : '全选'}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -1657,15 +1657,15 @@ export default function ContactsScreen() {
       {/* Batch Mode Action Bar */}
       {batchMode && (
         <View style={styles.batchActionBar}>
-          <Text style={styles.batchActionBarCount}>已选 {selectedContacts.size} 个</Text>
+          <Text style={styles.batchActionBarCount}>已选 {selectedIds.size} 个</Text>
           <View style={styles.batchActionBarButtons}>
             <TouchableOpacity style={styles.batchActionBarCancelBtn} onPress={exitBatchMode}>
               <Text style={styles.batchActionBarCancelText}>取消</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.batchActionBarDeleteBtn, selectedContacts.size === 0 && { opacity: 0.5 }]}
+              style={[styles.batchActionBarDeleteBtn, selectedIds.size === 0 && { opacity: 0.5 }]}
               onPress={handleBatchDelete}
-              disabled={selectedContacts.size === 0}
+              disabled={selectedIds.size === 0}
             >
               <Ionicons name="trash" size={18} color="#FFF" />
               <Text style={styles.batchActionBarDeleteText}>删除</Text>
