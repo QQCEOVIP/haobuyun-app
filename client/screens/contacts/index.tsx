@@ -564,6 +564,80 @@ export default function ContactsScreen() {
     }
   };
 
+  const handleDeleteContact = () => {
+    if (!editingContact) return;
+    const contactName = editingContact.name || editingContact.phone;
+
+    Alert.alert(
+      '删除联系人',
+      `确定要删除「${contactName}」吗？`,
+      [
+        { text: '取消', style: 'cancel' },
+        {
+          text: '删除并加入回收站',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // 写入 deleted_contacts 表
+              const { data: { user } } = await supabase.auth.getUser();
+              if (user) {
+                for (const phone of editingContact.phones) {
+                  await supabase.from('deleted_contacts').upsert({
+                    user_id: user.id,
+                    phone_number: phone,
+                    contact_name: editingContact.name,
+                    deleted_at: new Date().toISOString(),
+                  });
+                }
+              }
+              // 从本地设备删除
+              if (editingContact.deviceContactId) {
+                await Contacts.removeContactAsync(editingContact.deviceContactId);
+              }
+              // 清除本地头像缓存
+              if (editingContact.phone && contactAvatars[editingContact.phone]) {
+                const newAvatars = { ...contactAvatars };
+                delete newAvatars[editingContact.phone];
+                setContactAvatars(newAvatars);
+              }
+              // 从列表移除
+              setContacts(prev => prev.filter(c => c.id !== editingContact.id));
+              setEditModalVisible(false);
+              setEditingContact(null);
+              Alert.alert('已移入回收站', '联系人已删除，可在回收站中恢复');
+            } catch (error) {
+              console.error('Delete to recycle bin error:', error);
+              Alert.alert('删除失败', '无法删除联系人，请重试');
+            }
+          },
+        },
+        {
+          text: '直接永久删除',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              if (editingContact.deviceContactId) {
+                await Contacts.removeContactAsync(editingContact.deviceContactId);
+              }
+              if (editingContact.phone && contactAvatars[editingContact.phone]) {
+                const newAvatars = { ...contactAvatars };
+                delete newAvatars[editingContact.phone];
+                setContactAvatars(newAvatars);
+              }
+              setContacts(prev => prev.filter(c => c.id !== editingContact.id));
+              setEditModalVisible(false);
+              setEditingContact(null);
+              Alert.alert('已删除', '联系人已永久删除');
+            } catch (error) {
+              console.error('Permanent delete error:', error);
+              Alert.alert('删除失败', '无法删除联系人，请重试');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const loadContacts = useCallback(async () => {
     if (!userId) return;
 
@@ -1336,20 +1410,29 @@ export default function ContactsScreen() {
           </ScrollView>
           <View style={styles.editModalFooter}>
             <TouchableOpacity
-              style={styles.editCancelButton}
-              onPress={() => setEditModalVisible(false)}
+              style={styles.editDeleteButton}
+              onPress={handleDeleteContact}
             >
-              <Text style={styles.editCancelText}>取消</Text>
+              <Ionicons name="trash-outline" size={18} color="#F56C6C" />
+              <Text style={styles.editDeleteText}>删除</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.editSaveButton, editSaving && { opacity: 0.6 }]}
-              onPress={handleSaveEdit}
-              disabled={editSaving}
-            >
-              <Text style={styles.editSaveText}>
-                {editSaving ? '保存中...' : '保存'}
-              </Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <TouchableOpacity
+                style={styles.editCancelButton}
+                onPress={() => setEditModalVisible(false)}
+              >
+                <Text style={styles.editCancelText}>取消</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.editSaveButton, editSaving && { opacity: 0.6 }]}
+                onPress={handleSaveEdit}
+                disabled={editSaving}
+              >
+                <Text style={styles.editSaveText}>
+                  {editSaving ? '保存中...' : '保存'}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Overlay>
@@ -1784,7 +1867,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingHorizontal: 20,
     paddingBottom: 20,
-    gap: 12,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  editDeleteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: 'rgba(245, 108, 108, 0.1)',
+  },
+  editDeleteText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#F56C6C',
+    marginLeft: 4,
   },
   editCancelButton: {
     flex: 1,
