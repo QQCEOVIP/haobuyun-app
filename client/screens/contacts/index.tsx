@@ -74,6 +74,10 @@ interface Contact {
   status: string | null;
   lastContactDate?: string;
   image?: string | null;
+  emails?: string[];
+  company?: string;
+  jobTitle?: string;
+  note?: string;
 }
 
 const STATUS_TABS = [
@@ -586,7 +590,7 @@ export default function ContactsScreen() {
               // 写入 deleted_contacts 表
               const { data: { user } } = await supabase.auth.getUser();
               if (user) {
-                for (const phone of editingContact.phones) {
+                for (const phone of editingContact.phoneNumbers) {
                   await supabase.from('deleted_contacts').upsert({
                     user_id: user.id,
                     phone_number: phone,
@@ -792,8 +796,8 @@ export default function ContactsScreen() {
             const phone = allPhones[0] || '';
             const localData = allLocalContacts?.find((lc: any) => lc.phone === phone && phone.length > 0);
             return {
-              id: c.id,
-              deviceContactId: c.id,
+              id: (c as any).id,
+              deviceContactId: (c as any).id,
               name: c.name || '未知联系人',
               phone: phone || '(无号码)',
               phoneNumbers: allPhones,
@@ -1068,8 +1072,8 @@ export default function ContactsScreen() {
         onPress={batchMode ? () => toggleBatchSelection(item.id) : () => {
           setEditingContact(item);
           setEditName(item.name || '');
-          setEditPhones(item.phones?.map(p => p.number || '') || ['']);
-          setEditEmails(item.emails?.map(e => e.email || '') || ['']);
+          setEditPhones(item.phoneNumbers?.length ? item.phoneNumbers : [item.phone || '']);
+          setEditEmails(item.emails?.length ? item.emails : ['']);
           setEditCompany(item.company || '');
           setEditJobTitle(item.jobTitle || '');
           setEditNote(item.note || '');
@@ -1187,7 +1191,7 @@ export default function ContactsScreen() {
               <View style={styles.headerButtons}>
                 <TouchableOpacity
                   style={styles.syncTextButton}
-                  onPress={enterBatchMode}
+                  onPress={() => setBatchMode(true)}
                 >
                   <Text style={styles.syncTextButtonText}>批量管理</Text>
                 </TouchableOpacity>
@@ -1385,7 +1389,7 @@ export default function ContactsScreen() {
           </Text>
           <TouchableOpacity
             style={[styles.statusMenuOption, { backgroundColor: '#E8F0FE' }]}
-            onPress={() => handleSetAvatar(avatarMenuContact)}
+            onPress={() => avatarMenuContact && handleSetAvatar(avatarMenuContact)}
           >
             <Ionicons name="camera" size={20} color="#4A90D9" />
             <Text style={[styles.statusMenuOptionText, { color: '#4A90D9' }]}>
@@ -1395,7 +1399,7 @@ export default function ContactsScreen() {
           {contactAvatars[avatarMenuContact?.phone ?? ''] && (
             <TouchableOpacity
               style={[styles.statusMenuOption, { backgroundColor: '#FEF0F0' }]}
-              onPress={() => handleRemoveAvatar(avatarMenuContact)}
+              onPress={() => avatarMenuContact && handleRemoveAvatar(avatarMenuContact)}
             >
               <Ionicons name="trash" size={20} color="#F56C6C" />
               <Text style={[styles.statusMenuOptionText, { color: '#F56C6C' }]}>删除头像</Text>
