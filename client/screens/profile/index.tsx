@@ -265,7 +265,7 @@ export default function ProfileScreen() {
               name="information-circle"
               color="#909399"
               title="关于我们"
-              subtitle="版本 1.0.0"
+              subtitle="内测版本 1.0.0"
               onPress={() => router.push('/about')}
             />
           </View>

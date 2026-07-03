@@ -12,7 +12,7 @@ export default function AboutScreen() {
       await new Promise(resolve => setTimeout(resolve, 1500));
       Alert.alert(
         '当前已是最新版本',
-        '版本号：1.0.0\n暂无可用更新',
+        '版本号：内测版本 1.0.0\n暂无可用更新',
         [{ text: '确定', style: 'default' }]
       );
     } catch {
