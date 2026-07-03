@@ -625,6 +625,7 @@ export default function HomeScreen() {
             company: c.company || undefined,
             jobTitle: c.jobTitle || undefined,
             note: c.note || undefined,
+            avatar: c.avatar || undefined,
           }));
         } else if (Array.isArray(parsed)) {
           // 兼容旧格式：直接是联系人数组
@@ -674,10 +675,20 @@ export default function HomeScreen() {
           if (contact.company) contactData.company = contact.company;
           if (contact.jobTitle) contactData.jobTitle = contact.jobTitle;
           if (contact.note) contactData.note = contact.note;
+          // 写入头像（base64 data URI）
+          if (contact.avatar && typeof contact.avatar === 'string' && contact.avatar.startsWith('data:image')) {
+            contactData.image = contact.avatar;
+            if (i < 3 || i % 50 === 0) {
+              console.log(`[Restore] Writing avatar for contact ${i}: ${contact.name}, data length: ${contact.avatar.length}`);
+            }
+          }
           await Contacts.addContactAsync(contactData);
           successCount++;
-        } catch (e) {
+        } catch (e: any) {
           failCount++;
+          if (failCount <= 3) {
+            console.error(`[Restore] Failed to add contact ${i}: ${contact.name}`, e?.message || e);
+          }
         }
         // Update progress
         if (onProgress) {
@@ -686,6 +697,8 @@ export default function HomeScreen() {
       }
       let msg = `成功导入 ${successCount} 个联系人`;
       if (failCount > 0) msg += `，${failCount} 个失败`;
+      const withAvatar = contacts.filter((c: any) => c.avatar).length;
+      console.log(`[Restore] Import complete. Total: ${totalCount}, Success: ${successCount}, Failed: ${failCount}, With avatar: ${withAvatar}`);
       fetchStats();
       Alert.alert("导入完成", msg);
     } catch (error) {
@@ -712,6 +725,7 @@ export default function HomeScreen() {
             company: c.company || undefined,
             jobTitle: c.jobTitle || undefined,
             note: c.note || undefined,
+            avatar: c.avatar || undefined,
           }));
         } else {
           contacts = [];
@@ -754,6 +768,7 @@ export default function HomeScreen() {
           if (contact.company) contactData.company = contact.company;
           if (contact.jobTitle) contactData.jobTitle = contact.jobTitle;
           if (contact.note) contactData.note = contact.note;
+          if (contact.avatar) contactData.image = { uri: contact.avatar };
           await Contacts.addContactAsync(contactData);
           successCount++;
         } catch (e) {
@@ -1368,6 +1383,12 @@ export default function HomeScreen() {
     ]);
     if (!allContacts || allContacts.length === 0) throw new Error('通讯录中没有联系人');
     console.log("[Backup] Reading contacts... Found:", allContacts.length);
+
+    // Debug: log first 3 contacts' image field to diagnose avatar issues
+    allContacts.slice(0, 3).forEach((c, i) => {
+      const imgUri = c.image?.uri || (c as any).photo || null;
+      console.log(`[Backup] Contact[${i}] "${c.name || c.firstName || '?'}" image field:`, imgUri ? imgUri.substring(0, 60) : 'null');
+    });
 
     const phoneKeys = allContacts
       .filter(c => c.phoneNumbers && c.phoneNumbers.length > 0)
