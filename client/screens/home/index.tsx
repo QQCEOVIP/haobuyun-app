@@ -1208,7 +1208,7 @@ export default function HomeScreen() {
     const timeStr = now.getHours().toString().padStart(2, '0') + '-' +
       now.getMinutes().toString().padStart(2, '0') + '-' +
       now.getSeconds().toString().padStart(2, '0');
-    return '号簿云备份' + dateStr + '_' + timeStr + '.json';
+    return '号簿云备份_' + count + '个号码_' + dateStr + '_' + timeStr + '.json';
   };
 
   const parseBackupFilename = (fileName: string): { displayTime: string; device: string; count: number } => {
@@ -1217,7 +1217,15 @@ export default function HomeScreen() {
     let device = '';
     let count = 0;
 
-    // Format 0: 号簿云备份YYYY-MM-DD_HH-mm-ss (newest)
+    // Format 0: 号簿云备份_Count个号码_YYYY-MM-DD_HH-mm-ss (newest)
+    const countMatch = base.match(/^号簿云备份_(\d+)个号码_(\d{4}-\d{2}-\d{2})_(\d{2}-\d{2}-\d{2})$/);
+    if (countMatch) {
+      count = parseInt(countMatch[1], 10);
+      displayTime = `${countMatch[2]} ${countMatch[3].replace(/-/g, ':')}`;
+      return { displayTime, device, count };
+    }
+
+    // Format 0b: 号簿云备份YYYY-MM-DD_HH-mm-ss (no count, legacy)
     const newMatch = base.match(/^号簿云备份(\d{4}-\d{2}-\d{2})_(\d{2}-\d{2}-\d{2})$/);
     if (newMatch) {
       displayTime = `${newMatch[1]} ${newMatch[2].replace(/-/g, ':')}`;
