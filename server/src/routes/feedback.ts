@@ -38,22 +38,24 @@ router.post('/', async (req, res) => {
 
     // Try to send email notification
     try {
-      const smtpHost = process.env.SMTP_HOST;
-      const smtpPort = process.env.SMTP_PORT || '587';
-      const smtpUser = process.env.SMTP_USER;
-      const smtpPass = process.env.SMTP_PASS;
+      // SMTP 配置：优先使用环境变量，否则使用默认值
+      const smtpHost = process.env.SMTP_HOST || 'smtp.qq.com';
+      const smtpPort = parseInt(process.env.SMTP_PORT || '465');
+      const smtpUser = process.env.SMTP_USER || 'vip2012@vip.qq.com';
+      const smtpPass = process.env.SMTP_PASS || '';
+      const feedbackTo = process.env.FEEDBACK_TO || 'vip2012@vip.qq.com';
 
-      if (smtpHost && smtpUser && smtpPass) {
+      if (smtpPass) {
         const transporter = nodemailer.createTransport({
           host: smtpHost,
-          port: parseInt(smtpPort),
-          secure: smtpPort === '465',
+          port: smtpPort,
+          secure: smtpPort === 465,
           auth: { user: smtpUser, pass: smtpPass },
         });
 
         await transporter.sendMail({
           from: `"号簿云反馈" <${smtpUser}>`,
-          to: 'vip2012@vip.qq.com',
+          to: feedbackTo,
           subject: `新反馈 - ${category || '建议'}`,
           html: `
             <h2>用户反馈</h2>
@@ -67,7 +69,7 @@ router.post('/', async (req, res) => {
         });
         console.log('Feedback email sent successfully');
       } else {
-        console.log('Feedback saved (email notification skipped - SMTP not configured)');
+        console.warn('Feedback saved (email skipped - SMTP_PASS not configured in environment variables)');
       }
     } catch (emailError: any) {
       console.warn('Failed to send feedback email:', emailError.message);
