@@ -43,4 +43,4 @@ kill_old_server
 
 echo "启动 server 服务..."
 cd "$SERVER_DIR"
-NODE_ENV=development PORT="$SERVER_PORT" npx tsx watch ./src/index.ts 2>&1 | pipe_to_log "SERVER" "$LOG_SERVER_FILE"
+NODE_ENV=development PORT="$SERVER_PORT" npx tsx watch ./src/server.ts 2>&1 | pipe_to_log "SERVER" "$LOG_SERVER_FILE"

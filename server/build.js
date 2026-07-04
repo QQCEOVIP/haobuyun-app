@@ -7,7 +7,7 @@ const dependencies = pkg.dependencies || {};
 const externalList = Object.keys(dependencies).filter(dep => dep !== 'dayjs');
 try {
   await esbuild.build({
-    entryPoints: ['src/index.ts'],
+    entryPoints: ['src/server.ts'],
     bundle: true,
     platform: 'node',
     format: 'esm',
