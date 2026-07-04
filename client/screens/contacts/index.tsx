@@ -575,19 +575,18 @@ export default function ContactsScreen() {
 
   const handleDeleteContact = () => {
     if (!editingContact) return;
-    const contactName = editingContact.name || editingContact.phone;
 
     Alert.alert(
       '删除联系人',
-      `确定要删除「${contactName}」吗？`,
+      '是否确认删除该联系人？',
       [
         { text: '取消', style: 'cancel' },
         {
-          text: '删除并加入回收站',
+          text: '确定',
           style: 'destructive',
           onPress: async () => {
             try {
-              // 写入 deleted_contacts 表
+              // 写入 deleted_contacts 表（回收站）
               const { data: { user } } = await supabase.auth.getUser();
               if (user) {
                 for (const phone of editingContact.phoneNumbers) {
@@ -613,32 +612,9 @@ export default function ContactsScreen() {
               setContacts(prev => prev.filter(c => c.id !== editingContact.id));
               setEditModalVisible(false);
               setEditingContact(null);
-              Alert.alert('已移入回收站', '联系人已删除，可在回收站中恢复');
+              Alert.alert('已删除', '联系人已移入回收站，可在回收站中恢复');
             } catch (error) {
-              console.error('Delete to recycle bin error:', error);
-              Alert.alert('删除失败', '无法删除联系人，请重试');
-            }
-          },
-        },
-        {
-          text: '直接永久删除',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              if (editingContact.deviceContactId) {
-                await Contacts.removeContactAsync(editingContact.deviceContactId);
-              }
-              if (editingContact.phone && contactAvatars[editingContact.phone]) {
-                const newAvatars = { ...contactAvatars };
-                delete newAvatars[editingContact.phone];
-                setContactAvatars(newAvatars);
-              }
-              setContacts(prev => prev.filter(c => c.id !== editingContact.id));
-              setEditModalVisible(false);
-              setEditingContact(null);
-              Alert.alert('已删除', '联系人已永久删除');
-            } catch (error) {
-              console.error('Permanent delete error:', error);
+              console.error('Delete contact error:', error);
               Alert.alert('删除失败', '无法删除联系人，请重试');
             }
           },
@@ -677,17 +653,17 @@ export default function ContactsScreen() {
     if (selectedIds.size === 0) return;
     const count = selectedIds.size;
     Alert.alert(
-      '批量删除',
-      `确定要删除选中的 ${count} 个联系人吗？`,
+      '删除联系人',
+      `是否确认删除选中的 ${count} 个联系人？`,
       [
         { text: '取消', style: 'cancel' },
         {
-          text: '删除并加入回收站',
+          text: '确定',
           style: 'destructive',
           onPress: async () => {
             try {
               const selectedContacts = contacts.filter(c => selectedIds.has(c.id));
-              // Write to deleted_contacts for cloud sync
+              // Write to deleted_contacts for cloud sync (recycle bin)
               const deleteRecords = selectedContacts
                 .filter(c => c.deviceContactId)
                 .map(c => ({
@@ -710,27 +686,7 @@ export default function ContactsScreen() {
               Alert.alert('已删除', `${count} 个联系人已移入回收站`);
               exitBatchMode();
             } catch (error) {
-              console.error('Batch recycle delete error:', error);
-              Alert.alert('删除失败', '无法删除联系人，请重试');
-            }
-          },
-        },
-        {
-          text: '直接永久删除',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const selectedContacts = contacts.filter(c => selectedIds.has(c.id));
-              for (const c of selectedContacts) {
-                if (c.deviceContactId) {
-                  try { await Contacts.removeContactAsync(c.deviceContactId); } catch {}
-                }
-              }
-              setContacts(prev => prev.filter(c => !selectedIds.has(c.id)));
-              Alert.alert('已删除', `${count} 个联系人已永久删除`);
-              exitBatchMode();
-            } catch (error) {
-              console.error('Batch permanent delete error:', error);
+              console.error('Batch delete error:', error);
               Alert.alert('删除失败', '无法删除联系人，请重试');
             }
           },
