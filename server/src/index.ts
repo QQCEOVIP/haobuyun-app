@@ -3,6 +3,8 @@ import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
 import { createClient } from '@supabase/supabase-js';
+import { sql } from 'drizzle-orm';
+import { db } from './storage/database/database';
 import pointsRouter from "./routes/points";
 import contactsRouter from "./routes/contacts";
 import profileRouter from "./routes/profile";
@@ -339,6 +341,48 @@ app.use(express.static(clientDistPath));
 app.get(/.*/, (req, res) => { res.sendFile(path.join(clientDistPath, "index.html")); });
 // === end ===
 
-app.listen(port, () => {
-  console.log(`Server listening at http://localhost:${port}/`);
+// === Database migrations ===
+async function runMigrations() {
+  try {
+    // Create number_votes table if not exists
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS number_votes (
+        id BIGSERIAL PRIMARY KEY,
+        phone TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        vote TEXT NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(phone, user_id)
+      )
+    `);
+    console.log('[Migration] number_votes table ready');
+
+    // Create number_authentications table if not exists
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS number_authentications (
+        id BIGSERIAL PRIMARY KEY,
+        phone TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        user_name TEXT,
+        authenticated_at TIMESTAMPTZ DEFAULT NOW(),
+        expires_at TIMESTAMPTZ,
+        UNIQUE(phone, user_id)
+      )
+    `);
+    console.log('[Migration] number_authentications table ready');
+  } catch (e) {
+    console.error('[Migration] Failed:', e);
+  }
+}
+
+runMigrations().then(() => {
+  app.listen(port, () => {
+    console.log(`Server listening at http://localhost:${port}/`);
+  });
+}).catch((e) => {
+  console.error('Migration failed, starting server anyway:', e);
+  app.listen(port, () => {
+    console.log(`Server listening at http://localhost:${port}/`);
+  });
 });
