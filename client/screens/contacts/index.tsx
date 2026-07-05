@@ -871,18 +871,31 @@ export default function ContactsScreen() {
         }
       });
 
-      // Count stopped and suspected_stopped from AsyncStorage, but only for phones in current contacts
-      const allKeys = await AsyncStorage.getAllKeys();
-      const statusKeys = allKeys.filter(k => k.startsWith('@contact_status_'));
+      // Count stopped and suspected_stopped from community marks (backend data)
+      // Fall back to local AsyncStorage status if community marks not available
       let stopped = 0;
       let suspected = 0;
-      if (statusKeys.length > 0) {
-        const statusEntries = await AsyncStorage.multiGet(statusKeys);
-        for (const [key, value] of statusEntries) {
-          const phone = key.replace('@contact_status_', '').replace(/\D/g, '');
-          if (currentPhones.has(phone)) {
-            if (value === 'stopped') stopped++;
-            else if (value === 'suspected_stopped') suspected++;
+      if (communityMarks.size > 0) {
+        // Use community marks from backend
+        for (const phone of currentPhones) {
+          const mark = communityMarks.get(phone);
+          if (mark) {
+            if (mark.status === 'stopped') stopped++;
+            else if (mark.status === 'suspected_stopped') suspected++;
+          }
+        }
+      } else {
+        // Fall back to local AsyncStorage status
+        const allKeys = await AsyncStorage.getAllKeys();
+        const statusKeys = allKeys.filter(k => k.startsWith('@contact_status_'));
+        if (statusKeys.length > 0) {
+          const statusEntries = await AsyncStorage.multiGet(statusKeys);
+          for (const [key, value] of statusEntries) {
+            const phone = key.replace('@contact_status_', '').replace(/\D/g, '');
+            if (currentPhones.has(phone)) {
+              if (value === 'stopped') stopped++;
+              else if (value === 'suspected_stopped') suspected++;
+            }
           }
         }
       }
@@ -1006,7 +1019,7 @@ export default function ContactsScreen() {
       // 通讯录为0时，清除残留的旧统计数据
       setCleanupStats({ duplicate: 0, stopped: 0, suspected: 0 });
     }
-  }, [contacts]);
+  }, [contacts, communityMarks]);
 
   // 加载联系人列表（仅首次加载，后续依赖下拉刷新）
   useEffect(() => {
@@ -1298,7 +1311,7 @@ export default function ContactsScreen() {
               <TouchableOpacity
                 style={styles.cleanupStatItem}
                 activeOpacity={0.7}
-                onPress={() => router.push('/stopped-contacts', { status: 'suspected_stopped' })}
+                onPress={() => router.push('/suspected-contacts')}
               >
                 <Text style={[styles.cleanupStatValue, { color: '#FA8C16' }]}>{cleanupStats.suspected}</Text>
                 <Text style={styles.cleanupStatLabel}>可能失效</Text>

@@ -1982,22 +1982,6 @@ export default function HomeScreen() {
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* 疑似停机提示条 */}
-        {suspectedCount > 0 && (
-          <TouchableOpacity
-            style={styles.warningBanner}
-            onPress={() => router.push('/suspected-contacts')}
-          >
-            <View style={styles.warningBannerLeft}>
-              <Ionicons name="warning" size={20} color="#E6A23C" />
-              <Text style={styles.warningBannerText}>
-                {suspectedCount} 个号码疑似停机，点击查看详情
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color="#E6A23C" />
-          </TouchableOpacity>
-        )}
-
         {/* 健康度仪表盘 */}
         <View style={styles.dashboardCard}>
           {/* 用户头像在左上角 */}
@@ -2088,20 +2072,6 @@ export default function HomeScreen() {
               )}
             </View>
             <Text style={styles.actionText}>{detecting ? '检测中...' : '一键检测'}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.actionCard}
-            onPress={() => router.push('/suspected-contacts')}
-          >
-            <View style={[styles.actionIcon, { backgroundColor: 'rgba(230, 162, 60, 0.12)' }]}>
-              <Ionicons name="alert-circle" size={24} color="#E6A23C" />
-              {suspectedCount > 0 && (
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>{suspectedCount}</Text>
-                </View>
-              )}
-            </View>
-            <Text style={styles.actionText}>可能失效</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.actionCard} onPress={() => openCloudBackupModal()}>
             <View style={[styles.actionIcon, { backgroundColor: 'rgba(103, 194, 58, 0.12)' }]}>
