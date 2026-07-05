@@ -207,7 +207,7 @@ export default function ContactsScreen() {
   };
 
   // 上传投票到服务端
-  const uploadVote = async (phone: string, vote: 'stopped' | 'valid') => {
+  const uploadVote = async (phone: string, vote: 'stopped' | 'suspected_stopped' | 'normal' | 'valid') => {
     // 新用户检查：注册未满7天不能投票
     if (isUserNew()) {
       // 检查是否已显示过提示
@@ -228,7 +228,7 @@ export default function ContactsScreen() {
 
     try {
       const baseUrl = getBackendBaseUrl();
-      if (vote === 'valid') {
+      if (vote === 'valid' || vote === 'normal') {
         // 撤回投票
         await fetch(`${baseUrl}/api/v1/votes`, {
           method: 'DELETE',
@@ -239,7 +239,7 @@ export default function ContactsScreen() {
           body: JSON.stringify({ phone }),
         });
       } else {
-        // 提交/更新投票
+        // 提交/更新投票 (stopped / suspected_stopped)
         await fetch(`${baseUrl}/api/v1/votes`, {
           method: 'POST',
           headers: {
@@ -274,6 +274,37 @@ export default function ContactsScreen() {
       }
     } catch {
       // ignore
+    }
+  };
+
+  // 从服务器批量查询社区投票状态
+  const fetchCommunityVotes = async (phones: string[]) => {
+    if (phones.length === 0) return;
+    try {
+      const baseUrl = getBackendBaseUrl();
+      const response = await fetch(`${baseUrl}/api/v1/votes/batch-query`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phones: phones.slice(0, 500) }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.results) {
+          const map = new Map<string, { stoppedCount: number; communityStatus: string | null }>();
+          for (const item of data.results) {
+            if (item.stopped_count > 0) {
+              map.set(item.phone, {
+                stoppedCount: item.stopped_count,
+                communityStatus: item.community_status,
+              });
+            }
+          }
+          setCommunityVotes(map);
+          await AsyncStorage.setItem('@community_votes_cache', JSON.stringify(data.results));
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to fetch community votes:', error);
     }
   };
 
@@ -951,6 +982,8 @@ export default function ContactsScreen() {
       // 上传投票到社区
       if (newStatus === 'stopped') {
         await uploadVote(contact.phone, 'stopped');
+      } else if (newStatus === 'suspected_stopped') {
+        await uploadVote(contact.phone, 'suspected_stopped');
       } else if (newStatus === 'normal') {
         await uploadVote(contact.phone, 'valid');
       }
@@ -977,15 +1010,31 @@ export default function ContactsScreen() {
 
   // 加载联系人列表（仅首次加载，后续依赖下拉刷新）
   useEffect(() => {
-    loadContacts();
-    loadContactAvatars();
-    loadCommunityVotesCache();
-    setInitialLoaded(true);
+    const init = async () => {
+      await loadContacts();
+      loadContactAvatars();
+      loadCommunityVotesCache();
+      setInitialLoaded(true);
+    };
+    init();
   }, []);
+
+  // 联系人加载完成后，批量查询社区投票状态
+  useEffect(() => {
+    if (contacts.length > 0 && communityVotes.size === 0) {
+      const phones = contacts.map(c => c.phone).filter(Boolean);
+      fetchCommunityVotes(phones);
+    }
+  }, [contacts.length]);
 
   const onRefresh = async () => {
     setRefreshing(true);
     await loadContacts();
+    // 刷新社区投票状态
+    const phones = contacts.map(c => c.phone).filter(Boolean);
+    if (phones.length > 0) {
+      fetchCommunityVotes(phones);
+    }
     setRefreshing(false);
   };
 
@@ -1595,6 +1644,21 @@ export default function ContactsScreen() {
               </View>
             </TouchableOpacity>
             <TouchableOpacity
+              style={[styles.votePanelOption, { backgroundColor: '#FFF8E6' }]}
+              onPress={async () => {
+                if (votePanelContact) {
+                  await updateContactStatus(votePanelContact, 'suspected_stopped');
+                }
+                setVotePanelVisible(false);
+              }}
+            >
+              <Ionicons name="warning" size={22} color="#E6A23C" />
+              <View style={styles.votePanelOptionText}>
+                <Text style={[styles.votePanelOptionTitle, { color: '#E6A23C' }]}>疑似停机</Text>
+                <Text style={styles.votePanelOptionDesc}>号码可能已失效，需确认</Text>
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity
               style={[styles.votePanelOption, { backgroundColor: '#E7F7E7' }]}
               onPress={async () => {
                 if (votePanelContact) {
@@ -1606,7 +1670,7 @@ export default function ContactsScreen() {
               <Ionicons name="checkmark-circle" size={22} color="#67C23A" />
               <View style={styles.votePanelOptionText}>
                 <Text style={[styles.votePanelOptionTitle, { color: '#67C23A' }]}>号码有效</Text>
-                <Text style={styles.votePanelOptionDesc}>撤回之前的停机标记</Text>
+                <Text style={styles.votePanelOptionDesc}>撤回之前的标记</Text>
               </View>
             </TouchableOpacity>
           </View>

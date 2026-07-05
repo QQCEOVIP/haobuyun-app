@@ -74,6 +74,7 @@ export default function RootLayout() {
             <Stack.Screen name="privacy-settings" options={{ title: "隐私设置" }} />
             <Stack.Screen name="duplicates" options={{ title: "疑似重复" }} />
             <Stack.Screen name="stopped-contacts" options={{ title: "失效号码" }} />
+            <Stack.Screen name="suspected-contacts" options={{ title: "可能失效" }} />
             <Stack.Screen name="recycle-bin" options={{ title: "回收站" }} />
             <Stack.Screen name="feedback" options={{ title: "意见反馈" }} />
           </Stack>
