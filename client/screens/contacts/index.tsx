@@ -457,7 +457,7 @@ export default function ContactsScreen() {
     setEditingContact(contact);
     setEditName(contact.name);
     setEditPhones(contact.phoneNumbers.length > 0 ? [...contact.phoneNumbers] : [contact.phone]);
-    setEditAvatarUri(contactAvatars[contact.phone] || null);
+    setEditAvatarUri(contactAvatars[contact.phone] || contact.image || null);
     // Load full contact details (email, company, jobTitle, note)
     try {
       const fullContact = await Contacts.getContactByIdAsync(contact.deviceContactId);
@@ -1033,7 +1033,7 @@ export default function ContactsScreen() {
           setEditCompany(item.company || '');
           setEditJobTitle(item.jobTitle || '');
           setEditNote(item.note || '');
-          setEditAvatarUri(customAvatarUri || null);
+          setEditAvatarUri(customAvatarUri || item.image || null);
           setEditModalVisible(true);
         }}
       >
