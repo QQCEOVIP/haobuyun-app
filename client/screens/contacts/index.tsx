@@ -1179,6 +1179,11 @@ export default function ContactsScreen() {
             onChangeText={setSearchText}
             placeholderTextColor="#909399"
           />
+          {searchText.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchText('')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Ionicons name="close-circle" size={18} color="#C0C4CC" />
+            </TouchableOpacity>
+          )}
         </View>
         <View style={styles.tabContainer}>
           {STATUS_TABS.map(tab => (

@@ -613,15 +613,18 @@ export default function HomeScreen() {
 
   const importFromContent = async (content: string, fileName: string, onProgress?: (percent: number) => void) => {
     try {
-      let contacts: Array<{ name: string; phone: string; email?: string; company?: string; jobTitle?: string; note?: string }> = [];
+      let contacts: Array<any> = [];
       if (fileName.endsWith(".json") || fileName.endsWith(".hbyun")) {
         const parsed = JSON.parse(content);
         // 支持号簿云备份格式 (HAOBUYUN_BACKUP)
         if (parsed.format === 'HAOBUYUN_BACKUP' && Array.isArray(parsed.contacts)) {
           contacts = parsed.contacts.map((c: any) => ({
             name: c.name || '',
-            phone: c.phones?.[0]?.number || '',
-            email: c.emails?.[0]?.email || undefined,
+            firstName: c.firstName || c.name || '',
+            lastName: c.lastName || '',
+            phones: c.phones || (c.phone ? [{ number: c.phone, label: 'mobile' }] : []),
+            emails: c.emails || (c.email ? [{ email: c.email, label: 'home' }] : []),
+            addresses: c.addresses || [],
             company: c.company || undefined,
             jobTitle: c.jobTitle || undefined,
             note: c.note || undefined,
@@ -668,10 +671,29 @@ export default function HomeScreen() {
 
           const contactData: any = {
             name: contact.name || '',
-            firstName: contact.name || '',
-            phoneNumbers: phone ? [{ number: phone }] : [{ number: '00000000000' }],
+            firstName: contact.firstName || contact.name || '',
+            lastName: contact.lastName || '',
+            phoneNumbers: contact.phones?.map((p: any) => ({
+              number: p.number,
+              label: (p.label && p.label !== 'null' && p.label !== 'undefined') ? p.label : 'mobile',
+            })) || (phone ? [{ number: phone, label: 'mobile' }] : [{ number: '00000000000', label: 'mobile' }]),
           };
-          if (contact.email) contactData.emails = [{ email: contact.email }];
+          // emails: 优先使用 phones 格式，兼容旧格式
+          if (contact.emails?.length) {
+            contactData.emails = contact.emails.map((e: any) => ({
+              email: e.email,
+              label: (e.label && e.label !== 'null' && e.label !== 'undefined') ? e.label : 'home',
+            }));
+          } else if (contact.email) {
+            contactData.emails = [{ email: contact.email, label: 'home' }];
+          }
+          // addresses
+          if (contact.addresses?.length) {
+            contactData.postalAddresses = contact.addresses.map((a: any) => ({
+              street: a.street || '', city: a.city || '', region: a.region || '',
+              postalCode: a.postalCode || '', country: a.country || '',
+            }));
+          }
           if (contact.company) contactData.company = contact.company;
           if (contact.jobTitle) contactData.jobTitle = contact.jobTitle;
           if (contact.note) contactData.note = contact.note;
@@ -1379,21 +1401,21 @@ export default function HomeScreen() {
         // Copy to a temp file first, then read as base64
         const tempPath = FileSystemLegacy.cacheDirectory + `avatar_tmp_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
         console.log('[Backup] Android content URI detected, copying to temp:', tempPath);
-        await (FileSystem as any).copyAsync({
+        await FileSystemLegacy.copyAsync({
           from: imageUri,
           to: tempPath,
         });
         const fileUri = tempPath.startsWith('file://') ? tempPath : 'file://' + tempPath;
-        base64 = await FileSystem.readAsStringAsync(fileUri, {
-          encoding: FileSystem.EncodingType.Base64,
+        base64 = await FileSystemLegacy.readAsStringAsync(fileUri, {
+          encoding: FileSystemLegacy.EncodingType.Base64,
         });
         // Clean up temp file (best effort)
-        try { await (FileSystem as any).deleteAsync(fileUri, { idempotent: true }); } catch (_) { /* ignore */ }
+        try { await FileSystemLegacy.deleteAsync(fileUri, { idempotent: true }); } catch (_) { /* ignore */ }
       } else {
         // iOS file path or already has file:// prefix
         const normalizedUri = imageUri.startsWith('file://') ? imageUri : 'file://' + imageUri;
-        base64 = await FileSystem.readAsStringAsync(normalizedUri, {
-          encoding: FileSystem.EncodingType.Base64,
+        base64 = await FileSystemLegacy.readAsStringAsync(normalizedUri, {
+          encoding: FileSystemLegacy.EncodingType.Base64,
         });
       }
 
@@ -1455,22 +1477,52 @@ export default function HomeScreen() {
           (c as any).rawImage?.uri || c.image?.uri || null
         );
         return {
+          // 姓名全量字段
           name: fullName,
+          firstName: c.firstName || '',
+          lastName: c.lastName || '',
+          // 头像
           avatar: avatarBase64,
+          imageAvailable: !!c.imageAvailable,
+          // 电话（含label）
           phones: (c.phoneNumbers || []).map(p => ({
             number: p.number || '',
             label: (p.label && p.label !== 'null' && p.label !== 'undefined') ? p.label : 'mobile',
             status: statusMap.get(p.number || '') || null,
           })),
+          // 邮箱（含label）
           emails: (c.emails || []).map(e => ({ email: e.email || '', label: e.label || '' })),
+          // 地址
+          addresses: (c.addresses || []).map(a => ({
+            street: a.street || '', city: a.city || '', region: a.region || '',
+            postalCode: a.postalCode || '', country: a.country || '', label: a.label || '',
+          })),
+          // 组织与职位
           company: c.company || '',
           jobTitle: c.jobTitle || '',
+          // 备注
           note: c.note || '',
         };
       }));
     const withAvatar = contactsData.filter(c => c.avatar !== null).length;
     const withoutAvatar = contactsData.length - withAvatar;
     console.log("[Backup] Total contacts:", contactsData.length, ", with avatar:", withAvatar, ", without avatar:", withoutAvatar);
+    // 计算备份数据大小
+    const backupJson = JSON.stringify({
+      format: 'HAOBUYUN_BACKUP',
+      version: '1.0',
+      exportedAt: new Date().toISOString(),
+      device: 'mobile',
+      device_model: Constants.deviceName || ((Platform as any).constants?.Brand || '') + ' ' + ((Platform as any).constants?.Model || '') || 'Unknown',
+      contacts: contactsData,
+    });
+    const sizeKB = Math.round(backupJson.length / 1024);
+    console.log(`[Backup] Backup data size: ${sizeKB}KB (${backupJson.length} bytes)`);
+    if (withAvatar > 0) {
+      const avatarSizes = contactsData.filter(c => c.avatar).map(c => (c.avatar as string).length);
+      const avgAvatarSize = Math.round(avatarSizes.reduce((a, b) => a + b, 0) / avatarSizes.length / 1024);
+      console.log(`[Backup] Avatar stats: count=${avatarSizes.length}, avgSize=${avgAvatarSize}KB`);
+    }
 
     return {
       format: 'HAOBUYUN_BACKUP',
@@ -1709,11 +1761,14 @@ export default function HomeScreen() {
               const contact = backupData.contacts[i];
               try {
                 const contactName = contact.name || '';
+                const contactFirstName = contact.firstName || contactName;
+                const contactLastName = contact.lastName || '';
                 const contactData: any = {
                   // 同时设置 name 和 firstName 兼容双平台
                   // Android 使用 name，iOS 使用 firstName/lastName
                   name: contactName,
-                  firstName: contactName,
+                  firstName: contactFirstName,
+                  lastName: contactLastName,
                   phoneNumbers: contact.phones?.map((p: any) => ({ number: p.number, label: (p.label && p.label !== 'null' && p.label !== 'undefined') ? p.label : 'mobile' })) || [{ number: '', label: 'mobile' }],
                 };
                 if (contact.emails?.length) {
