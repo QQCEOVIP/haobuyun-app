@@ -82,7 +82,7 @@ export default function HomeScreen() {
   const [detecting, setDetecting] = useState(false);
   const [detectionResult, setDetectionResult] = useState<any>(null);
   const [cloudBackupVisible, setCloudBackupVisible] = useState(false);
-  const [suspectedCount, setSuspectedCount] = useState(0);
+
 
   const [backups, setBackups] = useState<any[]>([]);
   const [backupLoading, setBackupLoading] = useState(false);
@@ -116,15 +116,6 @@ export default function HomeScreen() {
   useEffect(() => {
     if (!initialLoaded) {
       fetchStats();
-      // 加载疑似停机数量
-      AsyncStorage.getItem('@suspected_phones').then((json) => {
-        if (json) {
-          try {
-            const data = JSON.parse(json);
-            setSuspectedCount(data.length || 0);
-          } catch { /* ignore */ }
-        }
-      });
       setInitialLoaded(true);
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -380,7 +371,6 @@ export default function HomeScreen() {
 
       // 保存疑似停机列表到 AsyncStorage
       await AsyncStorage.setItem('@suspected_phones', JSON.stringify(suspectedPhones));
-      setSuspectedCount(suspectedPhones.length);
 
       // 更新统计
       setStats({
@@ -2513,29 +2503,6 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
     paddingBottom: 100,
-  },
-  // Warning banner
-  warningBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#FFF8E6',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#F5D9A0',
-  },
-  warningBannerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  warningBannerText: {
-    fontSize: 14,
-    color: '#E6A23C',
-    fontWeight: '500',
-    marginLeft: 8,
   },
   // Badge
   badge: {
