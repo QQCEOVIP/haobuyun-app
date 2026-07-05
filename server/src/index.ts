@@ -344,7 +344,6 @@ app.get(/.*/, (req, res) => { res.sendFile(path.join(clientDistPath, "index.html
 // === Database migrations ===
 async function runMigrations() {
   try {
-    // Create number_votes table if not exists
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS number_votes (
         id BIGSERIAL PRIMARY KEY,
@@ -356,9 +355,6 @@ async function runMigrations() {
         UNIQUE(phone, user_id)
       )
     `);
-    console.log('[Migration] number_votes table ready');
-
-    // Create number_authentications table if not exists
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS number_authentications (
         id BIGSERIAL PRIMARY KEY,
@@ -370,18 +366,13 @@ async function runMigrations() {
         UNIQUE(phone, user_id)
       )
     `);
-    console.log('[Migration] number_authentications table ready');
+    console.log('[Migration] Tables ready');
   } catch (e) {
     console.error('[Migration] Failed:', e);
   }
 }
 
-runMigrations().then(() => {
-  app.listen(port, () => {
-    console.log(`Server listening at http://localhost:${port}/`);
-  });
-}).catch((e) => {
-  console.error('Migration failed, starting server anyway:', e);
+runMigrations().finally(() => {
   app.listen(port, () => {
     console.log(`Server listening at http://localhost:${port}/`);
   });
