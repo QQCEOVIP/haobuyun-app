@@ -41,14 +41,14 @@ router.post('/', requireAuth, async (req: any, res: any) => {
       return res.status(400).json({ error: '缺少必要参数' });
     }
 
-    if (!['stopped', 'valid'].includes(vote)) {
+    if (!['stopped', 'valid', 'normal', 'suspected_stopped'].includes(vote)) {
       return res.status(400).json({ error: '无效的投票类型' });
     }
 
     // 使用 raw SQL 绕过 RLS
     const result = await db.execute(sql`
       INSERT INTO number_votes (phone, user_id, vote, created_at, updated_at)
-      VALUES (${phone}, ${userId}::uuid, ${vote}, NOW(), NOW())
+      VALUES (${phone}, ${userId}, ${vote}, NOW(), NOW())
       ON CONFLICT (phone, user_id) 
       DO UPDATE SET vote = ${vote}, updated_at = NOW()
       RETURNING id, phone, user_id, vote, created_at, updated_at
@@ -77,7 +77,7 @@ router.delete('/', requireAuth, async (req: any, res: any) => {
 
     await db.execute(sql`
       DELETE FROM number_votes 
-      WHERE phone = ${phone} AND user_id = ${userId}::uuid
+      WHERE phone = ${phone} AND user_id = ${userId}
     `);
 
     res.json({ success: true });
@@ -108,14 +108,12 @@ router.post('/batch-query', async (req: any, res: any) => {
 
     // 限制单次查询数量
     const limitedPhones = phones.slice(0, 500);
+    const phoneConditions = limitedPhones.map((p: string) => `'${p.replace(/'/g, "''")}'`).join(',');
 
     // 查询所有 'stopped' 投票
-    const votes = await db.execute(sql`
-      SELECT phone, COUNT(*)::int as stopped_count 
-      FROM number_votes
-      WHERE phone = ANY(${limitedPhones}::text[]) AND vote = 'stopped'
-      GROUP BY phone
-    `);
+    const votes = await db.execute(sql.raw(
+      `SELECT phone, COUNT(*)::int as stopped_count FROM number_votes WHERE phone IN (${phoneConditions}) AND vote = 'stopped' GROUP BY phone`
+    ));
 
     // 构建结果
     const stoppedMap = new Map<string, number>();
