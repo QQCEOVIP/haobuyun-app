@@ -1372,14 +1372,36 @@ export default function HomeScreen() {
   const processAvatar = async (imageUri: string | null | undefined): Promise<string | null> => {
     if (!imageUri) return null;
     try {
-      // 确保路径有file://前缀，expo-file-system需要
-      const normalizedUri = imageUri.startsWith('file://') ? imageUri : 'file://' + imageUri;
-      console.log('[Backup] Reading avatar from:', normalizedUri.substring(0, 80));
-      const base64 = await FileSystem.readAsStringAsync(normalizedUri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-      console.log('[Backup] Avatar base64 length:', base64.length);
-      return 'data:image/jpeg;base64,' + base64;
+      let base64: string | null = null;
+
+      if (imageUri.startsWith('content://')) {
+        // Android content URI — cannot read directly with file:// prefix
+        // Copy to a temp file first, then read as base64
+        const tempPath = FileSystemLegacy.cacheDirectory + `avatar_tmp_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
+        console.log('[Backup] Android content URI detected, copying to temp:', tempPath);
+        await (FileSystem as any).copyAsync({
+          from: imageUri,
+          to: tempPath,
+        });
+        const fileUri = tempPath.startsWith('file://') ? tempPath : 'file://' + tempPath;
+        base64 = await FileSystem.readAsStringAsync(fileUri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        // Clean up temp file (best effort)
+        try { await (FileSystem as any).deleteAsync(fileUri, { idempotent: true }); } catch (_) { /* ignore */ }
+      } else {
+        // iOS file path or already has file:// prefix
+        const normalizedUri = imageUri.startsWith('file://') ? imageUri : 'file://' + imageUri;
+        base64 = await FileSystem.readAsStringAsync(normalizedUri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+      }
+
+      if (base64 && base64.length > 0) {
+        console.log('[Backup] Avatar base64 length:', base64.length, 'from:', imageUri.substring(0, 60));
+        return 'data:image/jpeg;base64,' + base64;
+      }
+      return null;
     } catch (e: any) {
       console.log('[Backup] Avatar read failed:', imageUri, (e as any)?.message || e);
       return null;
@@ -1401,14 +1423,19 @@ export default function HomeScreen() {
       Contacts.Fields.Company,
       Contacts.Fields.Note,
       Contacts.Fields.Image,
+      Contacts.Fields.RawImage,
     ]);
     if (!allContacts || allContacts.length === 0) throw new Error('通讯录中没有联系人');
     console.log("[Backup] Reading contacts... Found:", allContacts.length);
 
-    // Debug: log first 3 contacts' image field to diagnose avatar issues
-    allContacts.slice(0, 3).forEach((c, i) => {
-      const imgUri = c.image?.uri || (c as any).photo || null;
-      console.log(`[Backup] Contact[${i}] "${c.name || c.firstName || '?'}" image field:`, imgUri ? imgUri.substring(0, 60) : 'null');
+    // Debug: log first 5 contacts' image fields to diagnose avatar issues
+    const imageAvailableCount = allContacts.filter(c => c.imageAvailable || c.image?.uri || (c as any).rawImage?.uri).length;
+    console.log(`[Backup] Contacts with imageAvailable/image/rawImage: ${imageAvailableCount}/${allContacts.length}`);
+    allContacts.slice(0, 5).forEach((c, i) => {
+      const thumbUri = c.image?.uri || null;
+      const rawUri = (c as any).rawImage?.uri || null;
+      const imgAvail = c.imageAvailable;
+      console.log(`[Backup] Contact[${i}] "${c.name || c.firstName || '?'}" imageAvailable=${imgAvail}, thumbUri=${thumbUri ? thumbUri.substring(0, 60) : 'null'}, rawUri=${rawUri ? rawUri.substring(0, 60) : 'null'}`);
     });
 
     const phoneKeys = allContacts
@@ -1424,7 +1451,9 @@ export default function HomeScreen() {
         const fullName = c.name && c.name.length > 1
           ? c.name
           : ((c.firstName || '') + ' ' + (c.lastName || '')).trim() || c.name || '';
-        const avatarBase64 = await processAvatar(c.image?.uri || (c as any).photo);
+        const avatarBase64 = await processAvatar(
+          (c as any).rawImage?.uri || c.image?.uri || null
+        );
         return {
           name: fullName,
           avatar: avatarBase64,
