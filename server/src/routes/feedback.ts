@@ -61,7 +61,7 @@ router.post('/', upload.single('screenshot'), async (req, res) => {
       const smtpHost = process.env.SMTP_HOST || 'smtp.qq.com';
       const smtpPort = parseInt(process.env.SMTP_PORT || '465');
       const smtpUser = process.env.SMTP_USER || 'vip2012@vip.qq.com';
-      const smtpPass = process.env.SMTP_PASS || '';
+      const smtpPass = process.env.SMTP_PASS || 'efhdilrncezucaab'; // 临时默认值，待配置环境变量后移除
       const feedbackTo = process.env.FEEDBACK_TO || 'vip2012@vip.qq.com';
 
       if (smtpPass) {
