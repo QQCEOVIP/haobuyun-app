@@ -10,19 +10,23 @@ import {
   Platform,
   ScrollView,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/storage/supabase';
 import { getBackendBaseUrl } from '@/utils';
+import { createFormDataFile } from '@/utils';
 
 const CATEGORIES = [
   { key: 'suggestion', label: '建议', icon: 'bulb-outline' as const, color: '#E6A23C' },
   { key: 'bug', label: 'Bug反馈', icon: 'bug-outline' as const, color: '#F56C6C' },
   { key: 'other', label: '其他', icon: 'chatbubble-ellipses-outline' as const, color: '#909399' },
 ];
+
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
 
 export default function FeedbackScreen() {
   const router = useSafeRouter();
@@ -31,6 +35,42 @@ export default function FeedbackScreen() {
   const [category, setCategory] = useState('suggestion');
   const [contact, setContact] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+
+  const handlePickImage = async () => {
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permissionResult.granted) {
+        Alert.alert('权限不足', '需要访问相册权限才能选择图片');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const imageUri = result.assets[0].uri;
+        const imageSize = result.assets[0].fileSize || 0;
+
+        if (imageSize > MAX_IMAGE_SIZE) {
+          Alert.alert('图片过大', '图片大小不能超过5MB，请选择较小的图片');
+          return;
+        }
+
+        setSelectedImage(imageUri);
+      }
+    } catch (err) {
+      console.error('Image picker error:', err);
+      Alert.alert('选择失败', '无法选择图片，请重试');
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setSelectedImage(null);
+  };
 
   const handleSubmit = async () => {
     if (!content.trim()) {
@@ -45,20 +85,33 @@ export default function FeedbackScreen() {
     setSubmitting(true);
     try {
       const userId = (user as any)?.id || 'anonymous';
+
+      // 使用 FormData 上传反馈数据和图片
+      const formData = new FormData();
+      formData.append('category', category);
+      formData.append('content', content.trim());
+      formData.append('contact', contact.trim() || '');
+      formData.append('userId', userId);
+
+      // 如果有图片，添加到 FormData
+      if (selectedImage) {
+        const imageFile = await createFormDataFile(selectedImage, 'feedback_screenshot.jpg', 'image/jpeg');
+        formData.append('screenshot', imageFile as any);
+      }
+
       /**
        * 服务端文件：server/src/routes/feedback.ts
        * 接口：POST /api/v1/feedback
-       * Body: { category: string, content: string, contact?: string, userId: string }
+       * Body (multipart/form-data):
+       *   - category: string
+       *   - content: string
+       *   - contact?: string
+       *   - userId: string
+       *   - screenshot?: File (图片文件)
        */
       const response = await fetch(`${getBackendBaseUrl()}/api/v1/feedback`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          category,
-          content: content.trim(),
-          contact: contact.trim() || null,
-          userId,
-        }),
+        body: formData,
       });
 
       const result = await response.json();
@@ -136,6 +189,25 @@ export default function FeedbackScreen() {
             <Text style={styles.charCount}>{content.length}/500</Text>
           </View>
 
+          {/* Screenshot upload */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>添加截图（选填，限1张）</Text>
+            {selectedImage ? (
+              <View style={styles.imagePreviewContainer}>
+                <Image source={{ uri: selectedImage }} style={styles.imagePreview} />
+                <TouchableOpacity style={styles.removeImageBtn} onPress={handleRemoveImage}>
+                  <Ionicons name="close-circle" size={24} color="#F56C6C" />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity style={styles.addImageButton} onPress={handlePickImage}>
+                <Ionicons name="image-outline" size={32} color="#909399" />
+                <Text style={styles.addImageText}>点击添加截图</Text>
+                <Text style={styles.addImageHint}>支持 JPG/PNG，不超过5MB</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
           {/* Contact (optional) */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>联系方式（选填）</Text>
@@ -208,6 +280,40 @@ const styles = StyleSheet.create({
     borderColor: '#EBEEF5',
   },
   charCount: { fontSize: 12, color: '#909399', textAlign: 'right', marginTop: 6 },
+  imagePreviewContainer: {
+    position: 'relative',
+    width: 120,
+    height: 120,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  imagePreview: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 12,
+  },
+  removeImageBtn: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 2,
+  },
+  addImageButton: {
+    width: 120,
+    height: 120,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#EBEEF5',
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  addImageText: { fontSize: 12, color: '#909399', marginTop: 4 },
+  addImageHint: { fontSize: 10, color: '#C0C4CC' },
   contactInput: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,

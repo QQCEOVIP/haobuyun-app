@@ -1,8 +1,22 @@
 import { Router, type Router as RouterType } from 'express';
 import { createClient } from '@supabase/supabase-js';
 import nodemailer from 'nodemailer';
+import multer from 'multer';
 
 const router: RouterType = Router();
+
+// 配置文件上传（内存存储，限制5MB）
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'));
+    }
+  },
+});
 
 // Use environment variable for Supabase URL
 const SUPABASE_URL = process.env.COZE_SUPABASE_URL || '';
@@ -13,8 +27,13 @@ const getSupabaseAdmin = () => createClient(
 );
 
 // POST /api/v1/feedback
-// Body: { category: string, content: string, contact?: string, userId: string }
-router.post('/', async (req, res) => {
+// Body (multipart/form-data):
+//   - category: string
+//   - content: string
+//   - contact?: string
+//   - userId: string
+//   - screenshot?: File (图片文件)
+router.post('/', upload.single('screenshot'), async (req, res) => {
   try {
     const { category, content, contact, userId } = req.body;
 
@@ -53,7 +72,8 @@ router.post('/', async (req, res) => {
           auth: { user: smtpUser, pass: smtpPass },
         });
 
-        await transporter.sendMail({
+        // 准备邮件内容
+        const mailOptions: nodemailer.SendMailOptions = {
           from: `"号簿云反馈" <${smtpUser}>`,
           to: feedbackTo,
           subject: `新反馈 - ${category || '建议'}`,
@@ -65,8 +85,22 @@ router.post('/', async (req, res) => {
             <p><strong>联系方式：</strong>${contact?.trim() || '未提供'}</p>
             <p><strong>用户ID：</strong>${userId}</p>
             <p><strong>时间：</strong>${new Date().toLocaleString('zh-CN')}</p>
+            ${req.file ? '<p><strong>附件：</strong>截图已作为附件发送</p>' : ''}
           `,
-        });
+        };
+
+        // 如果有截图，添加为附件
+        if (req.file) {
+          mailOptions.attachments = [
+            {
+              filename: 'feedback_screenshot.jpg',
+              content: req.file.buffer,
+              contentType: req.file.mimetype,
+            },
+          ];
+        }
+
+        await transporter.sendMail(mailOptions);
         console.log('Feedback email sent successfully');
       } else {
         console.warn('Feedback saved (email skipped - SMTP_PASS not configured in environment variables)');
@@ -81,6 +115,17 @@ router.post('/', async (req, res) => {
     console.error('Feedback submit error:', error.message);
     res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+// multer 错误处理
+router.use((err: any, req: any, res: any, next: any) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(413).json({ error: '文件大小超过限制（最大 5MB）' });
+    }
+    return res.status(400).json({ error: err.message });
+  }
+  next(err);
 });
 
 export default router;

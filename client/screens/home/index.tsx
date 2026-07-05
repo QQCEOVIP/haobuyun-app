@@ -675,11 +675,20 @@ export default function HomeScreen() {
           if (contact.company) contactData.company = contact.company;
           if (contact.jobTitle) contactData.jobTitle = contact.jobTitle;
           if (contact.note) contactData.note = contact.note;
-          // 写入头像（base64 data URI）
-          if (contact.avatar && typeof contact.avatar === 'string' && contact.avatar.startsWith('data:image')) {
-            contactData.image = contact.avatar;
-            if (i < 3 || i % 50 === 0) {
-              console.log(`[Restore] Writing avatar for contact ${i}: ${contact.name}, data length: ${contact.avatar.length}`);
+          // 写入头像：将base64数据写入临时文件，设置image字段
+          if (contact.avatar && typeof contact.avatar === 'string' && contact.avatar.length > 100) {
+            try {
+              const base64Data = contact.avatar.replace(/^data:image\/\w+;base64,/, '');
+              const avatarPath = FileSystemLegacy.cacheDirectory + `avatar_import_${i}_${Date.now()}.jpg`;
+              await FileSystemLegacy.writeAsStringAsync(avatarPath, base64Data, {
+                encoding: FileSystemLegacy.EncodingType.Base64,
+              });
+              contactData.image = { uri: avatarPath };
+              if (i < 3 || i % 50 === 0) {
+                console.log(`[Restore] Writing avatar for contact ${i}: ${contact.name}, path: ${avatarPath}`);
+              }
+            } catch (avatarErr) {
+              console.warn(`[Restore] Avatar write failed for contact ${i}:`, avatarErr);
             }
           }
           await Contacts.addContactAsync(contactData);
@@ -768,7 +777,19 @@ export default function HomeScreen() {
           if (contact.company) contactData.company = contact.company;
           if (contact.jobTitle) contactData.jobTitle = contact.jobTitle;
           if (contact.note) contactData.note = contact.note;
-          if (contact.avatar) contactData.image = { uri: contact.avatar };
+          // 写入头像：将base64数据写入临时文件
+          if (contact.avatar && typeof contact.avatar === 'string' && contact.avatar.length > 100) {
+            try {
+              const base64Data = contact.avatar.replace(/^data:image\/\w+;base64,/, '');
+              const avatarPath = FileSystemLegacy.cacheDirectory + `avatar_file_${Date.now()}.jpg`;
+              await FileSystemLegacy.writeAsStringAsync(avatarPath, base64Data, {
+                encoding: FileSystemLegacy.EncodingType.Base64,
+              });
+              contactData.image = { uri: avatarPath };
+            } catch (avatarErr) {
+              console.warn(`[Restore] Avatar write failed:`, avatarErr);
+            }
+          }
           await Contacts.addContactAsync(contactData);
           successCount++;
         } catch (e) {
@@ -1678,6 +1699,20 @@ export default function HomeScreen() {
                 if (contact.company) contactData.company = contact.company;
                 if (contact.jobTitle) contactData.jobTitle = contact.jobTitle;
                 if (contact.note) contactData.note = contact.note;
+
+                // 恢复头像：将base64写入临时文件，设置image字段
+                if (contact.avatar) {
+                  try {
+                    const base64Data = contact.avatar.replace(/^data:image\/\w+;base64,/, '');
+                    const avatarPath = FileSystemLegacy.cacheDirectory + `avatar_${Date.now()}_${i}.jpg`;
+                    await FileSystemLegacy.writeAsStringAsync(avatarPath, base64Data, {
+                      encoding: FileSystemLegacy.EncodingType.Base64,
+                    });
+                    contactData.image = { uri: avatarPath };
+                  } catch (avatarErr) {
+                    console.warn(`[Restore] Avatar failed for ${contactName}:`, avatarErr);
+                  }
+                }
 
                 await Contacts.addContactAsync(contactData);
                 successCount++;
