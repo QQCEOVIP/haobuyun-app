@@ -3,7 +3,7 @@
  * 提供联系人管理、备份、恢复等功能
  */
 import { Router } from 'express';
-import { db } from '../storage/database';
+import { db, hasDatabase } from '../storage/database';
 import { contacts, backups, deletedContacts } from '../storage/database/shared/schema';
 import { eq, and, desc, or, isNull, inArray } from 'drizzle-orm';
 import crypto from 'crypto';
@@ -12,7 +12,7 @@ const router: any = Router();
 
 // 检查数据库连接
 function requireDb(req: any, res: any, next: any) {
-  if (!db) {
+  if (!hasDatabase) {
     return res.status(503).json({ error: '数据库未配置' });
   }
   next();

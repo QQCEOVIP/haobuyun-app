@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db } from "../storage/database";
+import { db, hasDatabase } from "../storage/database";
 import { userPoints, pointRecords, shopProducts, exchangeRecords, medals, userMedals, reportValidations, checkinStreaks, dailyReports, flaggedAccounts, invalidReports } from "../storage/database/shared/schema";
 import { eq, desc, and, sql, gte, lt } from "drizzle-orm";
 import { createClient } from "@supabase/supabase-js";
@@ -9,7 +9,7 @@ const router: any = Router();
 
 // 检查数据库连接
 function requireDb(req: any, res: any, next: any) {
-  if (!db) {
+  if (!hasDatabase) {
     return res.status(503).json({ error: '数据库未配置' });
   }
   next();

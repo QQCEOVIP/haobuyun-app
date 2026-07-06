@@ -1,2 +1,2 @@
 // Re-export database from database.ts
-export { db } from "./database";
+export { db, hasDatabase } from "./database";

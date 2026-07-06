@@ -3,8 +3,6 @@ import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
 import { createClient } from '@supabase/supabase-js';
-import { sql } from 'drizzle-orm';
-import { db } from './storage/database/database';
 import pointsRouter from "./routes/points";
 import contactsRouter from "./routes/contacts";
 import profileRouter from "./routes/profile";

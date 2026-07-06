@@ -5,8 +5,9 @@ import * as schema from './shared/schema';
 // 数据库连接配置
 const connectionString = process.env.DATABASE_URL;
 
-// 如果没有配置 DATABASE_URL，db 为 null
-// 路由需要检查 db 是否为 null
+// 创建数据库连接
+// 如果没有配置 DATABASE_URL，创建一个不会实际建立连接的 client
+// 查询会失败但不会阻止服务器启动
 const client = connectionString
   ? postgres(connectionString, {
       max: 10,
@@ -16,10 +17,22 @@ const client = connectionString
         rejectUnauthorized: false // Supabase 需要 SSL 连接
       }
     })
-  : null;
+  : postgres({
+      host: 'localhost',
+      port: 5432,
+      database: 'postgres',
+      username: 'postgres',
+      password: 'postgres',
+      max: 0,
+      idle_timeout: 0,
+      connect_timeout: 1,
+    });
 
-// 创建 Drizzle ORM 实例（可能为 null）
-export const db = client ? drizzle(client, { schema }) : null;
+// 创建 Drizzle ORM 实例（始终非空）
+export const db = drizzle(client, { schema });
+
+// 导出是否有有效数据库连接（供中间件检查）
+export const hasDatabase = !!connectionString;
 
 // 导出 schema 以便在其他地方使用
 export * from './shared/schema';
