@@ -303,16 +303,14 @@ export const flaggedAccounts = pgTable("flagged_accounts", {
 });
 
 // ============================================================================
-// feedbacks - 用户反馈表 (uuid for id, varchar(36) for user_id)
+// feedback - 用户反馈表 (bigint for id, text for user_id)
 // ============================================================================
-export const feedbacks = pgTable("feedbacks", {
-  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  user_id: varchar("user_id", { length: 36 }).notNull(),
+export const feedback = pgTable("feedback", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  user_id: text("user_id").notNull(),
+  category: text("category").notNull().default("suggestion"),
   content: text("content").notNull(),
-  screenshot_url: text("screenshot_url"),
-  error_context: text("error_context"),
-  device_info: text("device_info"),
-  app_version: varchar("app_version", { length: 20 }),
+  contact: text("contact"),
   created_at: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 
