@@ -341,39 +341,6 @@ app.use(express.static(clientDistPath));
 app.get(/.*/, (req, res) => { res.sendFile(path.join(clientDistPath, "index.html")); });
 // === end ===
 
-// === Database migrations ===
-async function runMigrations() {
-  try {
-    await db.execute(sql`
-      CREATE TABLE IF NOT EXISTS number_votes (
-        id BIGSERIAL PRIMARY KEY,
-        phone TEXT NOT NULL,
-        user_id TEXT NOT NULL,
-        vote TEXT NOT NULL,
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        updated_at TIMESTAMPTZ DEFAULT NOW(),
-        UNIQUE(phone, user_id)
-      )
-    `);
-    await db.execute(sql`
-      CREATE TABLE IF NOT EXISTS number_authentications (
-        id BIGSERIAL PRIMARY KEY,
-        phone TEXT NOT NULL,
-        user_id TEXT NOT NULL,
-        user_name TEXT,
-        authenticated_at TIMESTAMPTZ DEFAULT NOW(),
-        expires_at TIMESTAMPTZ,
-        UNIQUE(phone, user_id)
-      )
-    `);
-    console.log('[Migration] Tables ready');
-  } catch (e) {
-    console.error('[Migration] Failed:', e);
-  }
-}
-
-runMigrations().finally(() => {
-  app.listen(port, () => {
-    console.log(`Server listening at http://localhost:${port}/`);
-  });
+app.listen(port, () => {
+  console.log(`Server listening at http://localhost:${port}/`);
 });
