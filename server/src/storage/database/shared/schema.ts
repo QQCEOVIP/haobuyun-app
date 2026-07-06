@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, varchar, timestamp, boolean, integer, jsonb, index, text, bigserial } from "drizzle-orm/pg-core";
+import { pgTable, varchar, timestamp, boolean, integer, jsonb, index, text, bigserial, uuid } from "drizzle-orm/pg-core";
 
 // 联系人表
 export const contacts = pgTable(
@@ -141,8 +141,8 @@ export const userSettings = pgTable(
 export const userPoints = pgTable(
   "user_points",
   {
-    id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-    user_id: varchar("user_id", { length: 36 }).notNull().unique(),
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    user_id: uuid("user_id").notNull().unique(),
     balance: integer("balance").default(0).notNull(),
     total_earned: integer("total_earned").default(0).notNull(),
     total_spent: integer("total_spent").default(0).notNull(),
@@ -159,14 +159,14 @@ export const userPoints = pgTable(
 export const pointRecords = pgTable(
   "point_records",
   {
-    id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-    user_id: varchar("user_id", { length: 36 }).notNull(),
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    user_id: uuid("user_id").notNull(),
     type: varchar("type", { length: 20 }).notNull(), // earn, spend
     action: varchar("action", { length: 50 }).notNull(),
     points: integer("points").notNull(),
     balance_after: integer("balance_after").notNull(),
     description: text("description"),
-    related_id: varchar("related_id", { length: 36 }),
+    related_id: uuid("related_id"),
     created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
@@ -179,7 +179,7 @@ export const pointRecords = pgTable(
 export const shopProducts = pgTable(
   "shop_products",
   {
-    id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
     category: varchar("category", { length: 30 }).notNull(),
     name: varchar("name", { length: 100 }).notNull(),
     description: text("description"),
@@ -201,9 +201,9 @@ export const shopProducts = pgTable(
 export const exchangeRecords = pgTable(
   "exchange_records",
   {
-    id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-    user_id: varchar("user_id", { length: 36 }).notNull(),
-    product_id: varchar("product_id", { length: 36 }).notNull(),
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    user_id: uuid("user_id").notNull(),
+    product_id: uuid("product_id").notNull(),
     points_spent: integer("points_spent").notNull(),
     status: varchar("status", { length: 20 }).default("pending").notNull(),
     metadata: jsonb("metadata"),
@@ -220,7 +220,7 @@ export const exchangeRecords = pgTable(
 export const medals = pgTable(
   "medals",
   {
-    id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
     code: varchar("code", { length: 50 }).notNull().unique(),
     name: varchar("name", { length: 50 }).notNull(),
     description: text("description"),
@@ -239,9 +239,9 @@ export const medals = pgTable(
 export const userMedals = pgTable(
   "user_medals",
   {
-    id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-    user_id: varchar("user_id", { length: 36 }).notNull(),
-    medal_id: varchar("medal_id", { length: 36 }).notNull().references(() => medals.id),
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    user_id: uuid("user_id").notNull(),
+    medal_id: uuid("medal_id").notNull().references(() => medals.id),
     earned_at: timestamp("earned_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
@@ -254,9 +254,9 @@ export const userMedals = pgTable(
 export const reportValidations = pgTable(
   "report_validations",
   {
-    id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
     phone_hash: varchar("phone_hash", { length: 64 }).notNull(),
-    reporter_id: varchar("reporter_id", { length: 36 }).notNull(),
+    reporter_id: uuid("reporter_id").notNull(),
     first_report_at: timestamp("first_report_at", { withTimezone: true }).defaultNow().notNull(),
     confirmation_count: integer("confirmation_count").default(1).notNull(),
     is_valid: boolean("is_valid").default(false),
@@ -273,8 +273,8 @@ export const reportValidations = pgTable(
 export const checkinStreaks = pgTable(
   "checkin_streaks",
   {
-    id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-    user_id: varchar("user_id", { length: 36 }).notNull().unique(),
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    user_id: uuid("user_id").notNull().unique(),
     current_streak: integer("current_streak").default(0).notNull(),
     longest_streak: integer("longest_streak").default(0).notNull(),
     last_checkin_date: varchar("last_checkin_date", { length: 10 }),
@@ -289,8 +289,8 @@ export const checkinStreaks = pgTable(
 export const dailyReports = pgTable(
   "daily_reports",
   {
-    id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-    user_id: varchar("user_id", { length: 36 }).notNull(),
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    user_id: uuid("user_id").notNull(),
     report_date: varchar("report_date", { length: 10 }).notNull(),
     valid_count: integer("valid_count").default(0).notNull(),
   },
@@ -303,11 +303,11 @@ export const dailyReports = pgTable(
 export const flaggedAccounts = pgTable(
   "flagged_accounts",
   {
-    id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-    user_id: varchar("user_id", { length: 36 }).notNull(),
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    user_id: uuid("user_id").notNull(),
     reason: varchar("reason", { length: 100 }).notNull(),
     status: varchar("status", { length: 20 }).default("pending").notNull(),
-    reviewed_by: varchar("reviewed_by", { length: 36 }),
+    reviewed_by: uuid("reviewed_by"),
     reviewed_at: timestamp("reviewed_at", { withTimezone: true }),
     created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -318,6 +318,38 @@ export const flaggedAccounts = pgTable(
 );
 
 // ============ 号码状态共享投票机制表 ============
+
+// 排行榜快照表
+export const leaderboardSnapshots = pgTable(
+  "leaderboard_snapshots",
+  {
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    user_id: uuid("user_id").notNull(),
+    snapshot_date: varchar("snapshot_date", { length: 10 }).notNull(),
+    points: integer("points").default(0).notNull(),
+    rank: integer("rank"),
+    created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("leaderboard_snapshots_user_id_idx").on(table.user_id),
+    index("leaderboard_snapshots_date_idx").on(table.snapshot_date),
+  ]
+);
+
+// 反馈表
+export const feedbacks = pgTable(
+  "feedbacks",
+  {
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    user_id: varchar("user_id", { length: 36 }).notNull(),
+    content: text("content").notNull(),
+    status: varchar("status", { length: 20 }).default("pending").notNull(),
+    created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("feedbacks_user_id_idx").on(table.user_id),
+  ]
+);
 
 // 号码投票表
 export const numberVotes = pgTable(
