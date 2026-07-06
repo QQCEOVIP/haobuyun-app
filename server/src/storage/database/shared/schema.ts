@@ -221,7 +221,7 @@ export const medals = pgTable(
   "medals",
   {
     id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-    code: varchar("code", { length: 50 }).notNull().unique(),
+    code: varchar("code", { length: 50 }).notNull().unique("medals_code_key"),
     name: varchar("name", { length: 50 }).notNull(),
     description: text("description"),
     icon: varchar("icon", { length: 100 }),
