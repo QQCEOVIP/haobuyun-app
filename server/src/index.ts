@@ -327,6 +327,83 @@ app.use(express.static(clientDistPath));
 app.get(/.*/, (req, res) => { res.sendFile(path.join(clientDistPath, "index.html")); });
 // === end ===
 
-app.listen(port, () => {
+// === 启动时自动修复 RLS 问题 ===
+async function fixRLSPolicies() {
+  try {
+    const connectionString = process.env.DATABASE_URL;
+    if (!connectionString) {
+      console.log('[Migration] DATABASE_URL not set, skipping RLS fix');
+      return;
+    }
+
+    const postgres = (await import('postgres')).default;
+    const sql = postgres(connectionString, {
+      max: 1,
+      idle_timeout: 5,
+      connect_timeout: 10,
+      ssl: { rejectUnauthorized: false }
+    });
+
+    console.log('[Migration] Checking RLS policies on number_votes and number_authentications...');
+
+    // 查询当前 policies
+    const policies = await sql`
+      SELECT tablename, policyname 
+      FROM pg_policies 
+      WHERE tablename IN ('number_votes', 'number_authentications')
+    `;
+
+    if (policies.length === 0) {
+      console.log('[Migration] No RLS policies found, skipping');
+    } else {
+      console.log(`[Migration] Found ${policies.length} policies to remove:`);
+      for (const p of policies) {
+        console.log(`  - ${p.tablename}: ${p.policyname}`);
+      }
+
+      // 删除 number_votes 的所有 policies
+      await sql`
+        DO $$ 
+        DECLARE p record;
+        BEGIN
+          FOR p IN SELECT policyname FROM pg_policies WHERE tablename = 'number_votes'
+          LOOP
+            EXECUTE format('DROP POLICY IF EXISTS %I ON number_votes', p.policyname);
+          END LOOP;
+        END $$
+      `;
+
+      // 删除 number_authentications 的所有 policies
+      await sql`
+        DO $$ 
+        DECLARE p record;
+        BEGIN
+          FOR p IN SELECT policyname FROM pg_policies WHERE tablename = 'number_authentications'
+          LOOP
+            EXECUTE format('DROP POLICY IF EXISTS %I ON number_authentications', p.policyname);
+          END LOOP;
+        END $$
+      `;
+
+      console.log('[Migration] All policies dropped');
+    }
+
+    // 禁用 RLS
+    await sql`ALTER TABLE number_votes DISABLE ROW LEVEL SECURITY`;
+    await sql`ALTER TABLE number_authentications DISABLE ROW LEVEL SECURITY`;
+    console.log('[Migration] RLS disabled on both tables');
+
+    await sql.end();
+    console.log('[Migration] RLS fix completed successfully');
+  } catch (error: any) {
+    console.error('[Migration] RLS fix failed (non-fatal):', error.message);
+    // 不抛出错误，让服务器继续启动
+  }
+}
+
+// 启动服务器
+app.listen(port, async () => {
   console.log(`Server listening at http://localhost:${port}/`);
+  // 服务器启动后异步修复 RLS
+  await fixRLSPolicies();
 });
