@@ -36,10 +36,10 @@ export const contacts = pgTable(
     deleted_at: timestamp("deleted_at", { withTimezone: true }),
   },
   (table) => [
-    index("user_id_idx").on(table.user_id),
-    index("phone_hash_idx").on(table.phone_hash),
-    index("status_idx").on(table.status),
-    index("last_contact_idx").on(table.last_contact_date),
+    index("contacts_user_id_idx").on(table.user_id),
+    index("contacts_phone_hash_idx").on(table.phone_hash),
+    index("contacts_status_idx").on(table.status),
+    index("contacts_last_contact_idx").on(table.last_contact_date),
   ]
 );
 
@@ -64,8 +64,8 @@ export const deletedContacts = pgTable(
     created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    index("user_id_idx").on(table.user_id),
-    index("phone_idx").on(table.phone),
+    index("deleted_contacts_user_id_idx").on(table.user_id),
+    index("deleted_contacts_phone_idx").on(table.phone),
   ]
 );
 
@@ -119,8 +119,8 @@ export const backups = pgTable(
     created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    index("user_id_idx").on(table.user_id),
-    index("created_at_idx").on(table.created_at),
+    index("backups_user_id_idx").on(table.user_id),
+    index("backups_created_at_idx").on(table.created_at),
   ]
 );
 
