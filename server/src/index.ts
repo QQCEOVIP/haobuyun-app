@@ -330,9 +330,10 @@ app.get(/.*/, (req, res) => { res.sendFile(path.join(clientDistPath, "index.html
 // === 启动时自动修复 RLS 问题 ===
 async function fixRLSPolicies() {
   try {
-    const connectionString = process.env.DATABASE_URL;
+    // 尝试多个可能的数据库连接环境变量
+    const connectionString = process.env.DATABASE_URL || process.env.PGDATABASE_URL;
     if (!connectionString) {
-      console.log('[Migration] DATABASE_URL not set, skipping RLS fix');
+      console.log('[Migration] No database URL found (DATABASE_URL or PGDATABASE_URL), skipping RLS fix');
       return;
     }
 
