@@ -1,16 +1,8 @@
 import { Router } from 'express';
-import { db, hasDatabase } from '../storage/database';
+import { db } from '../storage/database';
 import { sql } from 'drizzle-orm';
 
 const router: any = Router();
-
-// 检查数据库连接
-function requireDb(req: any, res: any, next: any) {
-  if (!hasDatabase) {
-    return res.status(503).json({ error: '数据库未配置' });
-  }
-  next();
-}
 
 // 阈值配置
 const CONFIRMED_THRESHOLD = 5;
@@ -21,7 +13,7 @@ function getUserIdFromHeaders(req: any): string | null {
   if (userId) return userId as string;
   const session = req.headers['x-session'];
   if (session) {
-    try { return session as string; } catch (e) { return null; }
+    try { return session as string; } catch { return null; }
   }
   return null;
 }
@@ -36,17 +28,15 @@ function requireAuth(req: any, res: any, next: any) {
 /**
  * 一键检测 - 批量聚合号码状态
  * POST /api/v1/detect
- * Body: { phones: string[], user_id?: string }
+ * Body: { phones: string[] }
  *
  * 聚合规则：
  * - stopped票数 >= 5 → "stopped"（确认停机）
  * - stopped票数 1~4 → "suspected_stopped"（疑似停机）
  * - 其他 → "normal"（正常）
  * - 如有有效认证 → 覆盖为 "normal"
- *
- * Returns: { results: { phone, status, votes: { stopped, normal, suspected_stopped }, authenticated }[] }
  */
-router.post('/', requireDb, requireAuth, async (req: any, res: any) => {
+router.post('/', requireAuth, async (req: any, res: any) => {
   try {
     const { phones } = req.body;
 
@@ -57,9 +47,8 @@ router.post('/', requireDb, requireAuth, async (req: any, res: any) => {
     const limitedPhones = phones.slice(0, 500);
 
     // 1. 查询每个号码的各状态投票数
-    // 使用 IN 子句代替 ANY，兼容 postgres 库的参数传递
     const phoneConditions = limitedPhones.map((p: string) => `'${p.replace(/'/g, "''")}'`).join(',');
-    const voteCounts = await db.execute(sql.raw(
+    const voteCounts = await (db as any).execute(sql.raw(
       `SELECT phone, vote, COUNT(*)::int as count FROM number_votes WHERE phone IN (${phoneConditions}) GROUP BY phone, vote`
     ));
 
@@ -76,7 +65,7 @@ router.post('/', requireDb, requireAuth, async (req: any, res: any) => {
     }
 
     // 2. 查询有效认证（未过期）
-    const authentications = await db.execute(sql.raw(
+    const authentications = await (db as any).execute(sql.raw(
       `SELECT phone, user_name, authenticated_at, expires_at FROM number_authentications WHERE phone IN (${phoneConditions}) AND expires_at > NOW()`
     ));
 
@@ -96,7 +85,6 @@ router.post('/', requireDb, requireAuth, async (req: any, res: any) => {
 
       let status: string;
       if (auth) {
-        // 有有效认证 → 正常
         status = 'normal';
       } else if (votes.stopped >= CONFIRMED_THRESHOLD) {
         status = 'stopped';

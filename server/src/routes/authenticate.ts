@@ -1,23 +1,15 @@
 import { Router } from 'express';
-import { db, hasDatabase } from '../storage/database';
+import { db } from '../storage/database';
 import { sql } from 'drizzle-orm';
 
 const router: any = Router();
-
-// 检查数据库连接
-function requireDb(req: any, res: any, next: any) {
-  if (!hasDatabase) {
-    return res.status(503).json({ error: '数据库未配置' });
-  }
-  next();
-}
 
 function getUserIdFromHeaders(req: any): string | null {
   const userId = req.headers['x-user-id'];
   if (userId) return userId as string;
   const session = req.headers['x-session'];
   if (session) {
-    try { return session as string; } catch (e) { return null; }
+    try { return session as string; } catch { return null; }
   }
   return null;
 }
@@ -36,11 +28,9 @@ function requireAuth(req: any, res: any, next: any) {
  *
  * 逻辑：
  * 1. 写入/更新 number_authentications（有效期30天）
- * 2. 清除该号码所有"疑似停机"投票（vote='suspected_stopped'）
- *
- * Returns: { success: true, message: '认证成功' }
+ * 2. 清除该号码所有"疑似停机"投票
  */
-router.post('/', requireDb, requireAuth, async (req: any, res: any) => {
+router.post('/', requireAuth, async (req: any, res: any) => {
   try {
     const { phone, user_name } = req.body;
     const userId = req.userId;
@@ -50,7 +40,7 @@ router.post('/', requireDb, requireAuth, async (req: any, res: any) => {
     }
 
     // 1. UPSERT 认证记录（有效期30天）
-    await db.execute(sql`
+    await (db as any).execute(sql`
       INSERT INTO number_authentications (phone, user_id, user_name, authenticated_at, expires_at)
       VALUES (${phone}, ${userId}, ${user_name || null}, NOW(), NOW() + INTERVAL '30 days')
       ON CONFLICT (phone, user_id)
@@ -61,7 +51,7 @@ router.post('/', requireDb, requireAuth, async (req: any, res: any) => {
     `);
 
     // 2. 清除该号码所有"疑似停机"投票
-    await db.execute(sql`
+    await (db as any).execute(sql`
       DELETE FROM number_votes
       WHERE phone = ${phone} AND vote = 'suspected_stopped'
     `);

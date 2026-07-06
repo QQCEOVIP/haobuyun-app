@@ -1,16 +1,8 @@
 import { Router } from 'express';
-import { db, hasDatabase } from '../storage/database';
+import { db } from '../storage/database';
 import { sql } from 'drizzle-orm';
 
 const router: any = Router();
-
-// 检查数据库连接
-function requireDb(req: any, res: any, next: any) {
-  if (!hasDatabase) {
-    return res.status(503).json({ error: '数据库未配置' });
-  }
-  next();
-}
 
 // 阈值配置
 const CONFIRMED_THRESHOLD = 5;
@@ -19,13 +11,8 @@ const MAYBE_THRESHOLD = 1;
 /**
  * 查询单个号码状态
  * GET /api/v1/number-status/:phone
- *
- * Returns: {
- *   phone, status, votes: { stopped, normal, suspected_stopped },
- *   authenticated: { user_name, authenticated_at, expires_at } | null
- * }
  */
-router.get('/:phone', requireDb, async (req: any, res: any) => {
+router.get('/:phone', async (req: any, res: any) => {
   try {
     const { phone } = req.params;
 
@@ -34,7 +21,7 @@ router.get('/:phone', requireDb, async (req: any, res: any) => {
     }
 
     // 1. 查询投票统计
-    const voteCounts = await db.execute(sql`
+    const voteCounts = await (db as any).execute(sql`
       SELECT vote, COUNT(*)::int as count
       FROM number_votes
       WHERE phone = ${phone}
@@ -49,7 +36,7 @@ router.get('/:phone', requireDb, async (req: any, res: any) => {
     }
 
     // 2. 查询有效认证
-    const authResult = await db.execute(sql`
+    const authResult = await (db as any).execute(sql`
       SELECT user_name, authenticated_at, expires_at
       FROM number_authentications
       WHERE phone = ${phone}
