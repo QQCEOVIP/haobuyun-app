@@ -7,6 +7,14 @@ import crypto from "crypto";
 
 const router: any = Router();
 
+// 检查数据库连接
+function requireDb(req: any, res: any, next: any) {
+  if (!db) {
+    return res.status(503).json({ error: '数据库未配置' });
+  }
+  next();
+}
+
 // Use environment variable for Supabase URL
 const SUPABASE_URL = process.env.COZE_SUPABASE_URL || '';
 
@@ -37,7 +45,7 @@ const hashPhone = (phone: string): string => {
 };
 
 // 获取用户积分信息
-router.get("/balance", async (req: any, res: any) => {
+router.get("/balance", requireDb, async (req: any, res: any) => {
   try {
     const userId = await getUserId(req);
     if (!userId) {
@@ -74,7 +82,7 @@ router.get("/balance", async (req: any, res: any) => {
 });
 
 // 获取积分记录
-router.get("/records", async (req: any, res: any) => {
+router.get("/records", requireDb, async (req: any, res: any) => {
   try {
     const userId = await getUserId(req);
     if (!userId) {
@@ -125,7 +133,7 @@ router.get("/records", async (req: any, res: any) => {
 });
 
 // 标注号码并获取积分
-router.post("/report", async (req: any, res: any) => {
+router.post("/report", requireDb, async (req: any, res: any) => {
   try {
     const userId = await getUserId(req);
     if (!userId) {
@@ -307,7 +315,7 @@ router.post("/report", async (req: any, res: any) => {
 });
 
 // 每日签到
-router.post("/checkin", async (req: any, res: any) => {
+router.post("/checkin", requireDb, async (req: any, res: any) => {
   try {
     const userId = req.user?.id || req.auth?.userId;
     if (!userId) return res.status(401).json({ error: "未登录" });
@@ -379,7 +387,7 @@ router.post("/checkin", async (req: any, res: any) => {
 });
 
 // 获取签到信息
-router.get("/checkin", async (req: any, res: any) => {
+router.get("/checkin", requireDb, async (req: any, res: any) => {
   try {
     const userId = req.user?.id || req.auth?.userId;
     if (!userId) return res.status(401).json({ error: "未登录" });
@@ -511,7 +519,7 @@ async function checkMedals(userId: string) {
 }
 
 // 获取商品列表
-router.get("/shop/products", async (req: any, res: any) => {
+router.get("/shop/products", requireDb, async (req: any, res: any) => {
   try {
     const category = req.query.category as string;
 
@@ -551,7 +559,7 @@ router.get("/shop/products", async (req: any, res: any) => {
 });
 
 // 兑换商品
-router.post("/shop/exchange", async (req: any, res: any) => {
+router.post("/shop/exchange", requireDb, async (req: any, res: any) => {
   try {
     const userId = await getUserId(req);
     if (!userId) {
@@ -646,7 +654,7 @@ router.post("/shop/exchange", async (req: any, res: any) => {
 });
 
 // 获取兑换记录
-router.get("/shop/exchanges", async (req: any, res: any) => {
+router.get("/shop/exchanges", requireDb, async (req: any, res: any) => {
   try {
     const userId = await getUserId(req);
     if (!userId) {
@@ -679,7 +687,7 @@ router.get("/shop/exchanges", async (req: any, res: any) => {
 });
 
 // 获取排行榜
-router.get("/leaderboard", async (req: any, res: any) => {
+router.get("/leaderboard", requireDb, async (req: any, res: any) => {
   try {
     const period = (req.query.period as string) || "weekly";
     const limit = Math.min(parseInt(req.query.limit as string) || 10, 50);
@@ -731,7 +739,7 @@ router.get("/leaderboard", async (req: any, res: any) => {
 });
 
 // 获取勋章列表
-router.get("/medals", async (req: any, res: any) => {
+router.get("/medals", requireDb, async (req: any, res: any) => {
   try {
     const allMedals = await db.query.medals.findMany({
       where: eq(medals.is_active, true),
@@ -766,7 +774,7 @@ router.get("/medals", async (req: any, res: any) => {
 });
 
 // 获取用户勋章墙
-router.get("/medals/mine", async (req: any, res: any) => {
+router.get("/medals/mine", requireDb, async (req: any, res: any) => {
   try {
     const userId = await getUserId(req);
     if (!userId) {

@@ -10,6 +10,14 @@ import crypto from 'crypto';
 
 const router: any = Router();
 
+// 检查数据库连接
+function requireDb(req: any, res: any, next: any) {
+  if (!db) {
+    return res.status(503).json({ error: '数据库未配置' });
+  }
+  next();
+}
+
 // 辅助函数：对手机号进行哈希处理（用于众包查询）
 function hashPhone(phone: string): string {
   return crypto.createHash('sha256').update(phone).digest('hex').substring(0, 64);
@@ -53,7 +61,7 @@ function requireAuth(req: any, res: any, next: any) {
  * 获取用户的所有联系人
  * GET /api/v1/contacts
  */
-router.get('/', requireAuth, async (req: any, res: any) => {
+router.get('/', requireDb, requireAuth, async (req: any, res: any) => {
   try {
     const { status } = req.query;
     const conditions = [
@@ -84,7 +92,7 @@ router.get('/', requireAuth, async (req: any, res: any) => {
  * 添加联系人
  * POST /api/v1/contacts
  */
-router.post('/', requireAuth, async (req: any, res: any) => {
+router.post('/', requireDb, requireAuth, async (req: any, res: any) => {
   try {
     const { name, phone, avatar_url, notes } = req.body;
 
@@ -118,7 +126,7 @@ router.post('/', requireAuth, async (req: any, res: any) => {
  * 批量添加联系人（用于通讯录导入）
  * POST /api/v1/contacts/batch
  */
-router.post('/batch', requireAuth, async (req: any, res: any) => {
+router.post('/batch', requireDb, requireAuth, async (req: any, res: any) => {
   try {
     const { contacts: contactList } = req.body;
 
@@ -160,7 +168,7 @@ router.post('/batch', requireAuth, async (req: any, res: any) => {
  * 更新联系人
  * PUT /api/v1/contacts/:id
  */
-router.put('/:id', requireAuth, async (req: any, res: any) => {
+router.put('/:id', requireDb, requireAuth, async (req: any, res: any) => {
   try {
     const { name, phone, avatar_url, notes, status } = req.body;
 
@@ -211,7 +219,7 @@ router.put('/:id', requireAuth, async (req: any, res: any) => {
  * 删除联系人（搬家模式 - 移入 deleted_contacts 回收站）
  * DELETE /api/v1/contacts/:id
  */
-router.delete('/:id', requireAuth, async (req: any, res: any) => {
+router.delete('/:id', requireDb, requireAuth, async (req: any, res: any) => {
   try {
     const userId = (req as any).userId;
     const contactId = req.params.id;
@@ -267,7 +275,7 @@ router.delete('/:id', requireAuth, async (req: any, res: any) => {
  * POST /api/v1/contacts/trash
  * Body: { name: string, phone: string }
  */
-router.post('/trash', requireAuth, async (req: any, res: any) => {
+router.post('/trash', requireDb, requireAuth, async (req: any, res: any) => {
   try {
     const { name, phone } = req.body;
     if (!phone) {
@@ -329,7 +337,7 @@ router.post('/trash', requireAuth, async (req: any, res: any) => {
  * POST /api/v1/contacts/batch-delete
  * Body: { contactIds?: string[], phones?: string[], names?: string[] }
  */
-router.post('/batch-delete', requireAuth, async (req: any, res: any) => {
+router.post('/batch-delete', requireDb, requireAuth, async (req: any, res: any) => {
   try {
     const { contactIds, phones, names } = req.body;
     const userId = (req as any).userId;
@@ -413,7 +421,7 @@ router.post('/batch-delete', requireAuth, async (req: any, res: any) => {
  * 获取回收站（从 deleted_contacts 表读取）
  * GET /api/v1/contacts/trash
  */
-router.get('/trash', requireAuth, async (req: any, res: any) => {
+router.get('/trash', requireDb, requireAuth, async (req: any, res: any) => {
   try {
     const trashContacts = await db
       .select()
@@ -444,7 +452,7 @@ router.get('/trash', requireAuth, async (req: any, res: any) => {
  * 恢复联系人（从 deleted_contacts 移回 contacts）
  * POST /api/v1/contacts/:id/restore
  */
-router.post('/:id/restore', requireAuth, async (req: any, res: any) => {
+router.post('/:id/restore', requireDb, requireAuth, async (req: any, res: any) => {
   try {
     const userId = (req as any).userId;
     const record = await db
@@ -494,7 +502,7 @@ router.post('/:id/restore', requireAuth, async (req: any, res: any) => {
  * 批量恢复联系人（从 deleted_contacts 移回 contacts）
  * POST /api/v1/contacts/trash/restore-batch
  */
-router.post('/trash/restore-batch', requireAuth, async (req: any, res: any) => {
+router.post('/trash/restore-batch', requireDb, requireAuth, async (req: any, res: any) => {
   try {
     const { ids } = req.body as { ids: string[] };
     if (!ids || ids.length === 0) {
@@ -547,7 +555,7 @@ router.post('/trash/restore-batch', requireAuth, async (req: any, res: any) => {
  * 永久删除联系人（从 deleted_contacts 彻底删除）
  * DELETE /api/v1/contacts/:id/permanent
  */
-router.delete('/:id/permanent', requireAuth, async (req: any, res: any) => {
+router.delete('/:id/permanent', requireDb, requireAuth, async (req: any, res: any) => {
   try {
     const deleted = await db
       .delete(deletedContacts)
@@ -579,7 +587,7 @@ router.delete('/:id/permanent', requireAuth, async (req: any, res: any) => {
  * 备份通讯录
  * POST /api/v1/contacts/backup
  */
-router.post('/backup', requireAuth, async (req: any, res: any) => {
+router.post('/backup', requireDb, requireAuth, async (req: any, res: any) => {
   try {
     // 获取用户所有联系人
     const userContacts = await db
@@ -631,7 +639,7 @@ router.post('/backup', requireAuth, async (req: any, res: any) => {
  * 获取备份列表
  * GET /api/v1/contacts/backups
  */
-router.get('/backups/list', requireAuth, async (req: any, res: any) => {
+router.get('/backups/list', requireDb, requireAuth, async (req: any, res: any) => {
   try {
     const backupList = await db
       .select()
@@ -654,7 +662,7 @@ router.get('/backups/list', requireAuth, async (req: any, res: any) => {
  * 下载备份
  * GET /api/v1/contacts/backup/:id
  */
-router.get('/backup/:id', requireAuth, async (req: any, res: any) => {
+router.get('/backup/:id', requireDb, requireAuth, async (req: any, res: any) => {
   try {
     const backup = await db
       .select()
@@ -684,7 +692,7 @@ router.get('/backup/:id', requireAuth, async (req: any, res: any) => {
  * 恢复通讯录
  * POST /api/v1/contacts/restore
  */
-router.post('/restore', requireAuth, async (req: any, res: any) => {
+router.post('/restore', requireDb, requireAuth, async (req: any, res: any) => {
   try {
     const { backup_id, merge_mode = 'replace' } = req.body;
 
@@ -784,7 +792,7 @@ router.post('/restore', requireAuth, async (req: any, res: any) => {
  * 导出通讯录为 vCard 格式
  * GET /api/v1/contacts/export
  */
-router.get('/export', requireAuth, async (req: any, res: any) => {
+router.get('/export', requireDb, requireAuth, async (req: any, res: any) => {
   try {
     const userContacts = await db
       .select()
@@ -818,7 +826,7 @@ END:VCARD`;
  * 获取单个联系人详情
  * GET /api/v1/contacts/:id
  */
-router.get('/:id', requireAuth, async (req: any, res: any) => {
+router.get('/:id', requireDb, requireAuth, async (req: any, res: any) => {
   try {
     const contact = await db
       .select()

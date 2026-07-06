@@ -4,6 +4,14 @@ import { sql } from 'drizzle-orm';
 
 const router: any = Router();
 
+// 检查数据库连接
+function requireDb(req: any, res: any, next: any) {
+  if (!db) {
+    return res.status(503).json({ error: '数据库未配置' });
+  }
+  next();
+}
+
 function getUserIdFromHeaders(req: any): string | null {
   const userId = req.headers['x-user-id'];
   if (userId) return userId as string;
@@ -32,7 +40,7 @@ function requireAuth(req: any, res: any, next: any) {
  *
  * Returns: { success: true, message: '认证成功' }
  */
-router.post('/', requireAuth, async (req: any, res: any) => {
+router.post('/', requireDb, requireAuth, async (req: any, res: any) => {
   try {
     const { phone, user_name } = req.body;
     const userId = req.userId;

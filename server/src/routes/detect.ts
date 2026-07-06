@@ -4,6 +4,14 @@ import { sql } from 'drizzle-orm';
 
 const router: any = Router();
 
+// 检查数据库连接
+function requireDb(req: any, res: any, next: any) {
+  if (!db) {
+    return res.status(503).json({ error: '数据库未配置' });
+  }
+  next();
+}
+
 // 阈值配置
 const CONFIRMED_THRESHOLD = 5;
 const MAYBE_THRESHOLD = 1;
@@ -38,7 +46,7 @@ function requireAuth(req: any, res: any, next: any) {
  *
  * Returns: { results: { phone, status, votes: { stopped, normal, suspected_stopped }, authenticated }[] }
  */
-router.post('/', requireAuth, async (req: any, res: any) => {
+router.post('/', requireDb, requireAuth, async (req: any, res: any) => {
   try {
     const { phones } = req.body;
 
