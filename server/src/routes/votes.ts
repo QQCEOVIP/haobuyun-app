@@ -4,9 +4,11 @@ import { sql } from 'drizzle-orm';
 
 const router: any = Router();
 
-// 阈值配置
-const CONFIRMED_THRESHOLD = 5; // >=5 人标记停机 -> 确认停机
-const MAYBE_THRESHOLD = 1;     // >=1 人标记停机 -> 疑似停机
+// 阈值配置（可配置）
+// >=5 人标记停机 -> 确认停机
+// >=1 人标记停机 -> 疑似停机
+const CONFIRMED_THRESHOLD = 5;
+const MAYBE_THRESHOLD = 1;
 
 function getUserIdFromHeaders(req: any): string | null {
   const userId = req.headers['x-user-id'];
@@ -28,7 +30,7 @@ function requireAuth(req: any, res: any, next: any) {
 /**
  * 提交/更新投票
  * POST /api/v1/votes
- * Body: { phone: string, vote: 'normal' | 'stopped' }
+ * Body: { phone: string, vote: 'stopped' | 'valid' }
  */
 router.post('/', requireAuth, async (req: any, res: any) => {
   try {
@@ -39,16 +41,16 @@ router.post('/', requireAuth, async (req: any, res: any) => {
       return res.status(400).json({ error: '缺少必要参数' });
     }
 
-    if (!['normal', 'stopped'].includes(vote)) {
-      return res.status(400).json({ error: '无效的投票类型，必须是 normal 或 stopped' });
+    if (!['stopped', 'valid'].includes(vote)) {
+      return res.status(400).json({ error: '无效的投票类型' });
     }
 
-    // UPSERT: 如果已存在则更新，否则插入
+    // 使用 raw SQL 绕过 RLS
     const result = await db.execute(sql`
       INSERT INTO number_votes (phone, user_id, vote, created_at, updated_at)
-      VALUES (${phone}, ${userId}, ${vote}, NOW(), NOW())
+      VALUES (${phone}, ${userId}::uuid, ${vote}, NOW(), NOW())
       ON CONFLICT (phone, user_id) 
-      DO UPDATE SET vote = EXCLUDED.vote, updated_at = NOW()
+      DO UPDATE SET vote = ${vote}, updated_at = NOW()
       RETURNING id, phone, user_id, vote, created_at, updated_at
     `);
 
@@ -75,7 +77,7 @@ router.delete('/', requireAuth, async (req: any, res: any) => {
 
     await db.execute(sql`
       DELETE FROM number_votes 
-      WHERE phone = ${phone} AND user_id = ${userId}
+      WHERE phone = ${phone} AND user_id = ${userId}::uuid
     `);
 
     res.json({ success: true });
@@ -88,12 +90,17 @@ router.delete('/', requireAuth, async (req: any, res: any) => {
 /**
  * 批量查询社区投票结果
  * POST /api/v1/votes/batch-query
- * Body: { phones: string[], user_id: string }
- * Returns: { results: { [phone]: { stopped_count, normal_count, my_vote, community_status } } }
+ * Body: { phones: string[] }
+ * Returns: { results: { phone, stopped_count, community_status }[] }
+ * 
+ * 社区状态计算：
+ * - stopped_count >= 5 -> 'confirmed_stopped' (确认停机)
+ * - stopped_count >= 1 && < 5 -> 'maybe_stopped' (疑似停机)
+ * - stopped_count = 0 -> null (无社区状态)
  */
 router.post('/batch-query', async (req: any, res: any) => {
   try {
-    const { phones, user_id } = req.body;
+    const { phones } = req.body;
 
     if (!Array.isArray(phones) || phones.length === 0) {
       return res.status(400).json({ error: '缺少电话号码列表' });
@@ -102,54 +109,36 @@ router.post('/batch-query', async (req: any, res: any) => {
     // 限制单次查询数量
     const limitedPhones = phones.slice(0, 500);
 
-    // 查询所有投票统计
-    const voteStats = await db.execute(sql`
-      SELECT 
-        phone,
-        COUNT(*) FILTER (WHERE vote = 'stopped')::int as stopped_count,
-        COUNT(*) FILTER (WHERE vote = 'normal')::int as normal_count
+    // 查询所有 'stopped' 投票
+    const votes = await db.execute(sql`
+      SELECT phone, COUNT(*)::int as stopped_count 
       FROM number_votes
-      WHERE phone = ANY(${limitedPhones}::text[])
+      WHERE phone = ANY(${limitedPhones}::text[]) AND vote = 'stopped'
       GROUP BY phone
     `);
 
-    // 查询当前用户的投票
-    let myVotes: any[] = [];
-    if (user_id) {
-      myVotes = await db.execute(sql`
-        SELECT phone, vote
-        FROM number_votes
-        WHERE phone = ANY(${limitedPhones}::text[]) AND user_id = ${user_id}
-      `);
-    }
-
-    // 构建用户投票映射
-    const myVoteMap = new Map<string, string>();
-    for (const row of myVotes as any[]) {
-      myVoteMap.set(row.phone, row.vote);
-    }
-
     // 构建结果
-    const results: Record<string, any> = {};
+    const stoppedMap = new Map<string, number>();
+    for (const row of votes as any[]) {
+      stoppedMap.set(row.phone, row.stopped_count);
+    }
+
+    const results = [];
     for (const phone of limitedPhones) {
-      const stats = (voteStats as any[]).find((r: any) => r.phone === phone);
-      const stoppedCount = stats?.stopped_count || 0;
-      const normalCount = stats?.normal_count || 0;
-      const myVote = myVoteMap.get(phone) || null;
-      
+      const stoppedCount = stoppedMap.get(phone) || 0;
       let communityStatus: string | null = null;
+      
       if (stoppedCount >= CONFIRMED_THRESHOLD) {
-        communityStatus = 'confirmed_invalid';
+        communityStatus = 'confirmed_stopped';
       } else if (stoppedCount >= MAYBE_THRESHOLD) {
-        communityStatus = 'possibly_invalid';
+        communityStatus = 'maybe_stopped';
       }
       
-      results[phone] = {
+      results.push({
+        phone,
         stopped_count: stoppedCount,
-        normal_count: normalCount,
-        my_vote: myVote,
         community_status: communityStatus,
-      };
+      });
     }
 
     res.json({ results });

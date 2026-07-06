@@ -160,7 +160,7 @@ router.post("/report", async (req: any, res: any) => {
     let dailyStat = await db.query.dailyReports.findFirst({
       where: and(
         eq(dailyReports.user_id, userId),
-        sql`DATE(${dailyReports.report_date}) = ${today}`
+        eq(dailyReports.report_date, today)
       )
     });
 
@@ -202,7 +202,7 @@ router.post("/report", async (req: any, res: any) => {
     } else {
       await db.insert(dailyReports).values({
         user_id: userId,
-        report_date: new Date(today),
+        report_date: today,
         valid_count: 1
       });
     }
@@ -215,7 +215,8 @@ router.post("/report", async (req: any, res: any) => {
     if (existingInvalidReport) {
       await db.update(invalidReports)
         .set({ 
-          report_count: existingInvalidReport.report_count + 1
+          report_count: existingInvalidReport.report_count + 1,
+          last_reporter_id: userId
         })
         .where(eq(invalidReports.id, existingInvalidReport.id));
     } else {
@@ -318,7 +319,7 @@ router.post("/checkin", async (req: any, res: any) => {
       where: eq(checkinStreaks.user_id, userId)
     });
 
-    if (streak?.last_checkin_date && new Date(streak.last_checkin_date).toISOString().split("T")[0] === today) {
+    if (streak?.last_checkin_date === today) {
       return res.json({
         success: false,
         message: "今天已签到",
@@ -390,7 +391,7 @@ router.get("/checkin", async (req: any, res: any) => {
     });
 
     res.json({
-      checked_in_today: streak?.last_checkin_date ? new Date(streak.last_checkin_date).toISOString().split("T")[0] === today : false,
+      checked_in_today: streak?.last_checkin_date === today,
       current_streak: streak?.current_streak || 0,
       longest_streak: streak?.longest_streak || 0
     });
@@ -413,12 +414,12 @@ async function checkStreakReward(userId: string) {
       user_id: userId,
       current_streak: 1,
       longest_streak: 0,
-      last_checkin_date: new Date(today)
+      last_checkin_date: today
     });
     return;
   }
 
-  const lastDate = streak.last_checkin_date ? new Date(streak.last_checkin_date).toISOString().split("T")[0] : null;
+  const lastDate = streak.last_checkin_date;
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
   const yesterdayStr = yesterday.toISOString().split("T")[0];
@@ -434,7 +435,7 @@ async function checkStreakReward(userId: string) {
     .set({
       current_streak: newStreak,
       longest_streak: Math.max(streak.longest_streak, newStreak),
-      last_checkin_date: new Date(today),
+      last_checkin_date: today,
       updated_at: new Date()
     })
     .where(eq(checkinStreaks.id, streak.id));

@@ -1,21 +1,7 @@
 import { sql } from "drizzle-orm";
-import {
-  pgTable,
-  varchar,
-  text,
-  integer,
-  timestamp,
-  boolean,
-  jsonb,
-  uuid,
-  bigserial,
-  index,
-  uniqueIndex,
-} from "drizzle-orm/pg-core";
+import { pgTable, varchar, timestamp, boolean, integer, jsonb, index, text, bigserial } from "drizzle-orm/pg-core";
 
-// ============================================================================
-// contacts - 联系人表 (varchar(36) for id and user_id)
-// ============================================================================
+// 联系人表
 export const contacts = pgTable(
   "contacts",
   {
@@ -23,17 +9,17 @@ export const contacts = pgTable(
     user_id: varchar("user_id", { length: 36 }).notNull(),
     name: varchar("name", { length: 128 }).notNull(),
     phone: varchar("phone", { length: 20 }).notNull(),
-    phone_hash: varchar("phone_hash", { length: 64 }).notNull(),
+    phone_hash: varchar("phone_hash", { length: 64 }).notNull(), // 用于众包查询
     avatar_url: varchar("avatar_url", { length: 512 }),
-    status: varchar("status", { length: 20 }).notNull().default("unknown"),
+    status: varchar("status", { length: 20 }).default("unknown").notNull(), // active, maybe_invalid, invalid, unknown
     invalid_reason: text("invalid_reason"),
-    invalid_report_count: integer("invalid_report_count").notNull().default(0),
+    invalid_report_count: integer("invalid_report_count").default(0).notNull(), // 众包标记次数
     last_contact_date: timestamp("last_contact_date", { withTimezone: true }),
     notes: text("notes"),
-    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updated_at: timestamp("updated_at", { withTimezone: true }),
-    is_deleted: boolean("is_deleted").default(false),
+    is_deleted: boolean("is_deleted").default(false).notNull(),
     deleted_at: timestamp("deleted_at", { withTimezone: true }),
+    created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updated_at: timestamp("updated_at", { withTimezone: true }),
   },
   (table) => [
     index("contacts_user_id_idx").on(table.user_id),
@@ -43,9 +29,7 @@ export const contacts = pgTable(
   ]
 );
 
-// ============================================================================
-// deleted_contacts - 已删除联系人表 (varchar(36) for id and user_id)
-// ============================================================================
+// 回收站表（与 contacts 结构一致，删除操作是"搬家"到此表）
 export const deletedContacts = pgTable(
   "deleted_contacts",
   {
@@ -55,13 +39,13 @@ export const deletedContacts = pgTable(
     phone: varchar("phone", { length: 20 }).notNull(),
     phone_hash: varchar("phone_hash", { length: 64 }),
     avatar_url: varchar("avatar_url", { length: 512 }),
-    status: varchar("status", { length: 20 }).notNull().default("unknown"),
+    status: varchar("status", { length: 20 }).default("unknown").notNull(),
     invalid_reason: text("invalid_reason"),
-    invalid_report_count: integer("invalid_report_count").notNull().default(0),
+    invalid_report_count: integer("invalid_report_count").default(0).notNull(),
     last_contact_date: timestamp("last_contact_date", { withTimezone: true }),
     notes: text("notes"),
-    deleted_at: timestamp("deleted_at", { withTimezone: true }).notNull().defaultNow(),
-    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    deleted_at: timestamp("deleted_at", { withTimezone: true }).defaultNow().notNull(),
+    created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
     index("deleted_contacts_user_id_idx").on(table.user_id),
@@ -69,54 +53,66 @@ export const deletedContacts = pgTable(
   ]
 );
 
-// ============================================================================
-// tags - 标签表 (varchar(36) for id and user_id)
-// ============================================================================
-export const tags = pgTable("tags", {
-  id: varchar("id", { length: 36 }).primaryKey(),
-  user_id: varchar("user_id", { length: 36 }).notNull(),
-  name: varchar("name", { length: 50 }).notNull(),
-  color: varchar("color", { length: 20 }),
-  icon: varchar("icon", { length: 50 }),
-  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updated_at: timestamp("updated_at", { withTimezone: true }),
-});
+// 标签表
+export const tags = pgTable(
+  "tags",
+  {
+    id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+    user_id: varchar("user_id", { length: 36 }).notNull(),
+    name: varchar("name", { length: 64 }).notNull(),
+    color: varchar("color", { length: 20 }).default("#4A90D9").notNull(),
+    icon: varchar("icon", { length: 64 }),
+    created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("tags_user_id_idx").on(table.user_id),
+  ]
+);
 
-// ============================================================================
-// contact_tags - 联系人标签关联表 (varchar(36) for all ids)
-// ============================================================================
-export const contactTags = pgTable("contact_tags", {
-  id: varchar("id", { length: 36 }).primaryKey(),
-  contact_id: varchar("contact_id", { length: 36 }).notNull(),
-  tag_id: varchar("tag_id", { length: 36 }).notNull(),
-  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+// 联系人-标签关联表
+export const contactTags = pgTable(
+  "contact_tags",
+  {
+    id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+    contact_id: varchar("contact_id", { length: 36 }).notNull().references(() => contacts.id, { onDelete: "cascade" }),
+    tag_id: varchar("tag_id", { length: 36 }).notNull().references(() => tags.id, { onDelete: "cascade" }),
+    created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("contact_tags_contact_idx").on(table.contact_id),
+    index("contact_tags_tag_idx").on(table.tag_id),
+  ]
+);
 
-// ============================================================================
-// invalid_reports - 无效号码举报表 (varchar(36) for id)
-// ============================================================================
-export const invalidReports = pgTable("invalid_reports", {
-  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-  phone_hash: varchar("phone_hash", { length: 64 }).notNull().unique(),
-  report_count: integer("report_count").notNull().default(1),
-  report_type: varchar("report_type", { length: 20 }).notNull(),
-  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updated_at: timestamp("updated_at", { withTimezone: true }),
-});
+// 众包失效标记表（脱敏存储）
+export const invalidReports = pgTable(
+  "invalid_reports",
+  {
+    id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+    phone_hash: varchar("phone_hash", { length: 64 }).notNull().unique(), // 手机号哈希，脱敏
+    report_count: integer("report_count").default(1).notNull(),
+    report_type: varchar("report_type", { length: 20 }).default("invalid").notNull(), // invalid, changed_number, not_exist
+    last_reporter_id: varchar("last_reporter_id", { length: 36 }), // 最后上报者（不关联，仅记录）
+    created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updated_at: timestamp("updated_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("invalid_reports_phone_hash_idx").on(table.phone_hash),
+    index("invalid_reports_count_idx").on(table.report_count),
+  ]
+);
 
-// ============================================================================
-// backups - 备份记录表 (varchar(36) for id and user_id)
-// ============================================================================
+// 备份记录表
 export const backups = pgTable(
   "backups",
   {
     id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
     user_id: varchar("user_id", { length: 36 }).notNull(),
-    contact_count: integer("contact_count").notNull().default(0),
+    contact_count: integer("contact_count").default(0).notNull(),
     backup_url: varchar("backup_url", { length: 512 }),
-    backup_type: varchar("backup_type", { length: 20 }).notNull().default("full"),
+    backup_type: varchar("backup_type", { length: 20 }).default("full").notNull(), // full, incremental
     metadata: jsonb("metadata"),
-    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
     index("backups_user_id_idx").on(table.user_id),
@@ -124,199 +120,204 @@ export const backups = pgTable(
   ]
 );
 
-// ============================================================================
-// user_settings - 用户设置表 (varchar(36) for id and user_id)
-// ============================================================================
-export const userSettings = pgTable("user_settings", {
-  id: varchar("id", { length: 36 }).primaryKey(),
-  user_id: varchar("user_id", { length: 36 }).notNull().unique(),
-  settings: jsonb("settings"),
-  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updated_at: timestamp("updated_at", { withTimezone: true }),
-});
+// 用户设置表
+export const userSettings = pgTable(
+  "user_settings",
+  {
+    id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+    user_id: varchar("user_id", { length: 36 }).notNull().unique(),
+    settings: jsonb("settings").default({}).notNull(),
+    created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updated_at: timestamp("updated_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("user_settings_user_id_idx").on(table.user_id),
+  ]
+);
 
-// ============================================================================
-// user_points - 用户积分表 (uuid for id and user_id)
-// ============================================================================
-export const userPoints = pgTable("user_points", {
-  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  user_id: uuid("user_id").notNull().unique(),
-  balance: integer("balance").notNull().default(0),
-  total_earned: integer("total_earned").notNull().default(0),
-  total_spent: integer("total_spent").notNull().default(0),
-  credit_score: integer("credit_score").notNull().default(100),
-  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+// ============ 积分体系表 ============
 
-// ============================================================================
-// point_records - 积分记录表 (uuid for id, user_id, related_id)
-// ============================================================================
+// 用户积分表
+export const userPoints = pgTable(
+  "user_points",
+  {
+    id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+    user_id: varchar("user_id", { length: 36 }).notNull().unique(),
+    balance: integer("balance").default(0).notNull(),
+    total_earned: integer("total_earned").default(0).notNull(),
+    total_spent: integer("total_spent").default(0).notNull(),
+    credit_score: integer("credit_score").default(100).notNull(),
+    created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("user_points_user_id_idx").on(table.user_id),
+  ]
+);
+
+// 积分记录表
 export const pointRecords = pgTable(
   "point_records",
   {
-    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-    user_id: uuid("user_id").notNull(),
-    type: varchar("type", { length: 20 }).notNull(),
+    id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+    user_id: varchar("user_id", { length: 36 }).notNull(),
+    type: varchar("type", { length: 20 }).notNull(), // earn, spend
     action: varchar("action", { length: 50 }).notNull(),
     points: integer("points").notNull(),
     balance_after: integer("balance_after").notNull(),
     description: text("description"),
-    related_id: uuid("related_id"),
-    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    related_id: varchar("related_id", { length: 36 }),
+    created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
-    index("idx_point_records_user").on(table.user_id),
-    index("idx_point_records_created").on(table.created_at),
+    index("point_records_user_id_idx").on(table.user_id),
+    index("point_records_created_at_idx").on(table.created_at),
   ]
 );
 
-// ============================================================================
-// shop_products - 商品表 (uuid for id)
-// ============================================================================
-export const shopProducts = pgTable("shop_products", {
-  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  category: varchar("category", { length: 30 }).notNull(),
-  name: varchar("name", { length: 100 }).notNull(),
-  description: text("description"),
-  price: integer("price").notNull(),
-  stock: integer("stock"),
-  is_unlimited: boolean("is_unlimited").default(false),
-  is_active: boolean("is_active").default(true),
-  metadata: jsonb("metadata"),
-  sort_order: integer("sort_order").default(0),
-  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+// 商城商品表
+export const shopProducts = pgTable(
+  "shop_products",
+  {
+    id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+    category: varchar("category", { length: 30 }).notNull(),
+    name: varchar("name", { length: 100 }).notNull(),
+    description: text("description"),
+    price: integer("price").notNull(),
+    stock: integer("stock"),
+    is_unlimited: boolean("is_unlimited").default(false),
+    is_active: boolean("is_active").default(true),
+    metadata: jsonb("metadata"),
+    sort_order: integer("sort_order").default(0),
+    created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("shop_products_category_idx").on(table.category),
+    index("shop_products_active_idx").on(table.is_active),
+  ]
+);
 
-// ============================================================================
-// exchange_records - 兑换记录表 (uuid for id, user_id, product_id)
-// ============================================================================
+// 兑换记录表
 export const exchangeRecords = pgTable(
   "exchange_records",
   {
-    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-    user_id: uuid("user_id").notNull(),
-    product_id: uuid("product_id").notNull(),
+    id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+    user_id: varchar("user_id", { length: 36 }).notNull(),
+    product_id: varchar("product_id", { length: 36 }).notNull(),
     points_spent: integer("points_spent").notNull(),
-    status: varchar("status", { length: 20 }).notNull().default("pending"),
+    status: varchar("status", { length: 20 }).default("pending").notNull(),
     metadata: jsonb("metadata"),
-    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     completed_at: timestamp("completed_at", { withTimezone: true }),
   },
   (table) => [
-    index("idx_exchange_records_user").on(table.user_id),
+    index("exchange_records_user_id_idx").on(table.user_id),
+    index("exchange_records_product_idx").on(table.product_id),
   ]
 );
 
-// ============================================================================
-// medals - 勋章定义表 (uuid for id)
-// ============================================================================
-export const medals = pgTable("medals", {
-  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  code: varchar("code", { length: 50 }).notNull().unique(),
-  name: varchar("name", { length: 50 }).notNull(),
-  description: text("description"),
-  icon: varchar("icon", { length: 100 }),
-  requirement_type: varchar("requirement_type", { length: 30 }).notNull(),
-  requirement_value: integer("requirement_value").notNull(),
-  is_active: boolean("is_active").default(true),
-  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+// 勋章定义表
+export const medals = pgTable(
+  "medals",
+  {
+    id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+    code: varchar("code", { length: 50 }).notNull().unique(),
+    name: varchar("name", { length: 50 }).notNull(),
+    description: text("description"),
+    icon: varchar("icon", { length: 100 }),
+    requirement_type: varchar("requirement_type", { length: 30 }).notNull(),
+    requirement_value: integer("requirement_value").notNull(),
+    is_active: boolean("is_active").default(true),
+    created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("medals_code_idx").on(table.code),
+  ]
+);
 
-// ============================================================================
-// user_medals - 用户勋章表 (uuid for id, user_id, medal_id)
-// ============================================================================
+// 用户勋章表
 export const userMedals = pgTable(
   "user_medals",
   {
-    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-    user_id: uuid("user_id").notNull(),
-    medal_id: uuid("medal_id").notNull(),
-    earned_at: timestamp("earned_at", { withTimezone: true }).notNull().defaultNow(),
+    id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+    user_id: varchar("user_id", { length: 36 }).notNull(),
+    medal_id: varchar("medal_id", { length: 36 }).notNull().references(() => medals.id),
+    earned_at: timestamp("earned_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
-    uniqueIndex("user_medals_user_id_medal_id_unique").on(table.user_id, table.medal_id),
-    index("idx_user_medals_user").on(table.user_id),
+    index("user_medals_user_id_idx").on(table.user_id),
+    index("user_medals_medal_id_idx").on(table.medal_id),
   ]
 );
 
-// ============================================================================
-// report_validations - 举报验证表 (uuid for id and reporter_id)
-// ============================================================================
+// 标注验证表
 export const reportValidations = pgTable(
   "report_validations",
   {
-    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
     phone_hash: varchar("phone_hash", { length: 64 }).notNull(),
-    reporter_id: uuid("reporter_id").notNull(),
-    first_report_at: timestamp("first_report_at", { withTimezone: true }).notNull().defaultNow(),
-    confirmation_count: integer("confirmation_count").notNull().default(1),
+    reporter_id: varchar("reporter_id", { length: 36 }).notNull(),
+    first_report_at: timestamp("first_report_at", { withTimezone: true }).defaultNow().notNull(),
+    confirmation_count: integer("confirmation_count").default(1).notNull(),
     is_valid: boolean("is_valid").default(false),
     validated_at: timestamp("validated_at", { withTimezone: true }),
-    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
-    index("idx_report_validations_phone").on(table.phone_hash),
+    index("report_validations_phone_idx").on(table.phone_hash),
+    index("report_validations_reporter_idx").on(table.reporter_id),
   ]
 );
 
-// ============================================================================
-// checkin_streaks - 签到连续记录表 (uuid for id and user_id)
-// ============================================================================
-export const checkinStreaks = pgTable("checkin_streaks", {
-  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  user_id: uuid("user_id").notNull().unique(),
-  current_streak: integer("current_streak").notNull().default(0),
-  longest_streak: integer("longest_streak").notNull().default(0),
-  last_checkin_date: timestamp("last_checkin_date", { withTimezone: true }),
-  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+// 连续签到记录表
+export const checkinStreaks = pgTable(
+  "checkin_streaks",
+  {
+    id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+    user_id: varchar("user_id", { length: 36 }).notNull().unique(),
+    current_streak: integer("current_streak").default(0).notNull(),
+    longest_streak: integer("longest_streak").default(0).notNull(),
+    last_checkin_date: varchar("last_checkin_date", { length: 10 }),
+    updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("checkin_streaks_user_id_idx").on(table.user_id),
+  ]
+);
 
-// ============================================================================
-// daily_reports - 每日举报统计表 (uuid for id and user_id)
-// ============================================================================
+// 每日标注统计表
 export const dailyReports = pgTable(
   "daily_reports",
   {
-    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-    user_id: uuid("user_id").notNull(),
-    report_date: timestamp("report_date", { withTimezone: true }).notNull(),
-    valid_count: integer("valid_count").notNull().default(0),
+    id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+    user_id: varchar("user_id", { length: 36 }).notNull(),
+    report_date: varchar("report_date", { length: 10 }).notNull(),
+    valid_count: integer("valid_count").default(0).notNull(),
   },
   (table) => [
-    uniqueIndex("daily_reports_user_id_report_date_unique").on(table.user_id, table.report_date),
-    index("idx_daily_reports_user_date").on(table.user_id, table.report_date),
+    index("daily_reports_user_date_idx").on(table.user_id, table.report_date),
   ]
 );
 
-// ============================================================================
-// flagged_accounts - 标记账号表 (uuid for id, user_id, reviewed_by)
-// ============================================================================
-export const flaggedAccounts = pgTable("flagged_accounts", {
-  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  user_id: uuid("user_id").notNull(),
-  reason: varchar("reason", { length: 100 }).notNull(),
-  status: varchar("status", { length: 20 }).notNull().default("pending"),
-  reviewed_by: uuid("reviewed_by"),
-  reviewed_at: timestamp("reviewed_at", { withTimezone: true }),
-  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+// 异常账号标记表
+export const flaggedAccounts = pgTable(
+  "flagged_accounts",
+  {
+    id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+    user_id: varchar("user_id", { length: 36 }).notNull(),
+    reason: varchar("reason", { length: 100 }).notNull(),
+    status: varchar("status", { length: 20 }).default("pending").notNull(),
+    reviewed_by: varchar("reviewed_by", { length: 36 }),
+    reviewed_at: timestamp("reviewed_at", { withTimezone: true }),
+    created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("flagged_accounts_user_id_idx").on(table.user_id),
+    index("flagged_accounts_status_idx").on(table.status),
+  ]
+);
 
-// ============================================================================
-// feedback - 用户反馈表 (bigint for id, text for user_id)
-// ============================================================================
-export const feedback = pgTable("feedback", {
-  id: bigserial("id", { mode: "number" }).primaryKey(),
-  user_id: text("user_id").notNull(),
-  category: text("category").notNull().default("suggestion"),
-  content: text("content").notNull(),
-  contact: text("contact"),
-  created_at: timestamp("created_at", { withTimezone: true }).defaultNow(),
-});
-
-// ============================================================================
-// number_votes - 号码投票表 (bigserial for id, text for user_id)
-// ============================================================================
+// 号码投票表
 export const numberVotes = pgTable(
   "number_votes",
   {
@@ -324,7 +325,7 @@ export const numberVotes = pgTable(
     phone: text("phone").notNull(),
     user_id: text("user_id").notNull(),
     vote: text("vote").notNull(),
-    voted_at: timestamp("voted_at", { withTimezone: true }).notNull().defaultNow(),
+    voted_at: timestamp("voted_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
     index("number_votes_phone_idx").on(table.phone),
@@ -332,9 +333,7 @@ export const numberVotes = pgTable(
   ]
 );
 
-// ============================================================================
-// number_authentications - 号码认证表 (bigserial for id, text for user_id)
-// ============================================================================
+// 号码认证表
 export const numberAuthentications = pgTable(
   "number_authentications",
   {
@@ -342,7 +341,7 @@ export const numberAuthentications = pgTable(
     phone: text("phone").notNull(),
     user_id: text("user_id").notNull(),
     user_name: text("user_name").notNull(),
-    authenticated_at: timestamp("authenticated_at", { withTimezone: true }).notNull().defaultNow(),
+    authenticated_at: timestamp("authenticated_at", { withTimezone: true }).defaultNow().notNull(),
     expires_at: timestamp("expires_at", { withTimezone: true }),
   },
   (table) => [
