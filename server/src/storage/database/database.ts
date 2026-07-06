@@ -2,8 +2,8 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import * as schema from './shared/schema';
 
-// 数据库连接配置 - 尝试多个可能的环境变量
-const connectionString = process.env.DATABASE_URL || process.env.PGDATABASE_URL;
+// 数据库连接配置
+const connectionString = process.env.DATABASE_URL;
 
 // 创建数据库连接
 const client = postgres(connectionString || '', {
