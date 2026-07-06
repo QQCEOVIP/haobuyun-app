@@ -343,8 +343,11 @@ export const feedbacks = pgTable(
     id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
     user_id: varchar("user_id", { length: 36 }).notNull(),
     content: text("content").notNull(),
-    status: varchar("status", { length: 20 }).default("pending").notNull(),
-    created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    screenshot_url: text("screenshot_url"),
+    error_context: text("error_context"),
+    device_info: text("device_info"),
+    app_version: varchar("app_version", { length: 20 }),
+    created_at: timestamp("created_at", { withTimezone: true }).defaultNow(),
   },
   (table) => [
     index("feedbacks_user_id_idx").on(table.user_id),
