@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, varchar, timestamp, boolean, integer, jsonb, index, text } from "drizzle-orm/pg-core";
+import { pgTable, varchar, timestamp, boolean, integer, jsonb, index, text, bigserial } from "drizzle-orm/pg-core";
 
 // 联系人表
 export const contacts = pgTable(
@@ -314,5 +314,40 @@ export const flaggedAccounts = pgTable(
   (table) => [
     index("flagged_accounts_user_id_idx").on(table.user_id),
     index("flagged_accounts_status_idx").on(table.status),
+  ]
+);
+
+// ============ 号码状态共享投票机制表 ============
+
+// 号码投票表
+export const numberVotes = pgTable(
+  "number_votes",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    phone: text("phone").notNull(),
+    user_id: text("user_id").notNull(),
+    vote: text("vote").notNull(), // 'normal' | 'stopped'
+    voted_at: timestamp("voted_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("number_votes_phone_idx").on(table.phone),
+    index("number_votes_user_idx").on(table.user_id),
+  ]
+);
+
+// 号码认证表
+export const numberAuthentications = pgTable(
+  "number_authentications",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    phone: text("phone").notNull(),
+    user_id: text("user_id").notNull(),
+    user_name: text("user_name").notNull(),
+    authenticated_at: timestamp("authenticated_at", { withTimezone: true }).defaultNow().notNull(),
+    expires_at: timestamp("expires_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("number_authentications_phone_idx").on(table.phone),
+    index("number_authentications_user_idx").on(table.user_id),
   ]
 );
