@@ -39,14 +39,9 @@ else
 fi
 info "==================== 依赖安装完成！====================\n"
 
-info "==================== Server dist打包 ===================="
+info "==================== dist打包 ===================="
 info "开始执行：pnpm run build (server)"
-(pushd "$ROOT_DIR/server" > /dev/null && pnpm run build; popd > /dev/null) || error "Server dist打包失败"
-info "==================== Server dist打包完成！====================\n"
-
-info "==================== Client dist打包 ===================="
-info "开始执行：pnpm run build (client)"
-(pushd "$ROOT_DIR/client" > /dev/null && pnpm run build; popd > /dev/null) || error "Client dist打包失败"
-info "==================== Client dist打包完成！====================\n"
+(pushd "$ROOT_DIR/server" > /dev/null && pnpm run build; popd > /dev/null) || error "dist打包失败"
+info "==================== dist打包完成！====================\n"
 
 info "下一步：执行 ./prod_run.sh 启动服务"

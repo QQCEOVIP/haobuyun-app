@@ -18,7 +18,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
-import { useSafeRouter } from '@/hooks/useSafeRouter';
 import * as Contacts from 'expo-contacts';
 import * as FileSystemLegacy from 'expo-file-system/legacy';
 import * as FileSystem from 'expo-file-system';
@@ -67,7 +66,6 @@ interface ContactStats {
 }
 
 export default function HomeScreen() {
-  const router = useSafeRouter();
   const { user, session, avatarUrl: contextAvatarUrl } = useAuth();
   const [localAvatarUrl, setLocalAvatarUrl] = useState<string | null>(null);
   const displayAvatarUrl = contextAvatarUrl || localAvatarUrl;
@@ -82,7 +80,6 @@ export default function HomeScreen() {
   const [detecting, setDetecting] = useState(false);
   const [detectionResult, setDetectionResult] = useState<any>(null);
   const [cloudBackupVisible, setCloudBackupVisible] = useState(false);
-
 
   const [backups, setBackups] = useState<any[]>([]);
   const [backupLoading, setBackupLoading] = useState(false);
@@ -272,7 +269,7 @@ export default function HomeScreen() {
   const CONFIRMED_THRESHOLD = 5;
   const MAYBE_THRESHOLD = 1;
 
-  // 一键检测功能 - 使用服务端聚合API
+  // 一键检测功能
   const runDetection = async () => {
     if (detecting) return;
     
@@ -297,69 +294,97 @@ export default function HomeScreen() {
         return;
       }
 
-      // 收集所有电话号码
+      // 从 Supabase 和 AsyncStorage 读取联系人状态（AsyncStorage 为手动标签的 source of truth）
+      let allLocalContacts: any[] = [];
+      let page = 0;
+      const dbPageSize = 1000;
+      while (true) {
+        const { data } = await supabase
+          .from('contacts')
+          .select('phone, status')
+          .eq('user_id', userId)
+          .range(page * dbPageSize, (page + 1) * dbPageSize - 1);
+        if (!data || data.length === 0) break;
+        allLocalContacts = allLocalContacts.concat(data);
+        if (data.length < dbPageSize) break;
+        page++;
+      }
+
+      // 读取 AsyncStorage 中的手动标签（覆盖 Supabase 状态）
+      const allKeys = await AsyncStorage.getAllKeys();
+      const statusKeys = allKeys.filter(k => k.startsWith('@contact_status_'));
+      const localStatusMap = new Map<string, string>();
+      if (statusKeys.length > 0) {
+        const entries = await AsyncStorage.multiGet(statusKeys);
+        for (const [key, value] of entries) {
+          if (value) localStatusMap.set(key.replace('@contact_status_', ''), value);
+        }
+      }
+
+      // 收集所有电话号码用于社区投票查询
       const allPhones = deviceContacts
         .map(c => c.phoneNumbers?.[0]?.number || '')
         .filter(p => p.length > 0);
 
-      if (allPhones.length === 0) {
-        Alert.alert('提示', '未找到有效的电话号码');
-        setDetecting(false);
-        return;
+      // 查询社区投票结果
+      const communityVotesMap = new Map<string, { stoppedCount: number; communityStatus: string | null }>();
+      try {
+        const response = await fetch(`${getBackendBaseUrl()}/api/v1/votes/batch-query`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phones: allPhones.slice(0, 500) }), // 限制单次查询数量
+        });
+        if (response.ok) {
+          const data = await response.json();
+          if (data.results) {
+            for (const item of data.results) {
+              if (item.stopped_count > 0) {
+                communityVotesMap.set(item.phone, {
+                  stoppedCount: item.stopped_count,
+                  communityStatus: item.community_status,
+                });
+              }
+            }
+            // 缓存社区投票结果
+            await AsyncStorage.setItem('@community_votes_cache', JSON.stringify(data.results));
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to query community votes:', error);
       }
 
-      // 调用服务端一键检测API
-      const baseUrl = getBackendBaseUrl();
-      const response = await fetch(`${baseUrl}/api/v1/detect`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': userId || 'anonymous',
-        },
-        body: JSON.stringify({ phones: allPhones }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const data = await response.json();
-      if (!data.success || !data.results) {
-        throw new Error('检测失败');
-      }
-
-      // 缓存社区投票结果
-      await AsyncStorage.setItem('@community_votes_cache', JSON.stringify(data.results));
-
-      // 统计检测结果
+      // 统计检测结果（结合本地状态和社区投票）
       const result = {
-        total: data.results.length,
+        total: deviceContacts.length,
         active: 0,
         maybeInvalid: 0,
         invalid: 0,
         unknown: 0,
       };
 
-      // 保存疑似停机号码列表（供"可能失效"页面使用）
-      const suspectedPhones: Array<{ phone: string; name: string; votes: any; authenticated: any }> = [];
-
-      for (const item of data.results) {
-        // 找到对应的联系人姓名
-        const contact = deviceContacts.find(c => c.phoneNumbers?.[0]?.number === item.phone);
-        const contactName = contact?.displayName || contact?.name || '';
-
-        switch (item.status) {
+      deviceContacts.forEach(contact => {
+        const phone = contact.phoneNumbers?.[0]?.number || '';
+        const localData = allLocalContacts?.find((lc: any) => lc.phone === phone);
+        // AsyncStorage 手动标签优先，其次 Supabase 检测结果
+        const localStatus = localStatusMap.get(phone) || localData?.status;
+        const communityVote = communityVotesMap.get(phone);
+        
+        // 综合判断：本地状态 + 社区投票
+        // 确认停机：本地标记stopped OR 社区确认停机（>=5人标记）
+        // 疑似停机：社区疑似停机（>=1人标记）且本地未标记stopped
+        let finalStatus = localStatus;
+        if (communityVote?.communityStatus === 'confirmed_stopped') {
+          finalStatus = 'stopped';
+        } else if (communityVote?.communityStatus === 'maybe_stopped' && localStatus !== 'stopped') {
+          finalStatus = 'suspected_stopped';
+        }
+        
+        switch (finalStatus) {
           case 'normal':
             result.active++;
             break;
           case 'suspected_stopped':
             result.maybeInvalid++;
-            suspectedPhones.push({
-              phone: item.phone,
-              name: contactName,
-              votes: item.votes,
-              authenticated: item.authenticated,
-            });
             break;
           case 'stopped':
             result.invalid++;
@@ -367,10 +392,7 @@ export default function HomeScreen() {
           default:
             result.unknown++;
         }
-      }
-
-      // 保存疑似停机列表到 AsyncStorage
-      await AsyncStorage.setItem('@suspected_phones', JSON.stringify(suspectedPhones));
+      });
 
       // 更新统计
       setStats({
@@ -381,8 +403,17 @@ export default function HomeScreen() {
         unknown: result.unknown,
       });
 
-      // 保存检测结果（包含详细列表）
-      setDetectionResult({ ...result, suspectedPhones });
+      // 保存检测结果
+      setDetectionResult(result);
+      
+      // 显示检测结果摘要
+      const communityCount = communityVotesMap.size;
+      if (communityCount > 0) {
+        Alert.alert(
+          '检测完成',
+          `检测 ${result.total} 个号码\n发现 ${result.invalid} 个停机、${result.maybeInvalid} 个疑似停机\n（参考了 ${communityCount} 个社区投票）`
+        );
+      }
     } catch (error) {
       console.error('检测失败:', error);
       Alert.alert('错误', '检测过程中发生错误，请重试');
@@ -2112,17 +2143,6 @@ export default function HomeScreen() {
               </View>
             </>
           )}
-          {detectionResult && detectionResult.maybeInvalid > 0 && (
-            <TouchableOpacity
-              style={[styles.modalButton, { backgroundColor: '#E6A23C' }]}
-              onPress={() => {
-                setDetectionResult(null);
-                router.push('/suspected-contacts');
-              }}
-            >
-              <Text style={styles.modalButtonText}>查看可能失效号码</Text>
-            </TouchableOpacity>
-          )}
           <TouchableOpacity
             style={styles.modalButton}
             onPress={() => setDetectionResult(null)}
@@ -2503,24 +2523,6 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
     paddingBottom: 100,
-  },
-  // Badge
-  badge: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    backgroundColor: '#F56C6C',
-    borderRadius: 10,
-    minWidth: 18,
-    height: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 4,
-  },
-  badgeText: {
-    fontSize: 10,
-    color: '#FFF',
-    fontWeight: '700',
   },
   dashboardCard: {
     backgroundColor: '#FFFFFF',
