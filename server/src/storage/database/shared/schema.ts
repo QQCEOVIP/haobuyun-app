@@ -316,5 +316,3 @@ export const flaggedAccounts = pgTable(
     index("flagged_accounts_status_idx").on(table.status),
   ]
 );
-
-
