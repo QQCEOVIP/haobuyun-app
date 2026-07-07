@@ -9,6 +9,7 @@
     "install-missing": "node ./scripts/install-missing-deps.js",
     "lint": "(npx tsc --noEmit -p tsconfig.json --skipLibCheck 2>&1 | awk '/heroui/ {skip=1; next} /^$/ {skip=0} skip {next} {print}' > /tmp/tsc_output.txt) || true; cat /tmp/tsc_output.txt; npx eslint ./ -f ./scripts/formatter.mjs --quiet",
     "start": "expo start --web --clear",
+    "build": "expo export --platform web",
     "test": "jest --watchAll"
   },
   "jest": {
