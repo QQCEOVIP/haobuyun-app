@@ -11,6 +11,8 @@ import feedbackRouter from "./routes/feedback";
 import authRouter from "./routes/auth";
 import votesRouter from "./routes/votes";
 import numberStatusRouter from "./routes/number-status";
+import detectRouter from "./routes/detect";
+import authenticateRouter from "./routes/authenticate";
 // TODO: 扩展点预留 - 广告和游戏路由
 // import adsRouter from "./routes/ads";    // 广告回调 (AdMob/穿山甲/优量汇)
 // import gameRouter from "./routes/game";  // 小游戏 (H5/外部渠道)
@@ -80,6 +82,8 @@ app.use('/api/v1/votes', votesRouter);
 
 // 号码状态查询路由
 app.use('/api/v1/number-status', numberStatusRouter);
+app.use('/api/v1/detect', detectRouter);
+app.use('/api/v1/authenticate', authenticateRouter);
 
 // 测试账号路由
 
