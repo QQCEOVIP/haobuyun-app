@@ -255,6 +255,34 @@ export default function ContactsScreen() {
     }
   };
 
+  // 获取号码实时社区状态
+  const fetchNumberStatus = async (phone: string) => {
+    try {
+      const baseUrl = getBackendBaseUrl();
+      const response = await fetch(`${baseUrl}/api/v1/number-status/${encodeURIComponent(phone)}`, {
+        headers: { 'x-user-id': userId },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        // 更新社区投票缓存
+        if (data.vote_stats) {
+          setCommunityVotes(prev => {
+            const next = new Map(prev);
+            next.set(phone, {
+              stoppedCount: data.vote_stats.stopped_count || 0,
+              communityStatus: data.vote_stats.community_status || null,
+            });
+            return next;
+          });
+        }
+        return data;
+      }
+    } catch (error) {
+      console.warn('Failed to fetch number status:', error);
+    }
+    return null;
+  };
+
   // 加载社区投票缓存
   const loadCommunityVotesCache = async () => {
     try {
@@ -1089,6 +1117,8 @@ export default function ContactsScreen() {
                 onPress={() => {
                   setVotePanelContact(item);
                   setVotePanelVisible(true);
+                  // 获取实时社区状态
+                  fetchNumberStatus(item.phone);
                 }}
               >
                 <Text style={styles.badgeLabel}>社区</Text>
@@ -1564,6 +1594,12 @@ export default function ContactsScreen() {
           {(() => {
             const vote = votePanelContact ? communityVotes.get(votePanelContact.phone) : null;
             if (vote && vote.stoppedCount > 0) {
+              const statusLabel = vote.communityStatus === 'stopped' ? '社区判定：已失效'
+                : vote.communityStatus === 'suspected' ? '社区判定：疑似停用'
+                : '社区判定：正常';
+              const statusColor = vote.communityStatus === 'stopped' ? '#F56C6C'
+                : vote.communityStatus === 'suspected' ? '#E6A23C'
+                : '#67C23A';
               return (
                 <View style={styles.votePanelSummary}>
                   <Text style={styles.votePanelSummaryTitle}>社区投票结果</Text>
@@ -1572,10 +1608,17 @@ export default function ContactsScreen() {
                       标记停机: {vote.stoppedCount}人
                     </Text>
                   </View>
+                  <View style={{ marginTop: 6, paddingHorizontal: 12, paddingVertical: 4, backgroundColor: statusColor + '15', borderRadius: 6, alignSelf: 'flex-start' }}>
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: statusColor }}>{statusLabel}</Text>
+                  </View>
                 </View>
               );
             }
-            return null;
+            return (
+              <View style={styles.votePanelSummary}>
+                <Text style={[styles.votePanelSummaryText, { color: '#909399', textAlign: 'center' }]}>暂无社区投票数据</Text>
+              </View>
+            );
           })()}
           <View style={styles.votePanelOptions}>
             <Text style={styles.votePanelOptionsTitle}>你的投票</Text>
