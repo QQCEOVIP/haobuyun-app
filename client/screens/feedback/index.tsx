@@ -15,9 +15,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import * as Device from 'expo-device';
+import * as ExpoConstants from 'expo-constants';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
 import { useAuth } from '@/contexts/AuthContext';
 import { getBackendBaseUrl } from '@/utils';
+import { getDeviceDisplayName } from '@/utils/device-name-map';
 import { createFormDataFile } from '@/utils';
 
 const CATEGORIES = [
@@ -92,6 +95,23 @@ export default function FeedbackScreen() {
       formData.append('content', content.trim());
       formData.append('contact', contact.trim() || '');
       formData.append('userId', userId);
+
+      // 设备信息
+      const brand = getDeviceDisplayName(Device.manufacturer);
+      const model = Device.modelName || 'Unknown';
+      const deviceInfo = brand !== '未知设备' ? `${brand} - ${model}` : model;
+      formData.append('deviceInfo', deviceInfo);
+
+      // APP版本号
+      const appVersion = ExpoConstants.expoConfig?.version || 'Unknown';
+      formData.append('appVersion', appVersion);
+
+      // 用户标识（邮箱脱敏）
+      const userEmail = (user as any)?.email || '';
+      const maskedEmail = userEmail
+        ? userEmail.replace(/(.{3}).*(@.*)/, '$1****$2')
+        : '未登录';
+      formData.append('userIdentifier', maskedEmail);
 
       // 如果有图片，添加到 FormData
       if (selectedImage) {

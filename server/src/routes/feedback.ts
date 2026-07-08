@@ -35,7 +35,7 @@ const getSupabaseAdmin = () => createClient(
 //   - screenshot?: File (图片文件)
 router.post('/', upload.single('screenshot'), async (req, res) => {
   try {
-    const { category, content, contact, userId } = req.body;
+    const { category, content, contact, userId, device_info, app_version, user_phone } = req.body;
 
     if (!content || !userId) {
       return res.status(400).json({ error: 'Missing required fields' });
@@ -83,6 +83,9 @@ router.post('/', upload.single('screenshot'), async (req, res) => {
           <blockquote>${content.trim()}</blockquote>
           <p><strong>联系方式：</strong>${contact?.trim() || '未提供'}</p>
           <p><strong>用户ID：</strong>${userId}</p>
+          <p><strong>用户手机：</strong>${user_phone || '未登录'}</p>
+          <p><strong>设备信息：</strong>${device_info || '未知'}</p>
+          <p><strong>APP版本：</strong>${app_version || '未知'}</p>
           <p><strong>时间：</strong>${new Date().toLocaleString('zh-CN')}</p>
           ${req.file ? '<p><strong>附件：</strong>截图已作为附件发送</p>' : ''}
         `,
