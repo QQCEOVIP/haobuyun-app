@@ -614,29 +614,39 @@ export default function ContactsScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              // 写入 deleted_contacts 表（回收站）
+              // 1. 先从本地设备删除（确保本地一定被删除）
+              if (editingContact.deviceContactId) {
+                try {
+                  await Contacts.removeContactAsync(editingContact.deviceContactId);
+                } catch (deviceErr) {
+                  console.warn('[Contacts] Failed to remove from device:', deviceErr);
+                }
+              }
+
+              // 2. 写入 deleted_contacts 表（回收站）
               const { data: { user } } = await supabase.auth.getUser();
               if (user) {
                 for (const phone of editingContact.phoneNumbers) {
-                  await supabase.from('deleted_contacts').upsert({
-                    user_id: user.id,
-                    phone: phone,
-                    name: editingContact.name,
-                    deleted_at: new Date().toISOString(),
-                  });
+                  try {
+                    await supabase.from('deleted_contacts').upsert({
+                      user_id: user.id,
+                      phone: phone,
+                      name: editingContact.name,
+                      deleted_at: new Date().toISOString(),
+                    });
+                  } catch (dbErr) {
+                    console.warn('[Contacts] Failed to write to deleted_contacts:', dbErr);
+                  }
                 }
               }
-              // 从本地设备删除
-              if (editingContact.deviceContactId) {
-                await Contacts.removeContactAsync(editingContact.deviceContactId);
-              }
-              // 清除本地头像缓存
+
+              // 3. 清除本地头像缓存
               if (editingContact.phone && contactAvatars[editingContact.phone]) {
                 const newAvatars = { ...contactAvatars };
                 delete newAvatars[editingContact.phone];
                 setContactAvatars(newAvatars);
               }
-              // 从列表移除
+              // 4. 从列表移除
               setContacts(prev => prev.filter(c => c.id !== editingContact.id));
               setEditModalVisible(false);
               setEditingContact(null);

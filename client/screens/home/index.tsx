@@ -56,7 +56,8 @@ import * as Sharing from 'expo-sharing';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/storage/supabase';
-import { resolveDeviceName } from '@/utils/device-name-map';
+import { getDeviceDisplayName } from '@/utils/device-name-map';
+import * as Device from 'expo-device';
 
 interface ContactStats {
   total: number;
@@ -1252,11 +1253,8 @@ export default function HomeScreen() {
 
   // ========== Helper functions for backup ==========
   const getDeviceModel = (): string => {
-    const brand = (Platform as any).constants?.Brand || '';
-    const model = (Platform as any).constants?.Model || '';
-    const modelCode = model || (Constants as any).deviceName || '';
-    const friendlyName = resolveDeviceName(modelCode, brand);
-    return friendlyName.replace(/[^a-z0-9\u4e00-\u9fa5\-]/gi, '-').substring(0, 30);
+    const displayName = getDeviceDisplayName(Device.manufacturer);
+    return displayName.replace(/[^a-z0-9\u4e00-\u9fa5\-]/gi, '-').substring(0, 30);
   };
 
   const formatBackupFileName = (count: number = 0, deviceName: string = ''): string => {
@@ -1514,7 +1512,7 @@ export default function HomeScreen() {
       version: '1.0',
       exportedAt: new Date().toISOString(),
       device: 'mobile',
-      device_model: resolveDeviceName((Platform as any).constants?.Model || '', (Platform as any).constants?.Brand || ''),
+      device_model: getDeviceDisplayName(Device.manufacturer),
       contacts: contactsData,
     });
     const sizeKB = Math.round(backupJson.length / 1024);
@@ -1530,7 +1528,7 @@ export default function HomeScreen() {
       version: '1.0',
       exportedAt: new Date().toISOString(),
       device: 'mobile',
-      device_model: resolveDeviceName((Platform as any).constants?.Model || '', (Platform as any).constants?.Brand || ''),
+      device_model: getDeviceDisplayName(Device.manufacturer),
       contacts: contactsData,
     };
   };

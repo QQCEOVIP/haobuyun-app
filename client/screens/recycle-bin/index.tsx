@@ -124,8 +124,28 @@ export default function RecycleBinScreen() {
           console.log('[RecycleBin] Contacts permission status:', status);
           
           if (status === 'granted') {
+            // 获取本地通讯录所有联系人，用于去重检查
+            const localContacts = await Contacts.getContactsAsync({
+              fields: [Contacts.ContactField.PhoneNumbers],
+            });
+            const localPhones = new Set<string>();
+            for (const lc of localContacts.data) {
+              for (const p of (lc.phoneNumbers || [])) {
+                const normalized = (p.number || '').replace(/[\s\-()]/g, '');
+                if (normalized.length >= 7) localPhones.add(normalized);
+              }
+            }
+
             for (const contact of selectedContacts) {
               try {
+                // 检查本地是否已存在该号码
+                const normalizedPhone = (contact.phone || '').replace(/[\s\-()]/g, '');
+                if (normalizedPhone && localPhones.has(normalizedPhone)) {
+                  console.log('[RecycleBin] Contact already exists locally, skipping device add:', contact.name, contact.phone);
+                  addedToDevice++; // 算作成功（已在本地）
+                  continue;
+                }
+
                 console.log('[RecycleBin] Adding contact to device:', contact.name, contact.phone);
                 const result = await Contacts.addContactAsync({
                   firstName: contact.name || '',
