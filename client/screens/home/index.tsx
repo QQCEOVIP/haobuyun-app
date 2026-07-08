@@ -1265,7 +1265,7 @@ export default function HomeScreen() {
     const timeStr = now.getHours().toString().padStart(2, '0') + '-' +
       now.getMinutes().toString().padStart(2, '0') + '-' +
       now.getSeconds().toString().padStart(2, '0');
-    const safeDevice = (deviceName || 'Unknown').replace(/[^a-z0-9\-]/gi, '-').substring(0, 20);
+    const safeDevice = (deviceName || 'Unknown').replace(/[\\:*?"<>|]/g, '-').substring(0, 20);
     return '号簿云备份_' + safeDevice + '_' + count + '个号码_' + dateStr + '_' + timeStr + '.json';
   };
 
