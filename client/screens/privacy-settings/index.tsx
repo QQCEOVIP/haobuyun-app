@@ -11,8 +11,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as FileSystem from 'expo-file-system/legacy';
-import * as Sharing from 'expo-sharing';
 import { router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/storage/supabase';
@@ -96,31 +94,6 @@ export default function PrivacySettingsScreen() {
     await AsyncStorage.setItem(key, val.toString());
   };
 
-  const handleExportData = async () => {
-    if (!userId) return;
-    try {
-      const { data, error } = await supabase
-        .from('contacts')
-        .select('phone, status, created_at, updated_at')
-        .eq('user_id', userId);
-      if (error) throw error;
-
-      const json = JSON.stringify(data || [], null, 2);
-      const fileUri = `${FileSystem.cacheDirectory}my_marks_export.json`;
-      await FileSystem.writeAsStringAsync(fileUri, json, { encoding: FileSystem.EncodingType.UTF8 });
-
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(fileUri, {
-          mimeType: 'application/json',
-          dialogTitle: '导出标记记录',
-        });
-      } else {
-        Alert.alert('提示', '当前设备不支持文件分享');
-      }
-    } catch (error: any) {
-      Alert.alert('导出失败', error?.message || '请重试');
-    }
-  };
 
   const handleDeleteAccount = () => {
     Alert.alert(
@@ -169,13 +142,6 @@ export default function PrivacySettingsScreen() {
             subtitle="在个人页隐藏标记次数"
             value={hideStats}
             onToggle={(v) => toggle(KEYS.hideStats, setHideStats, v)}
-          />
-          <ArrowItem
-            icon="download"
-            color="#67C23A"
-            title="数据导出"
-            subtitle="导出本人所有标记记录(JSON)"
-            onPress={handleExportData}
           />
           <ArrowItem
             icon="trash"
