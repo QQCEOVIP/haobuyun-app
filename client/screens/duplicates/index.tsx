@@ -31,6 +31,7 @@ export default function DuplicatesScreen() {
   const [loading, setLoading] = useState(true);
   const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set());
   const [keepIndices, setKeepIndices] = useState<Record<string, number>>({});
+  const [deleting, setDeleting] = useState(false);
 
   const loadDuplicates = useCallback(async () => {
     setLoading(true);
@@ -159,50 +160,71 @@ export default function DuplicatesScreen() {
         {
           text: '确认删除',
           style: 'destructive',
-          onPress: async () => {
-            try {
-              let totalDeleted = 0;
-              const deletedPhones: string[] = [];
-              const deletedNames: string[] = [];
-              for (const group of duplicateGroups) {
-                if (!selectedGroups.has(group.phone)) continue;
-                // Determine which entry to keep (user-selected or recommended)
-                const keepIdx = keepIndices[group.phone] ?? group.recommendedIndex;
-                // Delete all entries except the kept one from device contacts
-                for (let i = 0; i < group.entries.length; i++) {
-                  if (i === keepIdx) continue; // Keep the selected entry
-                  const entry = group.entries[i];
-                  try {
-                    // Actually delete from device contacts
-                    await Contacts.removeContactAsync(entry.id);
-                    deletedPhones.push(entry.phone);
-                    deletedNames.push(entry.name);
-                    totalDeleted++;
-                  } catch (removeErr) {
-                    console.warn('Failed to delete contact:', entry.name, removeErr);
-                  }
-                }
-              }
-              // Also move to cloud recycle bin
-              if (user?.id && deletedPhones.length > 0) {
-                const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-                headers['x-user-id'] = user.id;
-                await fetch(`${getBackendBaseUrl()}/api/v1/contacts/batch-delete`, {
-                  method: 'POST',
-                  headers,
-                  body: JSON.stringify({ phones: deletedPhones, names: deletedNames }),
-                }).catch(() => { /* Silently fail if backend is unavailable */ });
-              }
-              setSelectedGroups(new Set());
-              loadDuplicates();
-              Alert.alert('完成', `已从通讯录删除 ${totalDeleted} 个重复条目，可在回收站恢复`);
-            } catch (error) {
-              console.error('Batch delete failed:', error);
-            }
-          },
+          onPress: () => executeBatchDelete(),
         },
       ]
     );
+  };
+
+  const executeBatchDelete = async () => {
+    if (deleting) return;
+    setDeleting(true);
+    try {
+      let totalDeleted = 0;
+      let totalFailed = 0;
+      const deletedPhones: string[] = [];
+      const deletedNames: string[] = [];
+
+      for (const group of duplicateGroups) {
+        if (!selectedGroups.has(group.phone)) continue;
+        const keepIdx = keepIndices[group.phone] ?? group.recommendedIndex;
+
+        for (let i = 0; i < group.entries.length; i++) {
+          if (i === keepIdx) continue;
+          const entry = group.entries[i];
+          try {
+            await Contacts.removeContactAsync(entry.id);
+            deletedPhones.push(entry.phone);
+            deletedNames.push(entry.name);
+            totalDeleted++;
+          } catch (removeErr: any) {
+            console.warn('Failed to delete contact:', entry.name, removeErr);
+            totalFailed++;
+          }
+        }
+      }
+
+      // Sync to cloud recycle bin
+      if (user?.id && deletedPhones.length > 0) {
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        headers['x-user-id'] = user.id;
+        await fetch(`${getBackendBaseUrl()}/api/v1/contacts/batch-delete`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ phones: deletedPhones, names: deletedNames }),
+        }).catch(() => { /* Silently fail if backend is unavailable */ });
+      }
+
+      setSelectedGroups(new Set());
+      await loadDuplicates();
+
+      // Show result feedback
+      if (totalDeleted === 0 && totalFailed > 0) {
+        Alert.alert(
+          '删除失败',
+          `未能删除任何联系人（${totalFailed} 个失败）。\n\n可能原因：这些联系人由账号同步管理，请在系统通讯录中手动删除。`
+        );
+      } else if (totalFailed > 0) {
+        Alert.alert('部分完成', `已删除 ${totalDeleted} 个，${totalFailed} 个删除失败`);
+      } else {
+        Alert.alert('完成', `已从通讯录删除 ${totalDeleted} 个重复条目，可在回收站恢复`);
+      }
+    } catch (error) {
+      console.error('Batch delete failed:', error);
+      Alert.alert('错误', '批量删除过程中出现异常，请重试');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const handleKeepGroup = async (phone: string) => {
@@ -279,12 +301,12 @@ export default function DuplicatesScreen() {
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.batchDeleteBtn, selectedGroups.size === 0 && styles.batchDeleteBtnDisabled]}
+              style={[styles.batchDeleteBtn, (selectedGroups.size === 0 || deleting) && styles.batchDeleteBtnDisabled]}
               onPress={handleBatchDelete}
-              disabled={selectedGroups.size === 0}
+              disabled={selectedGroups.size === 0 || deleting}
             >
-              <Text style={[styles.batchDeleteText, selectedGroups.size === 0 && styles.batchDeleteTextDisabled]}>
-                批量处理 ({selectedGroups.size})
+              <Text style={[styles.batchDeleteText, (selectedGroups.size === 0 || deleting) && styles.batchDeleteTextDisabled]}>
+                {deleting ? '处理中...' : `批量处理 (${selectedGroups.size})`}
               </Text>
             </TouchableOpacity>
           </View>
