@@ -18,7 +18,7 @@ export default function PrivacyScreen() {
         <Text style={styles.sectionTitle}>二、信息使用目的</Text>
         <Text style={styles.paragraph}>我们收集的信息将用于以下目的：</Text>
         <Text style={styles.paragraph}>1. 通讯录备份与恢复：将您的通讯录数据安全存储至云端，支持跨设备恢复。</Text>
-        <Text style={styles.paragraph}>2. 号码状态检测：对通讯录中的号码进行状态检测，标识正常、停机、疑似停机等状态。</Text>
+        <Text style={styles.paragraph}>2. 号码状态检测：对通讯录中的号码进行状态检测，标识正常、停用、疑似停用等状态。</Text>
         <Text style={styles.paragraph}>3. 服务改进：基于使用情况优化产品功能和服务质量。</Text>
 
         <Text style={styles.sectionTitle}>三、信息存储</Text>

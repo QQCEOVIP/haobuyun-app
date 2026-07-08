@@ -47,7 +47,7 @@ export default function AboutScreen() {
 
         <Text style={styles.sectionTitle}>核心功能</Text>
         <Text style={styles.paragraph}>1. 云端备份：将通讯录数据安全备份至云端，支持跨设备恢复，防止数据丢失。</Text>
-        <Text style={styles.paragraph}>2. 号码检测：智能检测通讯录中联系人号码的状态，标识正常、停机、疑似停机等状态。</Text>
+        <Text style={styles.paragraph}>2. 号码检测：智能检测通讯录中联系人号码的状态，标识正常、停用、疑似停用等状态。</Text>
         <Text style={styles.paragraph}>3. 导入导出：支持VCF格式通讯录的批量导入与导出，方便数据迁移。</Text>
         <Text style={styles.paragraph}>4. 状态管理：为联系人添加状态标签，快速筛选和管理联系人。</Text>
 

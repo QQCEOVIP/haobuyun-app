@@ -24,10 +24,10 @@ function encryptName(name: string): string {
  * Returns: { phone, status, stopped_count, normal_count, auth_count, certified, auth_names }
  * 
  * 状态判定（基于不同用户数）：
- * - 0 个用户标记停机 → "normal"
- * - 1~2 个用户标记停机 → "possibly_invalid"
- * - ≥3 个用户标记停机 + 认证人数 < 标记人数 → "confirmed_invalid"
- * - ≥3 个用户标记停机 + 认证人数 ≥ 标记人数 → "possibly_invalid"
+ * - 0 个用户标记停用 → "normal"
+ * - 1~2 个用户标记停用 → "possibly_invalid"
+ * - ≥3 个用户标记停用 + 认证人数 < 标记人数 → "confirmed_invalid"
+ * - ≥3 个用户标记停用 + 认证人数 ≥ 标记人数 → "possibly_invalid"
  */
 router.get('/:phone', async (req: any, res: any) => {
   try {
@@ -73,7 +73,7 @@ router.get('/:phone', async (req: any, res: any) => {
     } else if (stoppedCount < CONFIRMED_THRESHOLD) {
       status = 'possibly_invalid';
     } else {
-      // >=3 个不同用户标记停机
+      // >=3 个不同用户标记停用
       if (authCount >= stoppedCount) {
         status = 'possibly_invalid'; // 有争议
       } else {

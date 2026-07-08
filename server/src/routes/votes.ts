@@ -6,8 +6,8 @@ import { isValidPhone, normalizePhone } from '../middleware/rate-limit';
 const router: any = Router();
 
 // 阈值配置（基于不同用户数）
-// >=3 个不同用户投"失效" → 确认停机
-// >=1 个用户投"失效" → 疑似停机
+// >=3 个不同用户投"失效" → 确认停用
+// >=1 个用户投"失效" → 疑似停用
 const CONFIRMED_THRESHOLD = 3;
 const MAYBE_THRESHOLD = 1;
 
@@ -128,8 +128,8 @@ router.delete('/', requireAuth, async (req: any, res: any) => {
  * Returns: { results: { phone, stopped_count, voter_count, community_status }[] }
  * 
  * 社区状态计算（基于不同用户数）：
- * - 不同用户投 stopped >= 3 → 'confirmed_stopped' (确认停机)
- * - 不同用户投 stopped >= 1 → 'maybe_stopped' (疑似停机)
+ * - 不同用户投 stopped >= 3 → 'confirmed_stopped' (确认停用)
+ * - 不同用户投 stopped >= 1 → 'maybe_stopped' (疑似停用)
  * - 无 stopped 投票 → null
  * 
  * 限制：单次最多 50 个号码

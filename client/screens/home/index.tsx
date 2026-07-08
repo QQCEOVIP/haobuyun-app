@@ -372,8 +372,8 @@ export default function HomeScreen() {
         const communityVote = communityVotesMap.get(phone);
         
         // 综合判断：本地状态 + 社区投票
-        // 确认停机：本地标记stopped OR 社区确认停机（>=5人标记）
-        // 疑似停机：社区疑似停机（>=1人标记）且本地未标记stopped
+        // 确认停用：本地标记stopped OR 社区确认停用（>=5人标记）
+        // 疑似停用：社区疑似停用（>=1人标记）且本地未标记stopped
         let finalStatus = localStatus;
         if (communityVote?.communityStatus === 'confirmed_stopped') {
           finalStatus = 'stopped';
@@ -413,7 +413,7 @@ export default function HomeScreen() {
       if (communityCount > 0) {
         Alert.alert(
           '检测完成',
-          `检测 ${result.total} 个号码\n发现 ${result.invalid} 个停机、${result.maybeInvalid} 个疑似停机\n（参考了 ${communityCount} 个社区投票）`
+          `检测 ${result.total} 个号码\n发现 ${result.invalid} 个停用、${result.maybeInvalid} 个疑似停用\n（参考了 ${communityCount} 个社区投票）`
         );
       }
     } catch (error) {

@@ -83,7 +83,7 @@ interface Contact {
 const STATUS_TABS = [
   { key: 'all', label: '全部' },
   { key: 'normal', label: '正常' },
-  { key: 'stopped', label: '停机' },
+  { key: 'stopped', label: '停用' },
 ];
 
 export default function ContactsScreen() {
@@ -1033,9 +1033,9 @@ export default function ContactsScreen() {
       case 'normal':
         return { bg: '#E7F7E7', text: '#67C23A', label: '正常' };
       case 'stopped':
-        return { bg: '#FEF0F0', text: '#F56C6C', label: '停机' };
+        return { bg: '#FEF0F0', text: '#F56C6C', label: '停用' };
       case 'suspected_stopped':
-        return { bg: '#FFF8E6', text: '#E6A23C', label: '疑似停机' };
+        return { bg: '#FFF8E6', text: '#E6A23C', label: '疑似停用' };
       default:
         return { bg: '#F5F7FA', text: '#909399', label: '未标记' };
     }
@@ -1044,9 +1044,9 @@ export default function ContactsScreen() {
   const getCommunityVoteStyle = (communityStatus: string | null) => {
     switch (communityStatus) {
       case 'confirmed_stopped':
-        return { bg: '#FEF0F0', text: '#F56C6C', label: '停机' };
+        return { bg: '#FEF0F0', text: '#F56C6C', label: '停用' };
       case 'maybe_stopped':
-        return { bg: '#FFF8E6', text: '#E6A23C', label: '疑似停机' };
+        return { bg: '#FFF8E6', text: '#E6A23C', label: '疑似停用' };
       default:
         return null;
     }
@@ -1326,13 +1326,13 @@ export default function ContactsScreen() {
           <View style={styles.infoItem}>
             <View style={[styles.infoDot, { backgroundColor: '#F56C6C' }]} />
             <Text style={styles.infoText}>
-              <Text style={{ fontWeight: '600' }}>停机</Text>：号码已确认停机或空号
+              <Text style={{ fontWeight: '600' }}>停用</Text>：号码已确认停用或空号
             </Text>
           </View>
           <View style={styles.infoItem}>
             <View style={[styles.infoDot, { backgroundColor: '#E6A23C' }]} />
             <Text style={styles.infoText}>
-              <Text style={{ fontWeight: '600' }}>疑似停机</Text>：号码可能已停机，建议核实
+              <Text style={{ fontWeight: '600' }}>疑似停用</Text>：号码可能已停用，建议核实
             </Text>
           </View>
           <View style={styles.infoItem}>
@@ -1369,7 +1369,7 @@ export default function ContactsScreen() {
             onPress={() => updateContactStatus(statusMenuContact, 'stopped')}
           >
             <Ionicons name="close-circle" size={20} color="#F56C6C" />
-            <Text style={[styles.statusMenuOptionText, { color: '#F56C6C' }]}>停机</Text>
+            <Text style={[styles.statusMenuOptionText, { color: '#F56C6C' }]}>停用</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.statusMenuCancel}
@@ -1616,7 +1616,7 @@ export default function ContactsScreen() {
                   <Text style={styles.votePanelSummaryTitle}>社区投票结果</Text>
                   <View style={styles.votePanelSummaryRow}>
                     <Text style={[styles.votePanelSummaryText, { color: '#F56C6C' }]}>
-                      标记停机: {vote.stoppedCount}人
+                      标记停用: {vote.stoppedCount}人
                     </Text>
                   </View>
                   <View style={{ marginTop: 6, paddingHorizontal: 12, paddingVertical: 4, backgroundColor: statusColor + '15', borderRadius: 6, alignSelf: 'flex-start' }}>
@@ -1644,8 +1644,8 @@ export default function ContactsScreen() {
             >
               <Ionicons name="close-circle" size={22} color="#F56C6C" />
               <View style={styles.votePanelOptionText}>
-                <Text style={[styles.votePanelOptionTitle, { color: '#F56C6C' }]}>停机</Text>
-                <Text style={styles.votePanelOptionDesc}>该号码已停机/空号</Text>
+                <Text style={[styles.votePanelOptionTitle, { color: '#F56C6C' }]}>停用</Text>
+                <Text style={styles.votePanelOptionDesc}>该号码已停用/空号</Text>
               </View>
             </TouchableOpacity>
             <TouchableOpacity
@@ -1660,7 +1660,7 @@ export default function ContactsScreen() {
               <Ionicons name="checkmark-circle" size={22} color="#67C23A" />
               <View style={styles.votePanelOptionText}>
                 <Text style={[styles.votePanelOptionTitle, { color: '#67C23A' }]}>号码有效</Text>
-                <Text style={styles.votePanelOptionDesc}>撤回之前的停机标记</Text>
+                <Text style={styles.votePanelOptionDesc}>撤回之前的停用标记</Text>
               </View>
             </TouchableOpacity>
           </View>

@@ -20,7 +20,7 @@ export default function AgreementScreen() {
         <Text style={styles.sectionTitle}>三、服务内容</Text>
         <Text style={styles.paragraph}>号簿云为您提供以下服务：</Text>
         <Text style={styles.paragraph}>1. 通讯录备份与恢复：将您的通讯录数据安全备份至云端，支持随时恢复。</Text>
-        <Text style={styles.paragraph}>2. 号码状态检测：检测通讯录中联系人号码的状态，包括正常、停机、疑似停机等状态标识。</Text>
+        <Text style={styles.paragraph}>2. 号码状态检测：检测通讯录中联系人号码的状态，包括正常、停用、疑似停用等状态标识。</Text>
         <Text style={styles.paragraph}>3. 通讯录导入导出：支持通讯录数据的批量导入与导出操作。</Text>
         <Text style={styles.paragraph}>4. 智能标签管理：为联系人添加状态标签，便于分类管理。</Text>
 
