@@ -63,7 +63,7 @@ router.post('/', requireAuth, async (req: any, res: any) => {
         SELECT COUNT(*)::int as recent_count
         FROM number_votes
         WHERE user_id = ${userId}
-          AND voted_at > NOW() - INTERVAL '1 minute'
+          AND created_at > NOW() - INTERVAL '1 minute'
       `);
       const recentCount = (rateCheck as any[])?.[0]?.recent_count || 0;
       if (recentCount >= 10) {
@@ -75,11 +75,11 @@ router.post('/', requireAuth, async (req: any, res: any) => {
 
     // UPSERT 投票记录
     const result = await db.execute(sql`
-      INSERT INTO number_votes (phone, user_id, vote, voted_at)
-      VALUES (${normalizedPhone}, ${userId}, ${vote}, NOW())
+      INSERT INTO number_votes (phone, user_id, vote)
+      VALUES (${normalizedPhone}, ${userId}, ${vote})
       ON CONFLICT (phone, user_id) 
-      DO UPDATE SET vote = ${vote}, voted_at = NOW()
-      RETURNING id, phone, user_id, vote, voted_at
+      DO UPDATE SET vote = ${vote}, updated_at = NOW()
+      RETURNING id, phone, user_id, vote, created_at
     `);
 
     res.json({ success: true, data: (result as any[])?.[0] || null });

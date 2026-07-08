@@ -68,7 +68,7 @@ export async function voteRateCheck(req: Request, res: Response, next: NextFunct
       SELECT COUNT(*)::int as recent_count
       FROM number_votes
       WHERE user_id = ${userId}
-        AND voted_at > NOW() - INTERVAL '1 minute'
+        AND created_at > NOW() - INTERVAL '1 minute'
     `);
     const count = (result as any[])?.[0]?.recent_count || 0;
     if (count >= 10) {
