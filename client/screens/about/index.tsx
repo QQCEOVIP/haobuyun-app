@@ -1,24 +1,101 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Linking } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as LocalUpdater from 'expo-local-updater';
 import Logo from '@/components/Logo';
+
+const BACKEND_BASE_URL = process.env.EXPO_PUBLIC_BACKEND_BASE_URL || '';
+
+interface UpdateInfo {
+  update_available: boolean;
+  latest_version_code: number;
+  latest_version_name: string;
+  download_url: string;
+  release_notes: string;
+  mandatory: boolean;
+}
 
 export default function AboutScreen() {
   const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const progressListenerRef = useRef<ReturnType<typeof LocalUpdater.addProgressListener> | null>(null);
+  const stateListenerRef = useRef<ReturnType<typeof LocalUpdater.addStateListener> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      progressListenerRef.current?.remove();
+      stateListenerRef.current?.remove();
+    };
+  }, []);
 
   const handleCheckUpdate = async () => {
     setCheckingUpdate(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      Alert.alert(
-        '当前已是最新版本',
-        '版本号：内测版本 1.0.0\n暂无可用更新',
-        [{ text: '确定', style: 'default' }]
+      let versionCode = 1;
+      try {
+        versionCode = await LocalUpdater.getVersionCode();
+      } catch {
+        // fallback for web/dev
+      }
+
+      const response = await fetch(
+        `${BACKEND_BASE_URL}/api/v1/updates/check?current_version_code=${versionCode}`
       );
+      if (!response.ok) throw new Error('Network error');
+
+      const data: UpdateInfo = await response.json();
+
+      if (!data.update_available) {
+        let versionName = '1.0.1';
+        try {
+          versionName = await LocalUpdater.getVersionName();
+        } catch {
+          // fallback
+        }
+        Alert.alert('当前已是最新版本', `版本号：v${versionName}`, [{ text: '确定' }]);
+      } else {
+        setUpdateInfo(data);
+        setShowUpdateModal(true);
+      }
     } catch {
-      Alert.alert('检查失败', '无法检查更新，请稍后重试');
+      Alert.alert('检查失败', '无法检查更新，请检查网络连接后重试');
     } finally {
       setCheckingUpdate(false);
+    }
+  };
+
+  const handleDownload = () => {
+    if (!updateInfo?.download_url) return;
+
+    setDownloading(true);
+    setDownloadProgress(0);
+
+    progressListenerRef.current = LocalUpdater.addProgressListener((progress) => {
+      setDownloadProgress(Math.round(progress * 100));
+    });
+
+    stateListenerRef.current = LocalUpdater.addStateListener((state) => {
+      if (state.state === 'error') {
+        setDownloading(false);
+        Alert.alert('下载失败', 'APK 下载失败，请稍后重试');
+      }
+      if (state.state === 'idle' && downloadProgress >= 100) {
+        setDownloading(false);
+        setShowUpdateModal(false);
+      }
+    });
+
+    LocalUpdater.startDownload(updateInfo.download_url);
+  };
+
+  const handleInstall = async () => {
+    try {
+      await LocalUpdater.installLastDownloaded();
+    } catch {
+      Alert.alert('安装失败', '无法调起安装程序，请手动安装下载的 APK');
     }
   };
 
@@ -28,7 +105,7 @@ export default function AboutScreen() {
         <View style={styles.logoContainer}>
           <Logo size={80} />
           <Text style={styles.appName}>号簿云</Text>
-          <Text style={styles.version}>内测版本 1.0.0</Text>
+          <Text style={styles.version}>v1.0.1</Text>
           <TouchableOpacity
             style={styles.updateButton}
             onPress={handleCheckUpdate}
@@ -61,6 +138,55 @@ export default function AboutScreen() {
 
         <Text style={styles.copyright}>Copyright 2026 号簿云团队</Text>
       </ScrollView>
+
+      {/* Update Modal */}
+      <Modal visible={showUpdateModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>
+              发现新版本 v{updateInfo?.latest_version_name}
+            </Text>
+            <ScrollView style={styles.releaseNotes}>
+              <Text style={styles.releaseNotesText}>
+                {updateInfo?.release_notes?.split('\\n').join('\n') || '无更新说明'}
+              </Text>
+            </ScrollView>
+
+            {downloading && (
+              <View style={styles.progressContainer}>
+                <View style={styles.progressBar}>
+                  <View style={[styles.progressFill, { width: `${downloadProgress}%` }]} />
+                </View>
+                <Text style={styles.progressText}>{downloadProgress}%</Text>
+              </View>
+            )}
+
+            <View style={styles.modalButtons}>
+              {downloading ? (
+                <TouchableOpacity style={styles.modalBtnPrimary} disabled>
+                  <Text style={styles.modalBtnPrimaryText}>下载中...</Text>
+                </TouchableOpacity>
+              ) : downloadProgress >= 100 ? (
+                <TouchableOpacity style={styles.modalBtnPrimary} onPress={handleInstall}>
+                  <Text style={styles.modalBtnPrimaryText}>立即安装</Text>
+                </TouchableOpacity>
+              ) : (
+                <>
+                  <TouchableOpacity
+                    style={styles.modalBtnSecondary}
+                    onPress={() => { setShowUpdateModal(false); setDownloadProgress(0); }}
+                  >
+                    <Text style={styles.modalBtnSecondaryText}>稍后再说</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.modalBtnPrimary} onPress={handleDownload}>
+                    <Text style={styles.modalBtnPrimaryText}>立即更新</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -89,4 +215,88 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 17, fontWeight: '600', color: '#303133', marginTop: 20, marginBottom: 10 },
   paragraph: { fontSize: 15, color: '#606266', lineHeight: 24, marginBottom: 8 },
   copyright: { fontSize: 13, color: '#C0C4CC', textAlign: 'center', marginTop: 40 },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 360,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#303133',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  releaseNotes: {
+    maxHeight: 200,
+    marginBottom: 16,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 8,
+    padding: 12,
+  },
+  releaseNotesText: {
+    fontSize: 14,
+    color: '#606266',
+    lineHeight: 22,
+  },
+  progressContainer: {
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  progressBar: {
+    width: '100%',
+    height: 8,
+    backgroundColor: '#E8E8E8',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#4A90D9',
+    borderRadius: 4,
+  },
+  progressText: {
+    fontSize: 13,
+    color: '#909399',
+    marginTop: 6,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  modalBtnPrimary: {
+    flex: 1,
+    backgroundColor: '#4A90D9',
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  modalBtnPrimaryText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  modalBtnSecondary: {
+    flex: 1,
+    backgroundColor: '#F0F0F0',
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  modalBtnSecondaryText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#606266',
+  },
 });

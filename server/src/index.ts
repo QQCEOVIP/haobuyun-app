@@ -13,6 +13,7 @@ import votesRouter from "./routes/votes";
 import numberStatusRouter from "./routes/number-status";
 import detectRouter from "./routes/detect";
 import authenticateRouter from "./routes/authenticate";
+import updatesRouter from "./routes/updates";
 import { createRateLimiter } from "./middleware/rate-limit";
 // TODO: 扩展点预留 - 广告和游戏路由
 // import adsRouter from "./routes/ads";    // 广告回调 (AdMob/穿山甲/优量汇)
@@ -87,6 +88,8 @@ app.use('/api/v1/number-status', createRateLimiter(20), numberStatusRouter);
 app.use('/api/v1/detect', createRateLimiter(3), detectRouter);
 // 认证号码（限流：每用户每分钟 5 次）
 app.use('/api/v1/authenticate', createRateLimiter(5), authenticateRouter);
+// 版本检查
+app.use('/api/v1/updates', createRateLimiter(10), updatesRouter);
 
 // 测试账号路由
 
