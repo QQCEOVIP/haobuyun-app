@@ -152,11 +152,13 @@ export default function ContactsScreen() {
   const MAYBE_THRESHOLD = 2;
 
   // 新用户检查：注册是否满7天
+  // NOTE: 暂时解除限制，正式上线前需恢复7天限制
   const isUserNew = (): boolean => {
-    const createdAt = (user as any)?.created_at;
-    if (!createdAt) return true; // 未知则假定为新用户
-    const daysSince = (Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24);
-    return daysSince < 7;
+    return false; // 暂时解除限制，所有用户立即可参与
+    // const createdAt = (user as any)?.created_at;
+    // if (!createdAt) return true; // 未知则假定为新用户
+    // const daysSince = (Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24);
+    // return daysSince < 7;
   };
 
   // 反垃圾检查：1小时内最多50次投票
