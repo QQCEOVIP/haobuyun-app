@@ -620,8 +620,8 @@ export default function ContactsScreen() {
                 for (const phone of editingContact.phoneNumbers) {
                   await supabase.from('deleted_contacts').upsert({
                     user_id: user.id,
-                    phone_number: phone,
-                    contact_name: editingContact.name,
+                    phone: phone,
+                    name: editingContact.name,
                     deleted_at: new Date().toISOString(),
                   });
                 }
@@ -693,16 +693,15 @@ export default function ContactsScreen() {
               const selectedContacts = contacts.filter(c => selectedIds.has(c.id));
               // Write to deleted_contacts for cloud sync (recycle bin)
               const deleteRecords = selectedContacts
-                .filter(c => c.deviceContactId)
+                .filter(c => c.phone)
                 .map(c => ({
                   user_id: userId,
-                  device_contact_id: c.deviceContactId!,
                   phone: c.phone || '',
                   name: c.name || '',
                   deleted_at: new Date().toISOString(),
                 }));
               if (deleteRecords.length > 0) {
-                await supabase.from('deleted_contacts').upsert(deleteRecords, { onConflict: 'user_id,device_contact_id' });
+                await supabase.from('deleted_contacts').upsert(deleteRecords, { onConflict: 'user_id,phone' });
               }
               // Remove from device
               for (const c of selectedContacts) {

@@ -56,6 +56,7 @@ import * as Sharing from 'expo-sharing';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/storage/supabase';
+import { resolveDeviceName } from '@/utils/device-name-map';
 
 interface ContactStats {
   total: number;
@@ -1251,11 +1252,11 @@ export default function HomeScreen() {
 
   // ========== Helper functions for backup ==========
   const getDeviceModel = (): string => {
-    if (Constants.deviceName) return Constants.deviceName.replace(/[^a-z0-9\-]/gi, '-').substring(0, 20);
     const brand = (Platform as any).constants?.Brand || '';
     const model = (Platform as any).constants?.Model || '';
-    const deviceStr = (brand + ' ' + model).trim() || 'Unknown';
-    return deviceStr.replace(/[^a-z0-9\-]/gi, '-').substring(0, 20);
+    const modelCode = model || (Constants as any).deviceName || '';
+    const friendlyName = resolveDeviceName(modelCode, brand);
+    return friendlyName.replace(/[^a-z0-9\u4e00-\u9fa5\-]/gi, '-').substring(0, 30);
   };
 
   const formatBackupFileName = (count: number = 0, deviceName: string = ''): string => {
@@ -1513,7 +1514,7 @@ export default function HomeScreen() {
       version: '1.0',
       exportedAt: new Date().toISOString(),
       device: 'mobile',
-      device_model: Constants.deviceName || ((Platform as any).constants?.Brand || '') + ' ' + ((Platform as any).constants?.Model || '') || 'Unknown',
+      device_model: resolveDeviceName((Platform as any).constants?.Model || '', (Platform as any).constants?.Brand || ''),
       contacts: contactsData,
     });
     const sizeKB = Math.round(backupJson.length / 1024);
@@ -1529,7 +1530,7 @@ export default function HomeScreen() {
       version: '1.0',
       exportedAt: new Date().toISOString(),
       device: 'mobile',
-      device_model: Constants.deviceName || ((Platform as any).constants?.Brand || '') + ' ' + ((Platform as any).constants?.Model || '') || 'Unknown',
+      device_model: resolveDeviceName((Platform as any).constants?.Model || '', (Platform as any).constants?.Brand || ''),
       contacts: contactsData,
     };
   };
