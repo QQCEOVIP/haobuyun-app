@@ -202,14 +202,30 @@ export default function DuplicatesScreen() {
       }
 
       // Sync to cloud recycle bin
+      let cloudSyncSuccess = false;
+      let cloudSyncError = '';
       if (user?.id && phonesToDelete.length > 0) {
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        headers['x-user-id'] = user.id;
-        await fetch(`${getBackendBaseUrl()}/api/v1/contacts/batch-delete`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ phones: phonesToDelete, names: namesToDelete }),
-        }).catch(() => { /* Silently fail if backend is unavailable */ });
+        try {
+          const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+          headers['x-user-id'] = user.id;
+          const response = await fetch(`${getBackendBaseUrl()}/api/v1/contacts/batch-delete`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ phones: phonesToDelete, names: namesToDelete }),
+          });
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            cloudSyncError = errorData.error || `HTTP ${response.status}`;
+            console.warn('Cloud batch-delete failed:', response.status, cloudSyncError);
+          } else {
+            const result = await response.json();
+            cloudSyncSuccess = result.success === true;
+            console.log('Cloud batch-delete result:', result.movedCount, 'moved to trash');
+          }
+        } catch (err: any) {
+          cloudSyncError = err.message || 'Network error';
+          console.warn('Cloud batch-delete exception:', cloudSyncError);
+        }
       }
 
       // Reload and verify actual deletion
@@ -221,17 +237,35 @@ export default function DuplicatesScreen() {
 
       // Show result based on actual verification
       if (actualDeletes === 0 && expectedDeletes > 0) {
-        Alert.alert(
-          '删除失败',
-          `未能删除任何联系人（计划删除 ${expectedDeletes} 个）。\n\n可能原因：\n• 联系人由账号（如小米账号、Google）同步管理\n• 系统限制了第三方应用的删除权限\n\n请在系统通讯录中手动删除这些重复联系人。`
-        );
+        // Local deletion failed
+        if (cloudSyncSuccess) {
+          Alert.alert(
+            '本地删除受限',
+            `由于手机系统限制，无法直接删除本地联系人。\n\n已将 ${phonesToDelete.length} 个号码移至云端回收站，您可以手动删除本地联系人。`,
+            [{ text: '我知道了' }]
+          );
+        } else if (cloudSyncError) {
+          Alert.alert('删除失败', `本地和云端删除均失败：${cloudSyncError}`);
+        } else {
+          Alert.alert(
+            '删除失败',
+            `未能删除任何联系人（计划删除 ${expectedDeletes} 个）。\n\n可能原因：\n• 联系人由账号（如小米账号、Google）同步管理\n• 系统限制了第三方应用的删除权限\n\n请在系统通讯录中手动删除这些重复联系人。`
+          );
+        }
       } else if (actualDeletes < expectedDeletes) {
-        Alert.alert(
-          '部分完成',
-          `成功删除 ${actualDeletes} 个，${expectedDeletes - actualDeletes} 个删除失败。\n\n部分联系人可能由账号同步管理，无法通过应用删除。`
-        );
+        // Partial success
+        let message = `成功删除 ${actualDeletes} 个，${expectedDeletes - actualDeletes} 个删除失败。`;
+        if (cloudSyncSuccess) {
+          message += `\n${phonesToDelete.length} 个号码已移至云端回收站`;
+        }
+        Alert.alert('部分完成', message);
       } else {
-        Alert.alert('完成', `已从通讯录删除 ${actualDeletes} 个重复条目，可在回收站恢复`);
+        // All succeeded
+        let message = `已从通讯录删除 ${actualDeletes} 个重复条目`;
+        if (cloudSyncSuccess) {
+          message += `，${phonesToDelete.length} 个号码已移至云端回收站`;
+        }
+        Alert.alert('完成', message);
       }
     } catch (error) {
       console.error('Batch delete failed:', error);
