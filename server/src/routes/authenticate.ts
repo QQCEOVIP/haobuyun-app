@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { db } from '../storage/database';
 import { sql } from 'drizzle-orm';
+import { isValidPhone, normalizePhone } from '../middleware/rate-limit';
 
 const router: any = Router();
 
@@ -42,6 +43,10 @@ function encryptName(name: string): string {
  * 认证号码
  * POST /api/v1/authenticate
  * Body: { phone: string, user_name: string }
+ * 
+ * 输入验证：
+ * - 手机号格式校验
+ * - user_name 长度 1-20 字符
  */
 router.post('/', requireAuth, async (req: any, res: any) => {
   try {
@@ -52,11 +57,21 @@ router.post('/', requireAuth, async (req: any, res: any) => {
       return res.status(400).json({ error: '缺少必要参数' });
     }
 
+    if (!isValidPhone(phone)) {
+      return res.status(400).json({ error: '手机号格式无效' });
+    }
+
+    if (typeof user_name !== 'string' || user_name.length < 1 || user_name.length > 20) {
+      return res.status(400).json({ error: '姓名长度需在 1-20 字符之间' });
+    }
+
+    const normalizedPhone = normalizePhone(phone);
+
     // UPSERT 认证记录（容错：表不存在时返回友好提示）
     try {
       await db.execute(sql`
         INSERT INTO number_authentications (phone, user_id, user_name, authenticated_at, expires_at)
-        VALUES (${phone}, ${userId}, ${user_name}, NOW(), NOW() + INTERVAL '1 month')
+        VALUES (${normalizedPhone}, ${userId}, ${user_name}, NOW(), NOW() + INTERVAL '1 month')
         ON CONFLICT (phone, user_id) 
         DO UPDATE SET user_name = EXCLUDED.user_name, authenticated_at = NOW(), expires_at = NOW() + INTERVAL '1 month'
       `);
@@ -71,7 +86,7 @@ router.post('/', requireAuth, async (req: any, res: any) => {
     const auths = await db.execute(sql`
       SELECT user_name, COUNT(*)::int as count
       FROM number_authentications
-      WHERE phone = ${phone}
+      WHERE phone = ${normalizedPhone}
       GROUP BY user_name
       ORDER BY count DESC
       LIMIT 1
@@ -84,7 +99,7 @@ router.post('/', requireAuth, async (req: any, res: any) => {
     const allAuths = await db.execute(sql`
       SELECT DISTINCT user_name
       FROM number_authentications
-      WHERE phone = ${phone}
+      WHERE phone = ${normalizedPhone}
     `);
 
     const encryptedNames = (allAuths as any[]).map((r: any) => encryptName(r.user_name));
@@ -109,6 +124,12 @@ router.get('/:phone', async (req: any, res: any) => {
   try {
     const { phone } = req.params;
 
+    if (!isValidPhone(phone)) {
+      return res.status(400).json({ error: '手机号格式无效' });
+    }
+
+    const normalizedPhone = normalizePhone(phone);
+
     let authCount = 0;
     let userNames: string[] = [];
     let certified = false;
@@ -119,7 +140,7 @@ router.get('/:phone', async (req: any, res: any) => {
           COUNT(*)::int as auth_count,
           ARRAY_AGG(DISTINCT user_name) as user_names
         FROM number_authentications
-        WHERE phone = ${phone}
+        WHERE phone = ${normalizedPhone}
       `);
 
       const row = (stats as any[])?.[0];
@@ -129,7 +150,7 @@ router.get('/:phone', async (req: any, res: any) => {
       const nameCounts = await db.execute(sql`
         SELECT user_name, COUNT(*)::int as count
         FROM number_authentications
-        WHERE phone = ${phone}
+        WHERE phone = ${normalizedPhone}
         GROUP BY user_name
       `);
 

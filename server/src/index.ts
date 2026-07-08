@@ -13,6 +13,7 @@ import votesRouter from "./routes/votes";
 import numberStatusRouter from "./routes/number-status";
 import detectRouter from "./routes/detect";
 import authenticateRouter from "./routes/authenticate";
+import { createRateLimiter } from "./middleware/rate-limit";
 // TODO: 扩展点预留 - 广告和游戏路由
 // import adsRouter from "./routes/ads";    // 广告回调 (AdMob/穿山甲/优量汇)
 // import gameRouter from "./routes/game";  // 小游戏 (H5/外部渠道)
@@ -77,13 +78,15 @@ app.use('/api/v1/backup', backupRouter);
 app.use('/api/v1/feedback', feedbackRouter);
 app.use('/api/v1/auth', authRouter);
 
-// 号码状态投票路由
-app.use('/api/v1/votes', votesRouter);
+// 号码状态投票路由（限流：每用户每分钟 10 次）
+app.use('/api/v1/votes', createRateLimiter(10), votesRouter);
 
-// 号码状态查询路由
-app.use('/api/v1/number-status', numberStatusRouter);
-app.use('/api/v1/detect', detectRouter);
-app.use('/api/v1/authenticate', authenticateRouter);
+// 号码状态查询路由（限流：每用户每分钟 20 次）
+app.use('/api/v1/number-status', createRateLimiter(20), numberStatusRouter);
+// 一键检测（限流：每用户每分钟 3 次）
+app.use('/api/v1/detect', createRateLimiter(3), detectRouter);
+// 认证号码（限流：每用户每分钟 5 次）
+app.use('/api/v1/authenticate', createRateLimiter(5), authenticateRouter);
 
 // 测试账号路由
 

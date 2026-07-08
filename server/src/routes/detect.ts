@@ -1,12 +1,13 @@
 import { Router } from 'express';
 import { db } from '../storage/database';
 import { sql } from 'drizzle-orm';
+import { isValidPhone, normalizePhone } from '../middleware/rate-limit';
 
 const router: any = Router();
 
-// 阈值配置
-const CONFIRMED_THRESHOLD = 5; // >=5 人标记停机 -> 确认失效
-const MAYBE_THRESHOLD = 1;     // >=1 人标记停机 -> 可能失效
+// 阈值配置（基于不同用户数）
+const CONFIRMED_THRESHOLD = 3; // >=3 个不同用户标记停机 → 确认失效
+const MAYBE_THRESHOLD = 1;     // >=1 个用户标记停机 → 可能失效
 
 function getUserIdFromHeaders(req: any): string | null {
   const userId = req.headers['x-user-id'];
@@ -32,7 +33,10 @@ function isTableNotExistError(err: any): boolean {
 /**
  * 一键检测
  * POST /api/v1/detect
- * Body: { phones: string[], user_id: string }
+ * Body: { phones: string[] }
+ * 
+ * 限制：单次最多 50 个号码
+ * 状态判定基于不同用户数（非总票数）
  */
 router.post('/', requireAuth, async (req: any, res: any) => {
   try {
@@ -42,18 +46,30 @@ router.post('/', requireAuth, async (req: any, res: any) => {
       return res.status(400).json({ error: '缺少电话号码列表' });
     }
 
-    const limitedPhones = phones.slice(0, 500);
+    // 限制单次查询数量：最多 50 个
+    if (phones.length > 50) {
+      return res.status(400).json({ error: '单次最多查询 50 个号码' });
+    }
 
-    // 查询投票统计（容错：表不存在时返回空）
+    // 过滤并标准化有效手机号
+    const validPhones = phones
+      .filter((p: string) => isValidPhone(p))
+      .map((p: string) => normalizePhone(p));
+
+    if (validPhones.length === 0) {
+      return res.json({ results: {}, summary: { total: 0, normal: 0, possibly_invalid: 0, confirmed_invalid: 0 } });
+    }
+
+    // 查询投票统计：使用 COUNT(DISTINCT user_id) 计算不同用户数（容错：表不存在时返回空）
     let voteStats: any[] = [];
     try {
       voteStats = await db.execute(sql`
         SELECT 
           phone,
-          COUNT(*) FILTER (WHERE vote = 'stopped')::int as stopped_count,
-          COUNT(*) FILTER (WHERE vote = 'normal')::int as normal_count
+          COUNT(DISTINCT user_id) FILTER (WHERE vote = 'stopped')::int as stopped_voters,
+          COUNT(DISTINCT user_id) FILTER (WHERE vote = 'normal')::int as normal_voters
         FROM number_votes
-        WHERE phone = ANY(${limitedPhones}::text[])
+        WHERE phone = ANY(${validPhones}::text[])
         GROUP BY phone
       `) as any[];
     } catch (err: any) {
@@ -69,7 +85,7 @@ router.post('/', requireAuth, async (req: any, res: any) => {
           COUNT(*)::int as auth_count,
           ARRAY_AGG(DISTINCT user_name) as auth_names
         FROM number_authentications
-        WHERE phone = ANY(${limitedPhones}::text[])
+        WHERE phone = ANY(${validPhones}::text[])
         GROUP BY phone
       `) as any[];
     } catch (err: any) {
@@ -88,40 +104,41 @@ router.post('/', requireAuth, async (req: any, res: any) => {
     // 构建结果
     const results: Record<string, any> = {};
     const summary = {
-      total: limitedPhones.length,
+      total: validPhones.length,
       normal: 0,
       possibly_invalid: 0,
       confirmed_invalid: 0,
     };
 
-    for (const phone of limitedPhones) {
+    for (const phone of validPhones) {
       const stats = voteStats.find((r: any) => r.phone === phone);
-      const stoppedCount = stats?.stopped_count || 0;
-      const normalCount = stats?.normal_count || 0;
+      const stoppedVoters = stats?.stopped_voters || 0;
+      const normalVoters = stats?.normal_voters || 0;
       const auth = authMap.get(phone) || { auth_count: 0, auth_names: [] };
 
       let status: string;
 
-      if (stoppedCount === 0) {
+      if (stoppedVoters === 0) {
         status = 'normal';
         summary.normal++;
-      } else if (stoppedCount < CONFIRMED_THRESHOLD) {
+      } else if (stoppedVoters < CONFIRMED_THRESHOLD) {
         status = 'possibly_invalid';
         summary.possibly_invalid++;
       } else {
-        if (auth.auth_count >= stoppedCount) {
-          status = 'possibly_invalid';
+        // >=3 个不同用户标记停机
+        if (auth.auth_count >= stoppedVoters) {
+          status = 'possibly_invalid'; // 有争议（认证人数 >= 标记人数）
           summary.possibly_invalid++;
         } else {
-          status = 'confirmed_invalid';
+          status = 'confirmed_invalid'; // 确认失效
           summary.confirmed_invalid++;
         }
       }
 
       results[phone] = {
         status,
-        stopped_count: stoppedCount,
-        normal_count: normalCount,
+        stopped_count: stoppedVoters,  // 不同用户数
+        normal_count: normalVoters,
         auth_count: auth.auth_count,
         auth_names: auth.auth_names,
       };
