@@ -170,54 +170,68 @@ export default function DuplicatesScreen() {
     if (deleting) return;
     setDeleting(true);
     try {
-      let totalDeleted = 0;
-      let totalFailed = 0;
-      const deletedPhones: string[] = [];
-      const deletedNames: string[] = [];
-
+      // Count entries before deletion
+      let expectedDeletes = 0;
+      const phonesToDelete: string[] = [];
+      const namesToDelete: string[] = [];
       for (const group of duplicateGroups) {
         if (!selectedGroups.has(group.phone)) continue;
         const keepIdx = keepIndices[group.phone] ?? group.recommendedIndex;
-
         for (let i = 0; i < group.entries.length; i++) {
           if (i === keepIdx) continue;
-          const entry = group.entries[i];
+          expectedDeletes++;
+          phonesToDelete.push(group.entries[i].phone);
+          namesToDelete.push(group.entries[i].name);
+        }
+      }
+
+      // Attempt local deletion
+      let attemptedDeletes = 0;
+      for (const group of duplicateGroups) {
+        if (!selectedGroups.has(group.phone)) continue;
+        const keepIdx = keepIndices[group.phone] ?? group.recommendedIndex;
+        for (let i = 0; i < group.entries.length; i++) {
+          if (i === keepIdx) continue;
           try {
-            await Contacts.removeContactAsync(entry.id);
-            deletedPhones.push(entry.phone);
-            deletedNames.push(entry.name);
-            totalDeleted++;
+            await Contacts.removeContactAsync(group.entries[i].id);
+            attemptedDeletes++;
           } catch (removeErr: any) {
-            console.warn('Failed to delete contact:', entry.name, removeErr);
-            totalFailed++;
+            console.warn('Failed to delete contact:', group.entries[i].name, removeErr);
           }
         }
       }
 
       // Sync to cloud recycle bin
-      if (user?.id && deletedPhones.length > 0) {
+      if (user?.id && phonesToDelete.length > 0) {
         const headers: Record<string, string> = { 'Content-Type': 'application/json' };
         headers['x-user-id'] = user.id;
         await fetch(`${getBackendBaseUrl()}/api/v1/contacts/batch-delete`, {
           method: 'POST',
           headers,
-          body: JSON.stringify({ phones: deletedPhones, names: deletedNames }),
+          body: JSON.stringify({ phones: phonesToDelete, names: namesToDelete }),
         }).catch(() => { /* Silently fail if backend is unavailable */ });
       }
 
+      // Reload and verify actual deletion
+      const beforeCount = duplicateGroups.reduce((sum, g) => sum + g.entries.length, 0);
       setSelectedGroups(new Set());
       await loadDuplicates();
+      const afterCount = duplicateGroups.reduce((sum, g) => sum + g.entries.length, 0);
+      const actualDeletes = beforeCount - afterCount;
 
-      // Show result feedback
-      if (totalDeleted === 0 && totalFailed > 0) {
+      // Show result based on actual verification
+      if (actualDeletes === 0 && expectedDeletes > 0) {
         Alert.alert(
           '删除失败',
-          `未能删除任何联系人（${totalFailed} 个失败）。\n\n可能原因：这些联系人由账号同步管理，请在系统通讯录中手动删除。`
+          `未能删除任何联系人（计划删除 ${expectedDeletes} 个）。\n\n可能原因：\n• 联系人由账号（如小米账号、Google）同步管理\n• 系统限制了第三方应用的删除权限\n\n请在系统通讯录中手动删除这些重复联系人。`
         );
-      } else if (totalFailed > 0) {
-        Alert.alert('部分完成', `已删除 ${totalDeleted} 个，${totalFailed} 个删除失败`);
+      } else if (actualDeletes < expectedDeletes) {
+        Alert.alert(
+          '部分完成',
+          `成功删除 ${actualDeletes} 个，${expectedDeletes - actualDeletes} 个删除失败。\n\n部分联系人可能由账号同步管理，无法通过应用删除。`
+        );
       } else {
-        Alert.alert('完成', `已从通讯录删除 ${totalDeleted} 个重复条目，可在回收站恢复`);
+        Alert.alert('完成', `已从通讯录删除 ${actualDeletes} 个重复条目，可在回收站恢复`);
       }
     } catch (error) {
       console.error('Batch delete failed:', error);
