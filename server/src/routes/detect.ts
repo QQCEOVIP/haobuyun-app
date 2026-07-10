@@ -69,7 +69,12 @@ router.post('/', requireAuth, async (req: any, res: any) => {
           COUNT(DISTINCT user_id) FILTER (WHERE vote = 'stopped')::int as stopped_voters,
           COUNT(DISTINCT user_id) FILTER (WHERE vote = 'normal')::int as normal_voters
         FROM number_votes
-        WHERE phone = ANY(${validPhones}::text[])
+        WHERE phone IN (
+          ${sql.join(
+            validPhones.map(phone => sql`${phone}`),
+            sql`, `
+          )}
+        )
         GROUP BY phone
       `) as any[];
     } catch (err: any) {
@@ -85,7 +90,12 @@ router.post('/', requireAuth, async (req: any, res: any) => {
           COUNT(*)::int as auth_count,
           ARRAY_AGG(DISTINCT user_name) as auth_names
         FROM number_authentications
-        WHERE phone = ANY(${validPhones}::text[])
+        WHERE phone IN (
+          ${sql.join(
+            validPhones.map(phone => sql`${phone}`),
+            sql`, `
+          )}
+        )
         GROUP BY phone
       `) as any[];
     } catch (err: any) {

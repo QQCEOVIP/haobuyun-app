@@ -157,10 +157,16 @@ router.post('/batch-query', async (req: any, res: any) => {
     }
 
     // 查询不同用户数（非总票数）
+    // 使用 IN 子句，通过 sql.join 安全地传递数组参数
     const votes = await db.execute(sql`
       SELECT phone, COUNT(DISTINCT user_id)::int as voter_count 
       FROM number_votes
-      WHERE phone = ANY(${validPhones}::text[]) AND vote = 'stopped'
+      WHERE phone IN (
+        ${sql.join(
+          validPhones.map(phone => sql`${phone}`),
+          sql`, `
+        )}
+      ) AND vote = 'stopped'
       GROUP BY phone
     `);
 
