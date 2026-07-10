@@ -4,6 +4,7 @@
   "main": "expo-router/entry",
   "private": true,
   "scripts": {
+    "build": "expo export --platform web",
     "check-deps": "npx depcheck",
     "postinstall": "npm run install-missing",
     "install-missing": "node ./scripts/install-missing-deps.js",
