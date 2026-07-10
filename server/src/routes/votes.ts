@@ -132,7 +132,7 @@ router.delete('/', requireAuth, async (req: any, res: any) => {
  * - 不同用户投 stopped >= 1 → 'maybe_stopped' (疑似停用)
  * - 无 stopped 投票 → null
  * 
- * 限制：单次最多 50 个号码
+ * 限制：单次最多 500 个号码
  */
 router.post('/batch-query', async (req: any, res: any) => {
   try {
@@ -142,9 +142,9 @@ router.post('/batch-query', async (req: any, res: any) => {
       return res.status(400).json({ error: '缺少电话号码列表' });
     }
 
-    // 限制单次查询数量：最多 50 个
-    if (phones.length > 50) {
-      return res.status(400).json({ error: '单次最多查询 50 个号码' });
+    // 限制单次查询数量：最多 500 个
+    if (phones.length > 500) {
+      return res.status(400).json({ error: '单次最多查询 500 个号码' });
     }
 
     // 过滤并标准化有效手机号

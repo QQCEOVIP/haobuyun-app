@@ -355,6 +355,9 @@ export default function HomeScreen() {
         console.warn('Failed to query community votes:', error);
       }
 
+      // 电话号码标准化函数（与后端 normalizePhone 保持一致）
+      const normalizePhone = (phone: string) => phone.replace(/[\s\-()]/g, '');
+
       // 统计检测结果（结合本地状态和社区投票）
       const result = {
         total: deviceContacts.length,
@@ -365,7 +368,8 @@ export default function HomeScreen() {
       };
 
       deviceContacts.forEach(contact => {
-        const phone = contact.phoneNumbers?.[0]?.number || '';
+        const rawPhone = contact.phoneNumbers?.[0]?.number || '';
+        const phone = normalizePhone(rawPhone); // 标准化电话号码
         const localData = allLocalContacts?.find((lc: any) => lc.phone === phone);
         // AsyncStorage 手动标签优先，其次 Supabase 检测结果
         const localStatus = localStatusMap.get(phone) || localData?.status;
