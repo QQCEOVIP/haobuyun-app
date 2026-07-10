@@ -101,3 +101,4 @@ expo-env.d.ts
 node-compile-cache/
 assets/*.jpg
 client/dist/
+.codegraph
