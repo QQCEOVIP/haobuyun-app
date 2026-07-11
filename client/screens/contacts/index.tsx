@@ -734,6 +734,73 @@ export default function ContactsScreen() {
     );
   };
 
+  /**
+   * 自动捕捉系统通讯录删除的号码并保存到回收站
+   * 对比当前设备通讯录与上次保存的快照，将消失的号码自动保存到回收站
+   */
+  const syncContactsSnapshot = async (currentContacts: Contact[], currentUserId: string) => {
+    try {
+      // 读取上次保存的快照
+      const snapshotStr = await AsyncStorage.getItem('@contacts_snapshot');
+      const snapshot: Array<{ name: string; phone: string }> = snapshotStr
+        ? JSON.parse(snapshotStr)
+        : [];
+
+      // 构建当前通讯录的号码集合（标准化格式）
+      const normalizePhone = (phone: string) => {
+        const digits = phone.replace(/\D/g, '');
+        if (digits.length === 13 && digits.startsWith('86')) {
+          return digits.slice(2);
+        }
+        return digits;
+      };
+      const currentPhones = new Set(
+        currentContacts
+          .map(c => normalizePhone(c.phone))
+          .filter(p => p.length > 0)
+      );
+
+      // 找出快照中消失的号码
+      const disappearedContacts: Array<{ name: string; phone: string }> = [];
+      for (const snapContact of snapshot) {
+        const snapPhone = normalizePhone(snapContact.phone);
+        if (snapPhone.length > 0 && !currentPhones.has(snapPhone)) {
+          disappearedContacts.push(snapContact);
+        }
+      }
+
+      // 将消失的号码保存到回收站
+      if (disappearedContacts.length > 0) {
+        console.log(`[SyncSnapshot] 发现 ${disappearedContacts.length} 个消失的号码，保存到回收站`);
+        for (const contact of disappearedContacts) {
+          try {
+            await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/contacts/trash`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-user-id': currentUserId,
+              },
+              body: JSON.stringify({
+                name: contact.name,
+                phone: contact.phone,
+              }),
+            });
+          } catch (err) {
+            console.error(`[SyncSnapshot] 保存 ${contact.name} 到回收站失败:`, err);
+          }
+        }
+      }
+
+      // 更新快照为当前通讯录
+      const newSnapshot = currentContacts
+        .filter(c => c.phone && c.phone !== '(无号码)')
+        .map(c => ({ name: c.name, phone: c.phone }));
+      await AsyncStorage.setItem('@contacts_snapshot', JSON.stringify(newSnapshot));
+    } catch (error) {
+      console.error('[SyncSnapshot] 同步快照失败:', error);
+    }
+  };
+
   const loadContacts = useCallback(async () => {
     if (!userId) return;
 
@@ -821,6 +888,9 @@ export default function ContactsScreen() {
           ...c,
           status: c.status || localStatusMap.get(c.phone) || null,
         }));
+
+        // 自动捕捉系统通讯录删除的号码并保存到回收站
+        await syncContactsSnapshot(mappedContacts, userId);
 
         setContacts(finalContacts);
         filterContacts(finalContacts, searchText, activeTab);
