@@ -192,12 +192,21 @@ export default function HomeScreen() {
 
   // Lightweight refresh: only re-read AsyncStorage status counts when page gains focus
   // This avoids the heavy device contacts read that caused black screen issues
+  // 注意：如果有保存的检测结果，则不执行此刷新，以保持检测结果持久化
   useFocusEffect(
     useCallback(() => {
       if (!initialLoaded || !userId) return;
-      // Only refresh status counts, not device contacts
+      
+      // 检查是否有保存的检测结果，如果有则跳过刷新
       (async () => {
         try {
+          const savedResult = await AsyncStorage.getItem('@detection_result');
+          if (savedResult) {
+            // 有保存的检测结果，保持当前状态不变
+            return;
+          }
+          
+          // 没有保存的检测结果，才执行刷新
           // If total is 0 (no contacts on device), skip AsyncStorage read and keep all stats at 0
           if (stats.total === 0) {
             setStats({ total: 0, active: 0, maybeInvalid: 0, invalid: 0, unknown: 0 });

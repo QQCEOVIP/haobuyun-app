@@ -872,10 +872,16 @@ export default function ContactsScreen() {
       const contactList = (contacts && contacts.length > 0) ? contacts : [];
 
       // Build set of current phone numbers for filtering stale AsyncStorage entries
+      // Normalize: strip country code (+86 or 86) if present, keep only digits
       const currentPhones = new Set<string>();
       contactList.forEach(c => {
         if (c.phone) {
-          currentPhones.add(c.phone.replace(/\D/g, ''));
+          const digits = c.phone.replace(/\D/g, '');
+          // Remove country code 86 if the number is 13 digits (86 + 11 digits)
+          const normalized = (digits.length === 13 && digits.startsWith('86'))
+            ? digits.slice(2)
+            : digits;
+          currentPhones.add(normalized);
         }
       });
 
@@ -887,7 +893,12 @@ export default function ContactsScreen() {
       if (statusKeys.length > 0) {
         const statusEntries = await AsyncStorage.multiGet(statusKeys);
         for (const [key, value] of statusEntries) {
-          const phone = key.replace('@contact_status_', '').replace(/\D/g, '');
+          const rawPhone = key.replace('@contact_status_', '');
+          const digits = rawPhone.replace(/\D/g, '');
+          // Remove country code 86 if the number is 13 digits (86 + 11 digits)
+          const phone = (digits.length === 13 && digits.startsWith('86'))
+            ? digits.slice(2)
+            : digits;
           if (currentPhones.has(phone)) {
             if (value === 'stopped') stopped++;
             else if (value === 'suspected_stopped') suspected++;
@@ -900,9 +911,14 @@ export default function ContactsScreen() {
         const { data: communityData } = await supabase.rpc('get_all_community_statuses');
         if (communityData) {
           for (const row of communityData) {
-            const phone = row.phone?.replace(/\D/g, '');
+            // Normalize phone: strip country code if present, keep only digits
+            const digits = row.phone?.replace(/\D/g, '') || '';
+            const phone = (digits.length === 13 && digits.startsWith('86'))
+              ? digits.slice(2)
+              : digits;
             if (phone && currentPhones.has(phone)) {
               // Only count if not already counted from AsyncStorage
+              // Check all possible AsyncStorage key formats
               const statusKey = `@contact_status_${row.phone}`;
               const localStatus = await AsyncStorage.getItem(statusKey);
               if (!localStatus) {
