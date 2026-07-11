@@ -373,11 +373,18 @@ export default function StoppedContactsScreen() {
           <Ionicons name="chevron-back" size={24} color="#111827" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{label}号码</Text>
-        <TouchableOpacity onPress={selectAll} style={styles.selectAllBtn}>
-          <Text style={styles.selectAllText}>
-            {selectedIds.size === contacts.length && contacts.length > 0 ? '取消全选' : '全选'}
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          {isPossiblyInvalid && (
+            <TouchableOpacity onPress={() => router.push('/authenticated-numbers')} style={styles.authLinkBtn}>
+              <Ionicons name="shield-checkmark-outline" size={18} color="#10B981" />
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity onPress={selectAll} style={styles.selectAllBtn}>
+            <Text style={styles.selectAllText}>
+              {selectedIds.size === contacts.length && contacts.length > 0 ? '取消全选' : '全选'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={[styles.summaryBar, { backgroundColor: `${color}10` }]}>
@@ -407,12 +414,106 @@ export default function StoppedContactsScreen() {
         />
       )}
 
-      {selectedIds.size > 0 && contacts.length - selectedIds.size > 0 && (
+      {selectedIds.size > 0 && (
         <View style={styles.bottomBar}>
-          <TouchableOpacity style={[styles.deleteBtn, { backgroundColor: color }]} onPress={handleDeleteSelected}>
-            <Ionicons name="trash-outline" size={18} color="#fff" />
-            <Text style={styles.deleteBtnText}>删除未选中的 ({contacts.length - selectedIds.size})</Text>
-          </TouchableOpacity>
+          <View style={styles.bottomBarButtons}>
+            {/* Batch delete selected */}
+            <TouchableOpacity
+              style={[styles.batchBtn, { backgroundColor: color }]}
+              onPress={() => {
+                const selectedCount = selectedIds.size;
+                Alert.alert(
+                  '批量删除',
+                  `确认从通讯录中删除选中的 ${selectedCount} 个号码？`,
+                  [
+                    { text: '取消', style: 'cancel' },
+                    {
+                      text: '确认删除',
+                      style: 'destructive',
+                      onPress: async () => {
+                        try {
+                          const toDelete = contacts.filter(c => selectedIds.has(c.id));
+                          const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+                          if (user?.id) headers['x-user-id'] = user.id;
+
+                          if (user?.id && toDelete.length > 0) {
+                            const phones = toDelete.map(c => c.phone).filter(Boolean);
+                            const names = toDelete.map(c => c.name || '');
+                            if (phones.length > 0) {
+                              await fetch(`${getBackendBaseUrl()}/api/v1/contacts/batch-delete`, {
+                                method: 'POST',
+                                headers,
+                                body: JSON.stringify({ phones, names }),
+                              }).catch(() => { /* Silently fail */ });
+                            }
+                          }
+
+                          for (const contact of toDelete) {
+                            try {
+                              if (contact.id && !contact.id.startsWith('@')) {
+                                await Contacts.removeContactAsync(contact.id).catch(() => { /* skip */ });
+                              }
+                              await AsyncStorage.removeItem(`@contact_status_${contact.phone}`);
+                              await AsyncStorage.removeItem(`@contact_status_${contact.normalizedPhone}`);
+                            } catch {}
+                          }
+                          setSelectedIds(new Set());
+                          loadContacts();
+                        } catch (error) {
+                          Alert.alert('错误', '删除失败');
+                        }
+                      },
+                    },
+                  ]
+                );
+              }}
+            >
+              <Ionicons name="trash-outline" size={16} color="#fff" />
+              <Text style={styles.batchBtnText}>删除选中 ({selectedIds.size})</Text>
+            </TouchableOpacity>
+
+            {/* Batch restore selected */}
+            <TouchableOpacity
+              style={[styles.batchBtn, { backgroundColor: '#10B981' }]}
+              onPress={() => {
+                const selectedCount = selectedIds.size;
+                Alert.alert(
+                  '批量恢复',
+                  `确认将选中的 ${selectedCount} 个号码恢复正常状态？将清除本地标记。`,
+                  [
+                    { text: '取消', style: 'cancel' },
+                    {
+                      text: '确认恢复',
+                      onPress: async () => {
+                        try {
+                          const toRestore = contacts.filter(c => selectedIds.has(c.id));
+                          for (const contact of toRestore) {
+                            await AsyncStorage.removeItem(`@contact_status_${contact.phone}`);
+                            await AsyncStorage.removeItem(`@contact_status_${contact.normalizedPhone}`);
+                          }
+                          setSelectedIds(new Set());
+                          loadContacts();
+                        } catch (error) {
+                          Alert.alert('错误', '恢复失败');
+                        }
+                      },
+                    },
+                  ]
+                );
+              }}
+            >
+              <Ionicons name="refresh-outline" size={16} color="#fff" />
+              <Text style={styles.batchBtnText}>恢复选中 ({selectedIds.size})</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Delete unselected */}
+          {contacts.length - selectedIds.size > 0 && (
+            <TouchableOpacity style={[styles.deleteBtn, { backgroundColor: '#6B7280' }]} onPress={handleDeleteSelected}>
+              <Ionicons name="close-circle-outline" size={16} color="#fff" />
+              <Text style={styles.deleteBtnText}>删除未选中 ({contacts.length - selectedIds.size})</Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
     </SafeAreaView>
@@ -424,6 +525,8 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#fff' },
   backBtn: { padding: 4 },
   headerTitle: { fontSize: 17, fontWeight: '700', color: '#111827' },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  authLinkBtn: { padding: 4 },
   selectAllBtn: { padding: 4 },
   selectAllText: { fontSize: 14, color: '#636E72', fontWeight: '500' },
   summaryBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, marginHorizontal: 16, marginTop: 8, marginBottom: 4, borderRadius: 12 },
@@ -449,6 +552,9 @@ const styles = StyleSheet.create({
   statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginLeft: 8 },
   statusBadgeText: { fontSize: 11, fontWeight: '600' },
   bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#E5E7EB', padding: 16, paddingBottom: 32 },
-  deleteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 14 },
-  deleteBtnText: { color: '#fff', fontSize: 16, fontWeight: '700', marginLeft: 8 },
+  bottomBarButtons: { flexDirection: 'row', gap: 10, marginBottom: 10 },
+  batchBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 12 },
+  batchBtnText: { color: '#fff', fontSize: 14, fontWeight: '600', marginLeft: 6 },
+  deleteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 12 },
+  deleteBtnText: { color: '#fff', fontSize: 14, fontWeight: '600', marginLeft: 6 },
 });

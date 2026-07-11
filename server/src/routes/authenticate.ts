@@ -117,6 +117,120 @@ router.post('/', requireAuth, async (req: any, res: any) => {
 });
 
 /**
+ * 获取当前用户已认证的号码列表
+ * GET /api/v1/authenticated-numbers
+ * Query: page?: number, limit?: number
+ */
+router.get('/my-authentications', requireAuth, async (req: any, res: any) => {
+  try {
+    const userId = req.userId;
+    const page = Math.max(1, parseInt(req.query.page || '1'));
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit || '20')));
+    const offset = (page - 1) * limit;
+
+    let authentications: any[] = [];
+    let total = 0;
+
+    try {
+      const countResult = await db.execute(sql`
+        SELECT COUNT(*)::int as total
+        FROM number_authentications
+        WHERE user_id = ${userId}
+      `);
+      total = (countResult as any[])?.[0]?.total || 0;
+
+      const authResult = await db.execute(sql`
+        SELECT 
+          na.phone,
+          na.user_name,
+          na.authenticated_at,
+          na.expires_at,
+          COALESCE(
+            (SELECT COUNT(DISTINCT nv.user_id)::int 
+             FROM number_votes nv 
+             WHERE nv.phone = na.phone AND nv.vote = 'stopped'
+             AND nv.updated_at > NOW() - INTERVAL '30 days'),
+            0
+          ) as stopped_vote_count
+        FROM number_authentications na
+        WHERE na.user_id = ${userId}
+        ORDER BY na.authenticated_at DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `);
+      authentications = (authResult as any[]) || [];
+    } catch (err: any) {
+      if (isTableNotExistError(err)) {
+        return res.json({ authentications: [], total: 0, page, limit });
+      }
+      throw err;
+    }
+
+    const result = authentications.map((auth: any) => ({
+      phone: auth.phone,
+      user_name: auth.user_name,
+      encrypted_name: encryptName(auth.user_name),
+      authenticated_at: auth.authenticated_at,
+      expires_at: auth.expires_at,
+      stopped_vote_count: auth.stopped_vote_count,
+    }));
+
+    res.json({
+      authentications: result,
+      total,
+      page,
+      limit,
+    });
+  } catch (error) {
+    console.error('Get authentications error:', error);
+    res.status(500).json({ error: '查询失败' });
+  }
+});
+
+/**
+ * 撤销认证（恢复为可能失效）
+ * DELETE /api/v1/authenticated-numbers/:phone
+ */
+router.delete('/my-authentications/:phone', requireAuth, async (req: any, res: any) => {
+  try {
+    const userId = req.userId;
+    const { phone } = req.params;
+
+    if (!isValidPhone(phone)) {
+      return res.status(400).json({ error: '手机号格式无效' });
+    }
+
+    const normalizedPhone = normalizePhone(phone);
+
+    try {
+      const result = await db.execute(sql`
+        DELETE FROM number_authentications
+        WHERE phone = ${normalizedPhone} AND user_id = ${userId}
+        RETURNING id
+      `);
+
+      const deleted = (result as any[])?.length > 0;
+
+      if (!deleted) {
+        return res.status(404).json({ error: '未找到该号码的认证记录' });
+      }
+
+      res.json({
+        success: true,
+        message: '已撤销认证，号码恢复为可能失效',
+      });
+    } catch (err: any) {
+      if (isTableNotExistError(err)) {
+        return res.status(503).json({ error: '认证服务暂未开放' });
+      }
+      throw err;
+    }
+  } catch (error) {
+    console.error('Revoke authentication error:', error);
+    res.status(500).json({ error: '撤销失败' });
+  }
+});
+
+/**
  * 查询认证状态
  * GET /api/v1/authenticate/:phone
  */
