@@ -77,6 +77,7 @@ export default function RootLayout() {
             <Stack.Screen name="recycle-bin" options={{ title: "回收站" }} />
             <Stack.Screen name="feedback" options={{ title: "意见反馈" }} />
             <Stack.Screen name="suspected-contacts" options={{ title: "可能失效" }} />
+            <Stack.Screen name="number-authenticate" options={{ title: "换机主认证" }} />
           </Stack>
         </AuthGuard>
         <Toast />
