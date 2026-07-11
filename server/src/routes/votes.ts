@@ -158,6 +158,7 @@ router.post('/batch-query', async (req: any, res: any) => {
 
     // 查询不同用户数（非总票数）
     // 使用 IN 子句，通过 sql.join 安全地传递数组参数
+    // 30天过期：只统计30天内有更新的号码
     const votes = await db.execute(sql`
       SELECT phone, COUNT(DISTINCT user_id)::int as voter_count 
       FROM number_votes
@@ -167,7 +168,9 @@ router.post('/batch-query', async (req: any, res: any) => {
           sql`, `
         )}
       ) AND vote = 'stopped'
+        AND updated_at > NOW() - INTERVAL '30 days'
       GROUP BY phone
+      HAVING MAX(updated_at) > NOW() - INTERVAL '30 days'
     `);
 
     // 构建结果

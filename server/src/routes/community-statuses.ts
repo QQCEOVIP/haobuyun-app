@@ -23,6 +23,7 @@ function encryptName(name: string): string {
  * - >10 个不同用户投 stopped 且无人认证换机主 → 'confirmed_invalid'
  * - 3~10 个不同用户投 stopped → 'possibly_invalid'
  * - 有人认证了换机主，无论多少停用票都只判定 'possibly_invalid'
+ * - 30天过期：从最后一条投票时间算起，超过30天无新投票则不返回该号码状态
  */
 router.get('/', async (_req: any, res: any) => {
   try {
@@ -30,10 +31,12 @@ router.get('/', async (_req: any, res: any) => {
       SELECT 
         v.phone::TEXT,
         COUNT(DISTINCT CASE WHEN v.vote = 'stopped' THEN v.user_id END)::INTEGER as stopped_count,
-        COUNT(DISTINCT v.user_id)::INTEGER as vote_count
+        COUNT(DISTINCT v.user_id)::INTEGER as vote_count,
+        MAX(v.updated_at) as last_vote_at
       FROM number_votes v
       GROUP BY v.phone
       HAVING COUNT(DISTINCT CASE WHEN v.vote = 'stopped' THEN v.user_id END) >= 3
+         AND MAX(v.updated_at) > NOW() - INTERVAL '30 days'
     `);
 
     const rows = (result as any[]) || [];

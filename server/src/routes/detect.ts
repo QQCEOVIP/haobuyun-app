@@ -61,6 +61,7 @@ router.post('/', requireAuth, async (req: any, res: any) => {
     }
 
     // 查询投票统计：使用 COUNT(DISTINCT user_id) 计算不同用户数（容错：表不存在时返回空）
+    // 30天过期：只统计30天内有更新的号码
     let voteStats: any[] = [];
     try {
       voteStats = await db.execute(sql`
@@ -76,6 +77,7 @@ router.post('/', requireAuth, async (req: any, res: any) => {
           )}
         )
         GROUP BY phone
+        HAVING MAX(updated_at) > NOW() - INTERVAL '30 days'
       `) as any[];
     } catch (err: any) {
       if (!isTableNotExistError(err)) throw err;

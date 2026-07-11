@@ -16,6 +16,7 @@ import detectRouter from "./routes/detect";
 import authenticateRouter from "./routes/authenticate";
 import updatesRouter from "./routes/updates";
 import { createRateLimiter } from "./middleware/rate-limit";
+import { startScheduledCleanup } from "./utils/cleanup";
 // TODO: 扩展点预留 - 广告和游戏路由
 // import adsRouter from "./routes/ads";    // 广告回调 (AdMob/穿山甲/优量汇)
 // import gameRouter from "./routes/game";  // 小游戏 (H5/外部渠道)
@@ -346,4 +347,6 @@ app.get(/.*/, (req, res) => { res.sendFile(path.join(clientDistPath, "index.html
 
 app.listen(port, () => {
   console.log(`Server listening at http://localhost:${port}/`);
+  // 启动定时清理任务（每6小时清理超过30天的投票）
+  startScheduledCleanup();
 });
