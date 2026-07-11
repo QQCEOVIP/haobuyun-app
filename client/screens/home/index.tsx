@@ -388,6 +388,25 @@ export default function HomeScreen() {
         console.warn('Failed to query community votes:', error);
       }
 
+      // Fetch authenticated numbers to skip during detection (Fix 5)
+      const authenticatedPhones = new Set<string>();
+      if (user) {
+        try {
+          const authResponse = await fetch(`${getBackendBaseUrl()}/api/v1/authenticate/my-authentications`, {
+            headers: { 'x-user-id': user },
+          });
+          if (authResponse.ok) {
+            const authData = await authResponse.json();
+            for (const auth of (authData.authentications || [])) {
+              const normalized = (auth.phone || '').replace(/\D/g, '');
+              if (normalized) authenticatedPhones.add(normalized);
+            }
+          }
+        } catch (error) {
+          console.warn('Failed to fetch authenticated numbers:', error);
+        }
+      }
+
       // 电话号码标准化函数（与后端 normalizePhone 保持一致）
       const normalizePhone = (phone: string) => phone.replace(/[\s\-()]/g, '');
 
@@ -406,6 +425,17 @@ export default function HomeScreen() {
       deviceContacts.forEach(contact => {
         const rawPhone = contact.phoneNumbers?.[0]?.number || '';
         const phone = normalizePhone(rawPhone); // 标准化电话号码
+        
+        // Skip authenticated numbers during detection (Fix 5)
+        const digits = phone.replace(/\D/g, '');
+        const normalizedForAuth = (digits.length === 13 && digits.startsWith('86'))
+          ? digits.slice(2)
+          : digits;
+        if (normalizedForAuth && authenticatedPhones.has(normalizedForAuth)) {
+          result.active++; // Count as active/normal
+          return;
+        }
+        
         const localData = allLocalContacts?.find((lc: any) => lc.phone === phone);
         // AsyncStorage 手动标签优先，其次 Supabase 检测结果
         const localStatus = localStatusMap.get(phone) || localData?.status;

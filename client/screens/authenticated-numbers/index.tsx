@@ -34,7 +34,9 @@ const normalizePhone = (rawPhone: string): string => {
 // Format date for display
 const formatDate = (dateStr: string): string => {
   try {
+    // Handle ISO format and various date string formats
     const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return '未知';
     const month = date.getMonth() + 1;
     const day = date.getDate();
     return `${month}月${day}日`;

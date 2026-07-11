@@ -95,6 +95,7 @@ export default function StoppedContactsScreen() {
       // Fetch community statuses from backend API (same source as fetchCleanupStats count)
       const communityStatusMap = new Map<string, string>();
       const communityNameMap = new Map<string, string>();
+      const authenticatedPhones = new Set<string>();
       try {
         const response = await fetch(`${getBackendBaseUrl()}/api/v1/community-statuses`);
         if (response.ok) {
@@ -103,13 +104,16 @@ export default function StoppedContactsScreen() {
           for (const row of statuses) {
             const normalized = normalizePhone(row.phone || '');
             if (normalized) {
+              // Skip authenticated numbers - they should not appear in possibly-invalid list
+              if (row.authenticated_name) {
+                authenticatedPhones.add(normalized);
+                communityNameMap.set(normalized, row.authenticated_name);
+                continue; // Don't add to communityStatusMap
+              }
               if (row.status === 'confirmed_invalid') {
                 communityStatusMap.set(normalized, 'stopped');
               } else if (row.status === 'possibly_invalid') {
                 communityStatusMap.set(normalized, 'suspected_stopped');
-              }
-              if (row.authenticated_name) {
-                communityNameMap.set(normalized, row.authenticated_name);
               }
             }
           }
@@ -135,7 +139,9 @@ export default function StoppedContactsScreen() {
           // Fall back to community status if no local status
           const finalLabel = storedLabel || (normalized ? communityStatusMap.get(normalized) : null);
 
-          if (finalLabel === validStatus) {
+          // Skip authenticated numbers from possibly-invalid list (Fix 1)
+          const isAuth = normalized && authenticatedPhones.has(normalized);
+          if (finalLabel === validStatus && !(validStatus === 'suspected_stopped' && isAuth)) {
             result.push({
               id: contact.id || normalized || rawPhone,
               name: contact.name || '未知联系人',
@@ -353,7 +359,7 @@ export default function StoppedContactsScreen() {
                 activeOpacity={0.7}
               >
                 <Ionicons name="person-circle-outline" size={14} color="#6366F1" />
-                <Text style={styles.changeOwnerBtnText}>换机主</Text>
+                <Text style={styles.changeOwnerBtnText}>已换机主</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -507,8 +513,8 @@ export default function StoppedContactsScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Delete unselected */}
-          {contacts.length - selectedIds.size > 0 && (
+          {/* Delete unselected - only for possibly-invalid list (Fix 4) */}
+          {validStatus === 'suspected_stopped' && contacts.length - selectedIds.size > 0 && (
             <TouchableOpacity style={[styles.deleteBtn, { backgroundColor: '#6B7280' }]} onPress={handleDeleteSelected}>
               <Ionicons name="close-circle-outline" size={16} color="#fff" />
               <Text style={styles.deleteBtnText}>删除未选中 ({contacts.length - selectedIds.size})</Text>
