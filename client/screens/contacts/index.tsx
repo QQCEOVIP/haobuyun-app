@@ -909,6 +909,9 @@ export default function ContactsScreen() {
       // Also query community voting statuses from backend
       try {
         const { data: communityData, error: communityError } = await supabase.rpc('get_all_community_statuses');
+        console.log('[fetchCleanupStats] RPC raw communityData:', JSON.stringify(communityData));
+        console.log('[fetchCleanupStats] RPC communityError:', communityError);
+        console.log('[fetchCleanupStats] currentPhones:', Array.from(currentPhones));
         if (communityError) {
           console.warn('Failed to fetch community statuses for cleanup stats:', communityError.message);
         }
