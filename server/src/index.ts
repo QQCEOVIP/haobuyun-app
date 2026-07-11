@@ -11,6 +11,7 @@ import feedbackRouter from "./routes/feedback";
 import authRouter from "./routes/auth";
 import votesRouter from "./routes/votes";
 import numberStatusRouter from "./routes/number-status";
+import communityStatusesRouter from "./routes/community-statuses";
 import detectRouter from "./routes/detect";
 import authenticateRouter from "./routes/authenticate";
 import updatesRouter from "./routes/updates";
@@ -84,6 +85,8 @@ app.use('/api/v1/votes', createRateLimiter(10), votesRouter);
 
 // 号码状态查询路由（限流：每用户每分钟 20 次）
 app.use('/api/v1/number-status', createRateLimiter(20), numberStatusRouter);
+// 社区投票状态批量查询（限流：每用户每分钟 20 次）
+app.use('/api/v1/community-statuses', createRateLimiter(20), communityStatusesRouter);
 // 一键检测（限流：每用户每分钟 3 次）
 app.use('/api/v1/detect', createRateLimiter(3), detectRouter);
 // 认证号码（限流：每用户每分钟 5 次）

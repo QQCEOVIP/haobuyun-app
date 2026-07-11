@@ -906,16 +906,12 @@ export default function ContactsScreen() {
         }
       }
 
-      // Also query community voting statuses from backend
+      // Also query community voting statuses from backend HTTP API
       try {
-        const { data: communityData, error: communityError } = await supabase.rpc('get_all_community_statuses');
-        console.log('[fetchCleanupStats] RPC raw communityData:', JSON.stringify(communityData));
-        console.log('[fetchCleanupStats] RPC communityError:', communityError);
-        console.log('[fetchCleanupStats] currentPhones:', Array.from(currentPhones));
-        if (communityError) {
-          console.warn('Failed to fetch community statuses for cleanup stats:', communityError.message);
-        }
-        if (communityData) {
+        const response = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/community-statuses`);
+        if (response.ok) {
+          const json = await response.json();
+          const communityData = json.statuses || [];
           for (const row of communityData) {
             // Normalize phone: strip country code if present, keep only digits
             const digits = row.phone?.replace(/\D/g, '') || '';
@@ -960,25 +956,23 @@ export default function ContactsScreen() {
 
   const fetchCommunityMarks = async () => {
     try {
-      const { data, error } = await supabase.rpc('get_all_community_statuses');
-      if (error) {
-        console.warn('Failed to fetch community statuses:', error.message);
-        return;
-      }
-      if (!data) return;
+      const response = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/community-statuses`);
+      if (!response.ok) return;
+      const json = await response.json();
+      const data = json.statuses || [];
+      if (!data.length) return;
 
       // Build a map: normalized phone -> { status, voteCount }
-      // RPC returns plain phone numbers, not hashes
       const markMap = new Map<string, { status: NumberStatus; voteCount: number }>();
       for (const row of data) {
         if (row.vote_count >= CONSENSUS.MIN_MARKS) {
-          // Normalize RPC phone to digits without country code
-          const rpcDigits = (row.phone || '').replace(/\D/g, '');
-          const normalizedRpcPhone = (rpcDigits.length === 13 && rpcDigits.startsWith('86'))
-            ? rpcDigits.slice(2)
-            : rpcDigits;
-          if (normalizedRpcPhone) {
-            markMap.set(normalizedRpcPhone, {
+          // Normalize phone to digits without country code
+          const digits = (row.phone || '').replace(/\D/g, '');
+          const normalizedPhone = (digits.length === 13 && digits.startsWith('86'))
+            ? digits.slice(2)
+            : digits;
+          if (normalizedPhone) {
+            markMap.set(normalizedPhone, {
               status: row.status as NumberStatus,
               voteCount: row.vote_count,
             });
@@ -991,7 +985,6 @@ export default function ContactsScreen() {
       const phoneCommunityMap = new Map<string, { status: NumberStatus; voteCount: number }>();
       for (const contact of contacts) {
         if (contact.phone) {
-          // Normalize contact phone to digits without country code
           const contactDigits = contact.phone.replace(/\D/g, '');
           const normalizedContactPhone = (contactDigits.length === 13 && contactDigits.startsWith('86'))
             ? contactDigits.slice(2)
