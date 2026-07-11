@@ -398,6 +398,9 @@ export default function HomeScreen() {
         unknown: 0,
       };
 
+      // Collect per-phone detection results for batch AsyncStorage save
+      const detectionEntries: Array<{ phone: string; status: string }> = [];
+
       deviceContacts.forEach(contact => {
         const rawPhone = contact.phoneNumbers?.[0]?.number || '';
         const phone = normalizePhone(rawPhone); // 标准化电话号码
@@ -407,8 +410,8 @@ export default function HomeScreen() {
         const communityVote = communityVotesMap.get(phone);
         
         // 综合判断：本地状态 + 社区投票
-        // 确认停用：本地标记stopped OR 社区确认停用（>=5人标记）
-        // 疑似停用：社区疑似停用（>=1人标记）且本地未标记stopped
+        // 确认停用：本地标记stopped OR 社区确认停用（>=6人标记）
+        // 疑似停用：社区疑似停用（>=3人标记）且本地未标记stopped
         let finalStatus = localStatus;
         if (communityVote?.communityStatus === 'confirmed_stopped') {
           finalStatus = 'stopped';
@@ -416,6 +419,18 @@ export default function HomeScreen() {
           finalStatus = 'suspected_stopped';
         }
         
+        // Record detection result for this phone
+        if (finalStatus === 'stopped' || finalStatus === 'suspected_stopped') {
+          // Normalize to digits-only without country code for consistent key
+          const digits = phone.replace(/\D/g, '');
+          const normalizedPhone = (digits.length === 13 && digits.startsWith('86'))
+            ? digits.slice(2)
+            : digits;
+          if (normalizedPhone) {
+            detectionEntries.push({ phone: normalizedPhone, status: finalStatus });
+          }
+        }
+
         switch (finalStatus) {
           case 'normal':
             result.active++;
@@ -443,9 +458,13 @@ export default function HomeScreen() {
       // 保存检测结果
       setDetectionResult(result);
       
-      // 持久化检测结果到 AsyncStorage
+      // 持久化检测结果到 AsyncStorage（聚合 + 逐号码）
       try {
         await AsyncStorage.setItem('@detection_result', JSON.stringify(result));
+        // Save individual phone statuses so contacts page can count them
+        for (const entry of detectionEntries) {
+          await AsyncStorage.setItem(`@contact_status_${entry.phone}`, entry.status);
+        }
       } catch (e) {
         console.warn('Failed to save detection result:', e);
       }
