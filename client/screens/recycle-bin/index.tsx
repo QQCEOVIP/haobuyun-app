@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
 import * as Contacts from 'expo-contacts';
 import { getBackendBaseUrl } from '@/utils';
+import * as AsyncStorage from "@react-native-async-storage/async-storage";
 
 interface TrashContact {
   id: string;
@@ -22,6 +23,24 @@ interface TrashContact {
   phone: string;
   status: string;
   deleted_at: string;
+}
+
+function normalizePhoneForCompare(phone: string): string {
+  if (!phone) return "";
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length === 13 && digits.startsWith("86")) return digits.slice(2);
+  if (digits.length === 14 && digits.startsWith("860")) return digits.slice(3);
+  return digits;
+}
+
+function normalizePhoneForDevice(phone: string): string {
+  if (!phone) return "";
+  const hasPlus = phone.trim().startsWith("+");
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length === 13 && digits.startsWith("86")) return digits.slice(2);
+  if (digits.length === 14 && digits.startsWith("860")) return digits.slice(3);
+  if (hasPlus && digits.length > 0) return `+${digits}`;
+  return digits;
 }
 
 export default function RecycleBinScreen() {
@@ -75,6 +94,15 @@ export default function RecycleBinScreen() {
     }
   };
 
+  const invalidateHomeStats = async () => {
+    try {
+      await AsyncStorage.multiRemove(["home_stats_cache", "home_stats_timestamp", "contacts_status_distribution", "contacts_total_count"]);
+      console.log("[RecycleBin] Home stats cache invalidated");
+    } catch (e) {
+      console.warn("[RecycleBin] Failed to invalidate home stats cache:", e);
+    }
+  };
+
   const handleRestore = async () => {
     if (selectedIds.size === 0) {
       Alert.alert('提示', '请先选择要恢复的号码');
@@ -116,6 +144,7 @@ export default function RecycleBinScreen() {
       console.log('[RecycleBin] Contact details:', selectedContacts.map(c => ({ name: c.name, phone: c.phone })));
       
       let addedToDevice = 0;
+      let skippedExisting = 0;
       let failedToAdd = 0;
       
       if (selectedContacts.length > 0) {
@@ -131,7 +160,7 @@ export default function RecycleBinScreen() {
             const localPhones = new Set<string>();
             for (const lc of localContacts.data) {
               for (const p of (lc.phoneNumbers || [])) {
-                const normalized = (p.number || '').replace(/[\s\-()]/g, '');
+                const normalized = normalizePhoneForCompare(p.number || "");
                 if (normalized.length >= 7) localPhones.add(normalized);
               }
             }
@@ -139,20 +168,27 @@ export default function RecycleBinScreen() {
             for (const contact of selectedContacts) {
               try {
                 // 检查本地是否已存在该号码
-                const normalizedPhone = (contact.phone || '').replace(/[\s\-()]/g, '');
+                const normalizedPhone = normalizePhoneForCompare(contact.phone || "");
                 if (normalizedPhone && localPhones.has(normalizedPhone)) {
                   console.log('[RecycleBin] Contact already exists locally, skipping device add:', contact.name, contact.phone);
-                  addedToDevice++; // 算作成功（已在本地）
+                  skippedExisting++;
                   continue;
                 }
 
                 console.log('[RecycleBin] Adding contact to device:', contact.name, contact.phone);
-                const result = await Contacts.addContactAsync({
-                  firstName: contact.name || '',
-                  name: contact.name || '',
-                  phoneNumbers: contact.phone ? [{ number: contact.phone, label: 'main' }] : [],
-                });
-                console.log('[RecycleBin] Contact added successfully, id:', result);
+                const devicePhone = normalizePhoneForDevice(contact.phone || "");
+                const contactPayload: any = {
+                  [Contacts.Fields.FirstName]: contact.name || "",
+                };
+                if (devicePhone) {
+                  contactPayload[Contacts.Fields.PhoneNumbers] = [{
+                    number: devicePhone,
+                    label: Contacts.Fields.PhoneLabels.Main,
+                  }];
+                }
+                const addResult = await Contacts.addContactAsync(contactPayload);
+                if (normalizedPhone) { localPhones.add(normalizedPhone); }
+                console.log('[RecycleBin] Contact added successfully, id:', addResult);
                 addedToDevice++;
               } catch (e: any) {
                 console.warn('[RecycleBin] Failed to add contact to device:', contact.name, e?.message || e);
@@ -175,15 +211,13 @@ export default function RecycleBinScreen() {
       }
 
       console.log('[RecycleBin] Restore complete. Added:', addedToDevice, 'Failed:', failedToAdd);
+      await invalidateHomeStats();
       
       // Show result message
       let message = result.message || `已恢复 ${selectedIds.size} 个号码`;
-      if (addedToDevice > 0) {
-        message += `\n已添加 ${addedToDevice} 个到设备通讯录`;
-      }
-      if (failedToAdd > 0) {
-        message += `\n${failedToAdd} 个添加失败`;
-      }
+      if (addedToDevice > 0) message += `\n已添加 ${addedToDevice} 个到设备通讯录`;
+      if (skippedExisting > 0) message += `\n${skippedExisting} 个号码已存在于设备中`;
+      if (failedToAdd > 0) message += `\n${failedToAdd} 个添加到设备失败（云端已恢复）`;
       
       Alert.alert('完成', message);
       setSelectedIds(new Set());
@@ -258,7 +292,7 @@ export default function RecycleBinScreen() {
         </View>
         <View style={styles.cardContent}>
           <Text style={styles.cardName} numberOfLines={1}>{item.name || '未知'}</Text>
-          <Text style={styles.cardPhone}>{item.phone_numbers}</Text>
+          <Text style={styles.cardPhone}>{item.phone}</Text>
           <Text style={styles.cardDate}>删除于 {formatDate(item.deleted_at)}</Text>
         </View>
       </TouchableOpacity>
