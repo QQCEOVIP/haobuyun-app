@@ -779,7 +779,7 @@ export default function ContactsScreen() {
         console.log(`[SyncSnapshot] 共发现 ${disappearedContacts.length} 个消失的号码，保存到回收站`);
         for (const contact of disappearedContacts) {
           try {
-            const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/contacts/trash`, {
+            const response = await fetch(`${getBackendBaseUrl()}/api/v1/contacts/trash`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -1002,7 +1002,7 @@ export default function ContactsScreen() {
 
   const fetchCommunityMarks = async () => {
     try {
-      const response = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/community-statuses`);
+      const response = await fetch(`${getBackendBaseUrl()}/api/v1/community-statuses`);
       if (!response.ok) return;
       const json = await response.json();
       const data = json.statuses || [];
