@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as LocalUpdater from 'expo-local-updater';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Linking from 'expo-linking';
+import Constants from 'expo-constants';
+import { getBackendBaseUrl } from '@/utils';
 import Logo from '@/components/Logo';
-
-const BACKEND_BASE_URL = process.env.EXPO_PUBLIC_BACKEND_BASE_URL || '';
 
 interface UpdateInfo {
   update_available: boolean;
@@ -21,40 +22,24 @@ export default function AboutScreen() {
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
-  const progressListenerRef = useRef<ReturnType<typeof LocalUpdater.addProgressListener> | null>(null);
-  const stateListenerRef = useRef<ReturnType<typeof LocalUpdater.addStateListener> | null>(null);
-
-  useEffect(() => {
-    return () => {
-      progressListenerRef.current?.remove();
-      stateListenerRef.current?.remove();
-    };
-  }, []);
 
   const handleCheckUpdate = async () => {
     setCheckingUpdate(true);
     try {
       let versionCode = 1;
       try {
-        versionCode = await LocalUpdater.getVersionCode();
-      } catch {
-        // fallback for web/dev
-      }
+        versionCode = (Constants.expoConfig?.version ?? '1.0.1').split('.').reduce((acc, val) => acc * 100 + parseInt(val), 0);
+      } catch {}
 
       const response = await fetch(
-        `${BACKEND_BASE_URL}/api/v1/updates/check?current_version_code=${versionCode}`
+        `${getBackendBaseUrl()}/api/v1/updates/check?current_version_code=${versionCode}`
       );
       if (!response.ok) throw new Error('Network error');
 
       const data: UpdateInfo = await response.json();
 
       if (!data.update_available) {
-        let versionName = '1.0.1';
-        try {
-          versionName = await LocalUpdater.getVersionName();
-        } catch {
-          // fallback
-        }
+        const versionName = Constants.expoConfig?.version || '1.0.1';
         Alert.alert('当前已是最新版本', `版本号：v${versionName}`, [{ text: '确定' }]);
       } else {
         setUpdateInfo(data);
@@ -67,33 +52,71 @@ export default function AboutScreen() {
     }
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!updateInfo?.download_url) return;
 
     setDownloading(true);
     setDownloadProgress(0);
 
-    progressListenerRef.current = LocalUpdater.addProgressListener((progress) => {
-      setDownloadProgress(Math.round(progress * 100));
-    });
+    // 方案1：使用 expo-file-system 下载 APK（带进度）
+    if (Platform.OS === 'android') {
+      try {
+        const downloadPath = `${FileSystem.documentDirectory}haobuyun-update.apk`;
 
-    stateListenerRef.current = LocalUpdater.addStateListener((state) => {
-      if (state.state === 'error') {
-        setDownloading(false);
-        Alert.alert('下载失败', 'APK 下载失败，请稍后重试');
-      }
-      if (state.state === 'idle' && downloadProgress >= 100) {
-        setDownloading(false);
-        setShowUpdateModal(false);
-      }
-    });
+        // 如果已存在旧文件先删除
+        const fileInfo = await (FileSystem as any).getInfoAsync(downloadPath);
+        if (fileInfo.exists) {
+          await (FileSystem as any).deleteAsync(downloadPath);
+        }
 
-    LocalUpdater.startDownload(updateInfo.download_url);
+        const downloadResumable = (FileSystem as any).createDownloadResumable(
+          updateInfo.download_url,
+          downloadPath,
+          {},
+          (downloadProgress: any) => {
+            if (downloadProgress.totalBytesExpectedToWrite > 0) {
+              const progress = downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite;
+              setDownloadProgress(Math.round(progress * 100));
+            }
+          }
+        );
+
+        const result = await downloadResumable.downloadAsync();
+
+        if (result && result.uri) {
+          setDownloadProgress(100);
+          // 托管式 Expo 无法直接安装 APK，提示用户通过文件管理器安装
+          Alert.alert('下载完成', 'APK 已下载到本地，请前往文件管理器找到 haobuyun-update.apk 进行安装');
+          setShowUpdateModal(false);
+          return;
+        }
+      } catch (fsError) {
+        console.warn('[About] FileSystem download failed:', fsError);
+      }
+    }
+
+    // 方案2：回退到浏览器下载
+    try {
+      const supported = await Linking.canOpenURL(updateInfo.download_url);
+      if (supported) {
+        await Linking.openURL(updateInfo.download_url);
+        Alert.alert('提示', '正在浏览器中下载更新包，下载完成后请点击安装');
+      } else {
+        Alert.alert('下载失败', '无法打开下载链接，请联系客服获取更新包');
+      }
+    } catch (linkError) {
+      console.error('[About] Failed to open download URL:', linkError);
+      Alert.alert('下载失败', '请检查网络连接后重试，或联系客服获取更新包');
+    } finally {
+      setDownloading(false);
+      setShowUpdateModal(false);
+    }
   };
 
   const handleInstall = async () => {
+    if (!updateInfo?.download_url) return;
     try {
-      await LocalUpdater.installLastDownloaded();
+      await Linking.openURL(updateInfo.download_url);
     } catch {
       Alert.alert('安装失败', '无法调起安装程序，请手动安装下载的 APK');
     }
@@ -167,7 +190,14 @@ export default function AboutScreen() {
                   <Text style={styles.modalBtnPrimaryText}>下载中...</Text>
                 </TouchableOpacity>
               ) : downloadProgress >= 100 ? (
-                <TouchableOpacity style={styles.modalBtnPrimary} onPress={handleInstall}>
+                <TouchableOpacity style={styles.modalBtnPrimary} onPress={async () => {
+                  try {
+                    await Linking.openURL(updateInfo!.download_url);
+                  } catch {
+                    Alert.alert('提示', '请前往浏览器下载并安装最新版本');
+                  }
+                  setShowUpdateModal(false);
+                }}>
                   <Text style={styles.modalBtnPrimaryText}>立即安装</Text>
                 </TouchableOpacity>
               ) : (
