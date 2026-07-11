@@ -98,7 +98,7 @@ export default function ContactsScreen() {
   const [infoModalVisible, setInfoModalVisible] = useState(false);
   const [statusMenuContact, setStatusMenuContact] = useState<Contact | null>(null);
   const [cleanupStats, setCleanupStats] = useState({ duplicate: 0, stopped: 0, suspected: 0 });
-  const [communityMarks, setCommunityMarks] = useState<Map<string, { status: NumberStatus; markCount: number }>>(new Map());
+  const [communityMarks, setCommunityMarks] = useState<Map<string, { status: NumberStatus; voteCount: number }>>(new Map());
   const [syncLoading, setSyncLoading] = useState(false);
   const [contactAvatars, setContactAvatars] = useState<Record<string, string>>({});
   const [avatarMenuContact, setAvatarMenuContact] = useState<Contact | null>(null);
@@ -148,8 +148,8 @@ export default function ContactsScreen() {
   );
 
   // 阈值配置（与服务端保持一致）
-  const CONFIRMED_THRESHOLD = 3;
-  const MAYBE_THRESHOLD = 2;
+  const CONFIRMED_THRESHOLD = 6;
+  const MAYBE_THRESHOLD = 3;
 
   // 新用户检查：注册是否满7天
   // NOTE: 暂时解除限制，正式上线前需恢复7天限制
@@ -895,6 +895,31 @@ export default function ContactsScreen() {
         }
       }
 
+      // Also query community voting statuses from backend
+      try {
+        const { data: communityData } = await supabase.rpc('get_all_community_statuses');
+        if (communityData) {
+          for (const row of communityData) {
+            const phone = row.phone?.replace(/\D/g, '');
+            if (phone && currentPhones.has(phone)) {
+              // Only count if not already counted from AsyncStorage
+              const statusKey = `@contact_status_${row.phone}`;
+              const localStatus = await AsyncStorage.getItem(statusKey);
+              if (!localStatus) {
+                // Not marked locally, use community status
+                if (row.status === 'confirmed_invalid') {
+                  stopped++;
+                } else if (row.status === 'possibly_invalid') {
+                  suspected++;
+                }
+              }
+            }
+          }
+        }
+      } catch (communityError) {
+        console.warn('Failed to fetch community statuses for cleanup stats:', communityError);
+      }
+
       // Count potential duplicates by phone number
       const phoneMap = new Map<string, number>();
       contactList.forEach(c => {
@@ -920,35 +945,26 @@ export default function ContactsScreen() {
       }
       if (!data) return;
 
-      // Build a map: phone_hash -> { status, markCount }
-      const markMap = new Map<string, { status: NumberStatus; markCount: number }>();
+      // Build a map: phone -> { status, voteCount }
+      // RPC returns plain phone numbers, not hashes
+      const markMap = new Map<string, { status: NumberStatus; voteCount: number }>();
       for (const row of data) {
-        if (row.mark_count >= CONSENSUS.MIN_MARKS) {
-          markMap.set(row.phone_hash, {
+        if (row.vote_count >= CONSENSUS.MIN_MARKS) {
+          markMap.set(row.phone, {
             status: row.status as NumberStatus,
-            markCount: row.mark_count,
+            voteCount: row.vote_count,
           });
         }
       }
 
-      // Pre-compute phone hashes for all current contacts
-      const phoneHashMaps = new Map<string, string>();
+      // Build a phone -> community mark map for easy lookup in render
+      const phoneCommunityMap = new Map<string, { status: NumberStatus; voteCount: number }>();
       for (const contact of contacts) {
         if (contact.phone) {
-          const hash = await Crypto.digestStringAsync(
-            Crypto.CryptoDigestAlgorithm.SHA256,
-            contact.phone,
-          );
-          phoneHashMaps.set(contact.phone, hash);
-        }
-      }
-
-      // Build a phone -> community mark map for easy lookup in render
-      const phoneCommunityMap = new Map<string, { status: NumberStatus; markCount: number }>();
-      for (const [phone, hash] of phoneHashMaps) {
-        const communityMark = markMap.get(hash);
-        if (communityMark) {
-          phoneCommunityMap.set(phone, communityMark);
+          const communityMark = markMap.get(contact.phone);
+          if (communityMark) {
+            phoneCommunityMap.set(contact.phone, communityMark);
+          }
         }
       }
 

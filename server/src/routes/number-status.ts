@@ -6,7 +6,8 @@ import { isValidPhone, normalizePhone } from '../middleware/rate-limit';
 const router: any = Router();
 
 // 阈值配置（基于不同用户数）
-const CONFIRMED_THRESHOLD = 3;
+const CONFIRMED_THRESHOLD = 6; // >=6 票 → 确认失效
+const MAYBE_THRESHOLD = 3;     // >=3 票 → 可能失效
 
 /**
  * 加密姓名：张明 → 张*明，李 → 李*，欧阳修 → 欧*修
@@ -70,10 +71,12 @@ router.get('/:phone', async (req: any, res: any) => {
     let status: string;
     if (stoppedCount === 0) {
       status = 'normal';
+    } else if (stoppedCount < MAYBE_THRESHOLD) {
+      status = 'normal'; // 少于3票，不显示状态
     } else if (stoppedCount < CONFIRMED_THRESHOLD) {
-      status = 'possibly_invalid';
+      status = 'possibly_invalid'; // 3-5票：可能失效
     } else {
-      // >=3 个不同用户标记停用
+      // >=6 个不同用户标记停用
       if (authCount >= stoppedCount) {
         status = 'possibly_invalid'; // 有争议
       } else {
@@ -87,7 +90,7 @@ router.get('/:phone', async (req: any, res: any) => {
       stopped_count: stoppedCount,  // 不同用户数
       normal_count: normalCount,
       auth_count: authCount,
-      certified: authCount >= CONFIRMED_THRESHOLD && authNames.length > 0,
+      certified: authCount >= MAYBE_THRESHOLD && authNames.length > 0,
       auth_names: encryptedNames,
     });
   } catch (error) {

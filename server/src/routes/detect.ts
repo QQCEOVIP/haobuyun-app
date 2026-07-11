@@ -6,8 +6,8 @@ import { isValidPhone, normalizePhone } from '../middleware/rate-limit';
 const router: any = Router();
 
 // 阈值配置（基于不同用户数）
-const CONFIRMED_THRESHOLD = 3; // >=3 个不同用户标记停用 → 确认失效
-const MAYBE_THRESHOLD = 1;     // >=1 个用户标记停用 → 可能失效
+const CONFIRMED_THRESHOLD = 6; // >=6 个不同用户标记停用 → 确认失效 (>5票)
+const MAYBE_THRESHOLD = 3;     // >=3 个不同用户标记停用 → 可能失效 (3-5票)
 
 function getUserIdFromHeaders(req: any): string | null {
   const userId = req.headers['x-user-id'];

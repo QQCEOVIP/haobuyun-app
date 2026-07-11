@@ -21,7 +21,7 @@ export const TRUST_SCORE = {
 // 社区共识阈值
 export const CONSENSUS = {
   // 显示社区标记所需的最少标记人数
-  MIN_MARKS: 2,
+  MIN_MARKS: 3,
 } as const;
 
 // 号码状态类型

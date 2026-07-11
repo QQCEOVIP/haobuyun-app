@@ -114,7 +114,29 @@ export default function HomeScreen() {
   // 首次加载：使用 useEffect 只在挂载时执行
   useEffect(() => {
     if (!initialLoaded) {
-      fetchStats();
+      // 先尝试加载保存的检测结果
+      (async () => {
+        try {
+          const savedResult = await AsyncStorage.getItem('@detection_result');
+          if (savedResult) {
+            const result = JSON.parse(savedResult);
+            setDetectionResult(result);
+            setStats({
+              total: result.total,
+              active: result.active,
+              maybeInvalid: result.maybeInvalid,
+              invalid: result.invalid,
+              unknown: result.unknown,
+            });
+          } else {
+            // 没有保存的检测结果，才执行 fetchStats
+            fetchStats();
+          }
+        } catch (e) {
+          console.warn('Failed to load saved detection result:', e);
+          fetchStats();
+        }
+      })();
       setInitialLoaded(true);
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -130,7 +152,7 @@ export default function HomeScreen() {
       setRestoreSelectVisible(false);
       setBackupRecordsVisible(false);
       setFileNameModalVisible(false);
-      setDetectionResult(null);
+      // 注意：不再重置 detectionResult，以保持检测结果持久化
 
       (async () => {
         try {
@@ -151,7 +173,7 @@ export default function HomeScreen() {
         setRestoreSelectVisible(false);
         setBackupRecordsVisible(false);
         setFileNameModalVisible(false);
-        setDetectionResult(null);
+        // 注意：不再重置 detectionResult，以保持检测结果持久化
       };
     }, [])
   );
@@ -268,8 +290,8 @@ export default function HomeScreen() {
   };
 
   // 阈值配置（与服务端保持一致）
-  const CONFIRMED_THRESHOLD = 5;
-  const MAYBE_THRESHOLD = 1;
+  const CONFIRMED_THRESHOLD = 6;
+  const MAYBE_THRESHOLD = 3;
 
   // 一键检测功能
   const runDetection = async () => {
@@ -411,6 +433,13 @@ export default function HomeScreen() {
 
       // 保存检测结果
       setDetectionResult(result);
+      
+      // 持久化检测结果到 AsyncStorage
+      try {
+        await AsyncStorage.setItem('@detection_result', JSON.stringify(result));
+      } catch (e) {
+        console.warn('Failed to save detection result:', e);
+      }
       
       // 显示检测结果摘要
       const communityCount = communityVotesMap.size;
@@ -1977,7 +2006,14 @@ export default function HomeScreen() {
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await fetchStats();
+      // 下拉刷新时，如果有保存的检测结果，则不重新获取
+      // 用户可以通过手动点击"一键检测"按钮来重新检测
+      const savedResult = await AsyncStorage.getItem('@detection_result');
+      if (!savedResult) {
+        // 没有保存的检测结果，才执行 fetchStats
+        await fetchStats();
+      }
+      // 如果有保存的检测结果，保持当前状态不变
     } catch (error) {
       console.error('Refresh failed:', error);
     } finally {
