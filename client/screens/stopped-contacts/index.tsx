@@ -82,24 +82,64 @@ export default function StoppedContactsScreen() {
         }
       }
 
+      // Fetch community statuses from backend API (same source as fetchCleanupStats count)
+      const communityStatusMap = new Map<string, string>();
+      try {
+        const response = await fetch(`${getBackendBaseUrl()}/api/v1/community-statuses`);
+        if (response.ok) {
+          const json = await response.json();
+          const statuses = json.statuses || [];
+          for (const row of statuses) {
+            // Normalize phone to digits without country code
+            const digits = (row.phone || '').replace(/\D/g, '');
+            const normalizedPhone = (digits.length === 13 && digits.startsWith('86'))
+              ? digits.slice(2)
+              : digits;
+            if (normalizedPhone) {
+              // Map community status to AsyncStorage status names
+              if (row.status === 'confirmed_invalid') {
+                communityStatusMap.set(normalizedPhone, 'stopped');
+              } else if (row.status === 'possibly_invalid') {
+                communityStatusMap.set(normalizedPhone, 'suspected_stopped');
+              }
+            }
+          }
+        }
+      } catch (apiError) {
+        console.warn('Failed to fetch community statuses:', apiError);
+      }
+
       const result: StoppedContact[] = [];
       for (const contact of allContacts) {
         if (!contact.phoneNumbers || contact.phoneNumbers.length === 0) continue;
-        const phone = contact.phoneNumbers[0].number || '';
-        if (!phone) continue;
+        const rawPhone = contact.phoneNumbers[0].number || '';
+        if (!rawPhone) continue;
+
+        // Normalize phone to digits without country code (consistent with fetchCleanupStats)
+        const digits = rawPhone.replace(/\D/g, '');
+        const normalizedPhone = (digits.length === 13 && digits.startsWith('86'))
+          ? digits.slice(2)
+          : digits;
 
         try {
-          const storedLabel = await AsyncStorage.getItem(`@contact_status_${phone}`);
-          if (storedLabel === validStatus) {
+          // Check AsyncStorage first (using both raw phone and normalized phone)
+          let storedLabel = await AsyncStorage.getItem(`@contact_status_${rawPhone}`);
+          if (!storedLabel && normalizedPhone && normalizedPhone !== rawPhone) {
+            storedLabel = await AsyncStorage.getItem(`@contact_status_${normalizedPhone}`);
+          }
+          // Fall back to community status if no local status
+          const finalLabel = storedLabel || (normalizedPhone ? communityStatusMap.get(normalizedPhone) : null);
+          
+          if (finalLabel === validStatus) {
             result.push({
-              id: contact.id || phone,
+              id: contact.id || normalizedPhone || rawPhone,
               name: contact.name || '未知联系人',
-              phone,
-              label: storedLabel,
+              phone: rawPhone,
+              label: finalLabel,
             });
           }
         } catch (storageError) {
-          console.warn('AsyncStorage read failed for', phone, storageError);
+          console.warn('AsyncStorage read failed for', rawPhone, storageError);
         }
       }
 

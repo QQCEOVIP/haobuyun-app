@@ -18,6 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
+import { useSafeRouter } from '@/hooks/useSafeRouter';
 import * as Contacts from 'expo-contacts';
 import * as FileSystemLegacy from 'expo-file-system/legacy';
 import * as FileSystem from 'expo-file-system';
@@ -68,6 +69,7 @@ interface ContactStats {
 }
 
 export default function HomeScreen() {
+  const router = useSafeRouter();
   const { user, session, avatarUrl: contextAvatarUrl } = useAuth();
   const [localAvatarUrl, setLocalAvatarUrl] = useState<string | null>(null);
   const displayAvatarUrl = contextAvatarUrl || localAvatarUrl;
@@ -2133,14 +2135,30 @@ export default function HomeScreen() {
         </View>
         
         <View style={styles.statsRow}>
-          <View style={[styles.statCard, { backgroundColor: '#FFF8E6' }]}>
+          <TouchableOpacity 
+            style={[styles.statCard, { backgroundColor: '#FFF8E6' }]}
+            onPress={() => {
+              if (stats.maybeInvalid > 0) {
+                router.push('/stopped-contacts', { status: 'suspected_stopped' });
+              }
+            }}
+            disabled={stats.maybeInvalid === 0}
+          >
             <Text style={[styles.statValue, { color: '#E6A23C' }]}>{stats.maybeInvalid}</Text>
             <Text style={styles.statLabel}>可能失效</Text>
-          </View>
-          <View style={[styles.statCard, { backgroundColor: '#FEF0F0' }]}>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.statCard, { backgroundColor: '#FEF0F0' }]}
+            onPress={() => {
+              if (stats.invalid > 0) {
+                router.push('/stopped-contacts', { status: 'stopped' });
+              }
+            }}
+            disabled={stats.invalid === 0}
+          >
             <Text style={[styles.statValue, { color: '#F56C6C' }]}>{stats.invalid}</Text>
             <Text style={styles.statLabel}>确定失效</Text>
-          </View>
+          </TouchableOpacity>
         </View>
 
         {/* 基础功能 */}
