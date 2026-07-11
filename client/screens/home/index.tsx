@@ -83,6 +83,7 @@ export default function HomeScreen() {
   });
   const [detecting, setDetecting] = useState(false);
   const [detectionResult, setDetectionResult] = useState<any>(null);
+  const [recycleBinCount, setRecycleBinCount] = useState(0);
   const [cloudBackupVisible, setCloudBackupVisible] = useState(false);
 
   const [backups, setBackups] = useState<any[]>([]);
@@ -192,23 +193,28 @@ export default function HomeScreen() {
     };
   }, []);
 
-  // Lightweight refresh: only re-read AsyncStorage status counts when page gains focus
-  // This avoids the heavy device contacts read that caused black screen issues
-  // 注意：如果有保存的检测结果，则不执行此刷新，以保持检测结果持久化
+  // Lightweight refresh: re-read AsyncStorage status counts when page gains focus
+  // This ensures stats are updated after restore operations
   useFocusEffect(
     useCallback(() => {
       if (!initialLoaded || !userId) return;
       
-      // 检查是否有保存的检测结果，如果有则跳过刷新
       (async () => {
         try {
-          const savedResult = await AsyncStorage.getItem('@detection_result');
-          if (savedResult) {
-            // 有保存的检测结果，保持当前状态不变
-            return;
+          // Load recycle bin count
+          try {
+            const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+            if (userId) headers['x-user-id'] = userId;
+            const trashResponse = await fetch(`${getBackendBaseUrl()}/api/v1/contacts/trash`, { headers });
+            if (trashResponse.ok) {
+              const trashResult = await trashResponse.json();
+              const trashData = Array.isArray(trashResult) ? trashResult : (trashResult.data || []);
+              setRecycleBinCount(trashData.length);
+            }
+          } catch (e) {
+            console.warn('[Home] Failed to load recycle bin count:', e);
           }
-          
-          // 没有保存的检测结果，才执行刷新
+
           // If total is 0 (no contacts on device), skip AsyncStorage read and keep all stats at 0
           if (stats.total === 0) {
             setStats({ total: 0, active: 0, maybeInvalid: 0, invalid: 0, unknown: 0 });
@@ -251,6 +257,23 @@ export default function HomeScreen() {
           }
 
           setStats(contactStats);
+          
+          // Update the saved detection result with new stats
+          const savedResult = await AsyncStorage.getItem('@detection_result');
+          if (savedResult) {
+            try {
+              const result = JSON.parse(savedResult);
+              result.total = contactStats.total;
+              result.active = contactStats.active;
+              result.maybeInvalid = contactStats.maybeInvalid;
+              result.invalid = contactStats.invalid;
+              result.unknown = contactStats.unknown;
+              await AsyncStorage.setItem('@detection_result', JSON.stringify(result));
+              setDetectionResult(result);
+            } catch (e) {
+              // ignore parse error
+            }
+          }
         } catch (error) {
           console.warn('[Home] Failed to refresh status counts:', error);
         }
@@ -2158,10 +2181,18 @@ export default function HomeScreen() {
             <Text style={styles.statValue}>{stats.total}</Text>
             <Text style={styles.statLabel}>总号码</Text>
           </View>
-          <View style={[styles.statCard, { backgroundColor: '#E7F7E7' }]}>
-            <Text style={[styles.statValue, { color: '#67C23A' }]}>{stats.active}</Text>
-            <Text style={styles.statLabel}>活跃</Text>
-          </View>
+          <TouchableOpacity 
+            style={[styles.statCard, { backgroundColor: '#E7F7E7' }]}
+            onPress={() => {
+              if (recycleBinCount > 0) {
+                router.push('/recycle-bin');
+              }
+            }}
+            disabled={recycleBinCount === 0}
+          >
+            <Text style={[styles.statValue, { color: '#67C23A' }]}>{recycleBinCount}</Text>
+            <Text style={styles.statLabel}>回收站</Text>
+          </TouchableOpacity>
         </View>
         
         <View style={styles.statsRow}>
@@ -2241,8 +2272,8 @@ export default function HomeScreen() {
                 <Text style={styles.modalValue}>{detectionResult.total}</Text>
               </View>
               <View style={styles.modalRow}>
-                <Text style={styles.modalLabel}>活跃号码</Text>
-                <Text style={[styles.modalValue, { color: '#67C23A' }]}>{detectionResult.active}</Text>
+                <Text style={styles.modalLabel}>回收站</Text>
+                <Text style={[styles.modalValue, { color: '#67C23A' }]}>{recycleBinCount}</Text>
               </View>
               <View style={styles.modalRow}>
                 <Text style={styles.modalLabel}>可能失效</Text>
