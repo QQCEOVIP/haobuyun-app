@@ -24,7 +24,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         "foregroundImage": "./assets/images/ic_launcher_foreground.png",
         "backgroundColor": "#4F46E5"
       },
-      "package": `com.haobuyun.app`
+      "package": `com.haobuyun.app`,
+      "permissions": ["REQUEST_INSTALL_PACKAGES"]
     },
     "web": {
       "bundler": "metro",
@@ -59,7 +60,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         {
           "contactsPermission": `允许号簿云访问和编辑您的通讯录，以便检测失效号码、备份和修改联系人信息。`
         }
-      ]
+      ],
+      "expo-local-updater"
     ],
     "experiments": {
       "typedRoutes": true
