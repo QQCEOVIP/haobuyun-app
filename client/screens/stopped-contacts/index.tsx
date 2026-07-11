@@ -407,7 +407,7 @@ export default function StoppedContactsScreen() {
         />
       )}
 
-      {contacts.length - selectedIds.size > 0 && (
+      {selectedIds.size > 0 && contacts.length - selectedIds.size > 0 && (
         <View style={styles.bottomBar}>
           <TouchableOpacity style={[styles.deleteBtn, { backgroundColor: color }]} onPress={handleDeleteSelected}>
             <Ionicons name="trash-outline" size={18} color="#fff" />

@@ -6,8 +6,8 @@ import { isValidPhone, normalizePhone } from '../middleware/rate-limit';
 const router: any = Router();
 
 // 阈值配置（基于不同用户数）
-const CONFIRMED_THRESHOLD = 6; // >=6 个不同用户标记停用 → 确认失效 (>5票)
-const MAYBE_THRESHOLD = 3;     // >=3 个不同用户标记停用 → 可能失效 (3-5票)
+const CONFIRMED_THRESHOLD = 11; // >10 个不同用户标记停用且无人认证 → 确认失效
+const MAYBE_THRESHOLD = 3;      // >=3 个不同用户标记停用 → 可能失效 (3-10票)
 
 function getUserIdFromHeaders(req: any): string | null {
   const userId = req.headers['x-user-id'];
@@ -131,18 +131,18 @@ router.post('/', requireAuth, async (req: any, res: any) => {
       if (stoppedVoters === 0) {
         status = 'normal';
         summary.normal++;
-      } else if (stoppedVoters < CONFIRMED_THRESHOLD) {
+      } else if (auth.auth_count > 0) {
+        // 有人认证了换机主，无论多少停用票都只判定可能失效
         status = 'possibly_invalid';
         summary.possibly_invalid++;
+      } else if (stoppedVoters > 10) {
+        // >10票停用且无人认证 → 确认失效
+        status = 'confirmed_invalid';
+        summary.confirmed_invalid++;
       } else {
-        // >=3 个不同用户标记停用
-        if (auth.auth_count >= stoppedVoters) {
-          status = 'possibly_invalid'; // 有争议（认证人数 >= 标记人数）
-          summary.possibly_invalid++;
-        } else {
-          status = 'confirmed_invalid'; // 确认失效
-          summary.confirmed_invalid++;
-        }
+        // 3-10票停用 → 可能失效
+        status = 'possibly_invalid';
+        summary.possibly_invalid++;
       }
 
       results[phone] = {

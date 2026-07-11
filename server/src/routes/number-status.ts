@@ -6,7 +6,7 @@ import { isValidPhone, normalizePhone } from '../middleware/rate-limit';
 const router: any = Router();
 
 // 阈值配置（基于不同用户数）
-const CONFIRMED_THRESHOLD = 6; // >=6 票 → 确认失效
+const CONFIRMED_THRESHOLD = 11; // >10 票且无人认证 → 确认失效
 const MAYBE_THRESHOLD = 3;     // >=3 票 → 可能失效
 
 /**
@@ -73,15 +73,15 @@ router.get('/:phone', async (req: any, res: any) => {
       status = 'normal';
     } else if (stoppedCount < MAYBE_THRESHOLD) {
       status = 'normal'; // 少于3票，不显示状态
-    } else if (stoppedCount < CONFIRMED_THRESHOLD) {
-      status = 'possibly_invalid'; // 3-5票：可能失效
+    } else if (authCount > 0) {
+      // 有人认证了换机主，无论多少停用票都只判定可能失效
+      status = 'possibly_invalid';
+    } else if (stoppedCount > 10) {
+      // >10票停用且无人认证 → 确认失效
+      status = 'confirmed_invalid';
     } else {
-      // >=6 个不同用户标记停用
-      if (authCount >= stoppedCount) {
-        status = 'possibly_invalid'; // 有争议
-      } else {
-        status = 'confirmed_invalid'; // 确认失效
-      }
+      // 3-10票停用 → 可能失效
+      status = 'possibly_invalid';
     }
 
     res.json({ 

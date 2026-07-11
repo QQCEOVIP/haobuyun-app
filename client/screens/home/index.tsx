@@ -301,8 +301,8 @@ export default function HomeScreen() {
   };
 
   // 阈值配置（与服务端保持一致）
-  const CONFIRMED_THRESHOLD = 6;
-  const MAYBE_THRESHOLD = 3;
+  const CONFIRMED_THRESHOLD = 11; // >10票且无人认证 → 确认失效
+  const MAYBE_THRESHOLD = 3;      // 3-10票 → 可能失效
 
   // 一键检测功能
   const runDetection = async () => {

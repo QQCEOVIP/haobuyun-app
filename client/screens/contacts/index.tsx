@@ -148,8 +148,8 @@ export default function ContactsScreen() {
   );
 
   // 阈值配置（与服务端保持一致）
-  const CONFIRMED_THRESHOLD = 6;
-  const MAYBE_THRESHOLD = 3;
+  const CONFIRMED_THRESHOLD = 11; // >10票且无人认证 → 确认失效
+  const MAYBE_THRESHOLD = 3;      // 3-10票 → 可能失效
 
   // 新用户检查：注册是否满7天
   // NOTE: 暂时解除限制，正式上线前需恢复7天限制
@@ -824,8 +824,6 @@ export default function ContactsScreen() {
 
         setContacts(finalContacts);
         filterContacts(finalContacts, searchText, activeTab);
-        // Fetch community marks after contacts are loaded
-        fetchCommunityMarks();
       }
     } catch (error) {
       console.error('Failed to load contacts:', error);
@@ -904,38 +902,6 @@ export default function ContactsScreen() {
             else if (value === 'suspected_stopped') suspected++;
           }
         }
-      }
-
-      // Also query community voting statuses from backend HTTP API
-      try {
-        const response = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/community-statuses`);
-        if (response.ok) {
-          const json = await response.json();
-          const communityData = json.statuses || [];
-          for (const row of communityData) {
-            // Normalize phone: strip country code if present, keep only digits
-            const digits = row.phone?.replace(/\D/g, '') || '';
-            const phone = (digits.length === 13 && digits.startsWith('86'))
-              ? digits.slice(2)
-              : digits;
-            if (phone && currentPhones.has(phone)) {
-              // Only count if not already counted from AsyncStorage
-              // Use normalized phone (digits without country code) for key lookup
-              const statusKey = `@contact_status_${phone}`;
-              const localStatus = await AsyncStorage.getItem(statusKey);
-              if (!localStatus) {
-                // Not marked locally, use community status
-                if (row.status === 'confirmed_invalid') {
-                  stopped++;
-                } else if (row.status === 'possibly_invalid') {
-                  suspected++;
-                }
-              }
-            }
-          }
-        }
-      } catch (communityError) {
-        console.warn('Failed to fetch community statuses for cleanup stats:', communityError);
       }
 
       // Count potential duplicates by phone number
