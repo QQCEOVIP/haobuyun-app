@@ -290,31 +290,70 @@ router.post('/trash', requireAuth, async (req: any, res: any) => {
 
     if (existing.length > 0) {
       const contact = existing[0];
-      await db.insert(deletedContacts).values({
-        user_id: contact.user_id,
-        name: contact.name || name || '',
-        phone: contact.phone,
-        phone_hash: contact.phone_hash,
-        avatar_url: contact.avatar_url,
-        status: contact.status ?? 'unknown',
-        invalid_reason: contact.invalid_reason,
-        invalid_report_count: contact.invalid_report_count ?? 0,
-        last_contact_date: contact.last_contact_date,
-        notes: contact.notes,
-        deleted_at: deletedAt,
-        created_at: contact.created_at ?? deletedAt,
-      });
+      // Check if already in trash (upsert: update name and deleted_at if exists)
+      const existingTrash = await db
+        .select()
+        .from(deletedContacts)
+        .where(and(
+          eq(deletedContacts.phone_hash, contact.phone_hash),
+          eq(deletedContacts.user_id, userId)
+        ))
+        .limit(1);
+
+      if (existingTrash.length > 0) {
+        // Update existing trash record with latest name and deleted_at
+        await db.update(deletedContacts)
+          .set({
+            name: contact.name || name || '',
+            deleted_at: deletedAt,
+          })
+          .where(eq(deletedContacts.id, existingTrash[0].id));
+      } else {
+        await db.insert(deletedContacts).values({
+          user_id: contact.user_id,
+          name: contact.name || name || '',
+          phone: contact.phone,
+          phone_hash: contact.phone_hash,
+          avatar_url: contact.avatar_url,
+          status: contact.status ?? 'unknown',
+          invalid_reason: contact.invalid_reason,
+          invalid_report_count: contact.invalid_report_count ?? 0,
+          last_contact_date: contact.last_contact_date,
+          notes: contact.notes,
+          deleted_at: deletedAt,
+          created_at: contact.created_at ?? deletedAt,
+        });
+      }
       await db.delete(contacts).where(eq(contacts.id, contact.id));
     } else {
-      // Contact not in contacts table, just record in deleted_contacts
-      await db.insert(deletedContacts).values({
-        user_id: userId,
-        name: name || '',
-        phone,
-        phone_hash: phoneHash,
-        status: 'unknown',
-        deleted_at: deletedAt,
-      });
+      // Contact not in contacts table, check if already in trash
+      const existingTrash = await db
+        .select()
+        .from(deletedContacts)
+        .where(and(
+          eq(deletedContacts.phone_hash, phoneHash),
+          eq(deletedContacts.user_id, userId)
+        ))
+        .limit(1);
+
+      if (existingTrash.length > 0) {
+        // Update existing trash record with latest name and deleted_at
+        await db.update(deletedContacts)
+          .set({
+            name: name || existingTrash[0].name,
+            deleted_at: deletedAt,
+          })
+          .where(eq(deletedContacts.id, existingTrash[0].id));
+      } else {
+        await db.insert(deletedContacts).values({
+          user_id: userId,
+          name: name || '',
+          phone,
+          phone_hash: phoneHash,
+          status: 'unknown',
+          deleted_at: deletedAt,
+        });
+      }
     }
 
     res.json({ success: true, message: '已移入回收站' });
@@ -461,6 +500,26 @@ router.post('/:id/restore', requireAuth, async (req: any, res: any) => {
     }
 
     const c = record[0];
+    
+    // Check if contact already exists in contacts table (user may have added it back manually)
+    const existingContact = await db
+      .select()
+      .from(contacts)
+      .where(and(
+        eq(contacts.phone_hash, c.phone_hash as string),
+        eq(contacts.user_id, userId)
+      ))
+      .limit(1);
+
+    if (existingContact.length > 0) {
+      // Contact already exists, just remove from deleted_contacts
+      await db.delete(deletedContacts).where(eq(deletedContacts.id, c.id));
+      return res.json({
+        success: true,
+        message: '联系人已存在于通讯录中，已从回收站移除'
+      });
+    }
+
     // Insert back into contacts
     await db.insert(contacts).values({
       user_id: c.user_id as string,
@@ -513,6 +572,23 @@ router.post('/trash/restore-batch', requireAuth, async (req: any, res: any) => {
         .limit(1);
 
       if (!record) continue;
+
+      // Check if contact already exists in contacts table
+      const existingContact = await db
+        .select()
+        .from(contacts)
+        .where(and(
+          eq(contacts.phone_hash, record.phone_hash as string),
+          eq(contacts.user_id, userId)
+        ))
+        .limit(1);
+
+      if (existingContact.length > 0) {
+        // Contact already exists, just remove from deleted_contacts
+        await db.delete(deletedContacts).where(eq(deletedContacts.id, id));
+        restoredCount++;
+        continue;
+      }
 
       // Insert back into contacts
       await db.insert(contacts).values({

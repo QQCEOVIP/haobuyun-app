@@ -746,6 +746,8 @@ export default function ContactsScreen() {
         ? JSON.parse(snapshotStr)
         : [];
 
+      console.log(`[SyncSnapshot] 快照中有 ${snapshot.length} 个号码，当前通讯录有 ${currentContacts.length} 个号码`);
+
       // 构建当前通讯录的号码集合（标准化格式）
       const normalizePhone = (phone: string) => {
         const digits = phone.replace(/\D/g, '');
@@ -760,21 +762,24 @@ export default function ContactsScreen() {
           .filter(p => p.length > 0)
       );
 
+      console.log(`[SyncSnapshot] 当前通讯录标准化后有 ${currentPhones.size} 个号码`);
+
       // 找出快照中消失的号码
       const disappearedContacts: Array<{ name: string; phone: string }> = [];
       for (const snapContact of snapshot) {
         const snapPhone = normalizePhone(snapContact.phone);
         if (snapPhone.length > 0 && !currentPhones.has(snapPhone)) {
+          console.log(`[SyncSnapshot] 发现消失的号码: ${snapContact.name} (${snapContact.phone})`);
           disappearedContacts.push(snapContact);
         }
       }
 
       // 将消失的号码保存到回收站
       if (disappearedContacts.length > 0) {
-        console.log(`[SyncSnapshot] 发现 ${disappearedContacts.length} 个消失的号码，保存到回收站`);
+        console.log(`[SyncSnapshot] 共发现 ${disappearedContacts.length} 个消失的号码，保存到回收站`);
         for (const contact of disappearedContacts) {
           try {
-            await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/contacts/trash`, {
+            const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/contacts/trash`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -785,10 +790,14 @@ export default function ContactsScreen() {
                 phone: contact.phone,
               }),
             });
+            const result = await response.json();
+            console.log(`[SyncSnapshot] 保存 ${contact.name} 到回收站:`, result);
           } catch (err) {
             console.error(`[SyncSnapshot] 保存 ${contact.name} 到回收站失败:`, err);
           }
         }
+      } else {
+        console.log(`[SyncSnapshot] 没有发现消失的号码`);
       }
 
       // 更新快照为当前通讯录
@@ -796,6 +805,7 @@ export default function ContactsScreen() {
         .filter(c => c.phone && c.phone !== '(无号码)')
         .map(c => ({ name: c.name, phone: c.phone }));
       await AsyncStorage.setItem('@contacts_snapshot', JSON.stringify(newSnapshot));
+      console.log(`[SyncSnapshot] 快照已更新，现在有 ${newSnapshot.length} 个号码`);
     } catch (error) {
       console.error('[SyncSnapshot] 同步快照失败:', error);
     }

@@ -117,13 +117,13 @@ export default function HomeScreen() {
   // 首次加载：使用 useEffect 只在挂载时执行
   useEffect(() => {
     if (!initialLoaded) {
-      // 先尝试加载保存的检测结果
+      // 先尝试加载保存的检测结果的统计数据（但不弹窗）
       (async () => {
         try {
           const savedResult = await AsyncStorage.getItem('@detection_result');
           if (savedResult) {
             const result = JSON.parse(savedResult);
-            setDetectionResult(result);
+            // 只加载统计数据，不设置 detectionResult（避免自动弹窗）
             setStats({
               total: result.total,
               active: result.active,
