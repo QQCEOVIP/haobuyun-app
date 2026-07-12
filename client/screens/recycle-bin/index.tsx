@@ -155,7 +155,7 @@ export default function RecycleBinScreen() {
           if (status === 'granted') {
             // 获取本地通讯录所有联系人，用于去重检查
             const localContacts = await Contacts.getContactsAsync({
-              fields: [Contacts.ContactField.PhoneNumbers],
+              fields: [Contacts.Fields.PhoneNumbers],
             });
             const localPhones = new Set<string>();
             for (const lc of localContacts.data) {
@@ -183,7 +183,7 @@ export default function RecycleBinScreen() {
                 if (devicePhone) {
                   contactPayload[Contacts.Fields.PhoneNumbers] = [{
                     number: devicePhone,
-                    label: Contacts.Fields.PhoneLabels.Main,
+                    label: 'main',
                   }];
                 }
                 const addResult = await Contacts.addContactAsync(contactPayload);
@@ -224,7 +224,7 @@ export default function RecycleBinScreen() {
       loadTrash();
     } catch (error) {
       console.error('[RecycleBin] Failed to restore:', error);
-      Alert.alert('错误', '恢复失败，请重试');
+      Alert.alert('错误', `恢复失败：${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setActionLoading(false);
     }
