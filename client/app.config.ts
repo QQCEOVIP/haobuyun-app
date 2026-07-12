@@ -60,8 +60,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         {
           "contactsPermission": `允许号簿云访问和编辑您的通讯录，以便检测失效号码、备份和修改联系人信息。`
         }
-      ],
-      "expo-local-updater"
+      ]
     ],
     "experiments": {
       "typedRoutes": true
