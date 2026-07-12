@@ -496,56 +496,90 @@ router.post('/:id/restore', requireAuth, async (req: any, res: any) => {
       .limit(1);
 
     if (record.length === 0) {
-      return res.status(404).json({ error: '回收站中未找到该联系人' });
+      return res.status(404).json({ error: '回收站中未找到该联系人', code: 'NOT_FOUND' });
     }
 
     const c = record[0];
-    
-    // Check if contact already exists in contacts table (user may have added it back manually)
+
+    // 如果phone_hash为空，重新计算（deleted_contacts.phone_hash 是 nullable 的）
+    let phoneHash = c.phone_hash as string;
+    if (!phoneHash && c.phone) {
+      phoneHash = hashPhone(c.phone as string);
+      console.log('[Restore] phone_hash was null, recalculated:', phoneHash);
+    }
+    if (!phoneHash) {
+      return res.status(500).json({ error: '号码哈希值缺失，无法恢复', code: 'MISSING_PHONE_HASH' });
+    }
+
+    // Check if contact already exists in contacts table
     const existingContact = await db
       .select()
       .from(contacts)
       .where(and(
-        eq(contacts.phone_hash, c.phone_hash as string),
+        eq(contacts.phone_hash, phoneHash),
         eq(contacts.user_id, userId)
       ))
       .limit(1);
 
     if (existingContact.length > 0) {
-      // Contact already exists, just remove from deleted_contacts
       await db.delete(deletedContacts).where(eq(deletedContacts.id, c.id));
       return res.json({
         success: true,
-        message: '联系人已存在于通讯录中，已从回收站移除'
+        message: '联系人已存在于通讯录中，已从回收站移除',
+        code: 'ALREADY_EXISTS'
       });
     }
 
-    // Insert back into contacts
-    await db.insert(contacts).values({
-      user_id: c.user_id as string,
-      name: c.name as string,
-      phone: c.phone as string,
-      phone_hash: c.phone_hash as string,
-      avatar_url: (c.avatar_url ?? undefined) as string | undefined,
-      status: (c.status ?? 'unknown') as string,
-      invalid_reason: (c.invalid_reason ?? undefined) as string | undefined,
-      invalid_report_count: (c.invalid_report_count ?? 0) as number,
-      last_contact_date: (c.last_contact_date ?? undefined) as Date | undefined,
-      notes: (c.notes ?? undefined) as string | undefined,
-      created_at: (c.created_at ?? new Date()) as Date,
-      updated_at: new Date(),
-    });
+    // 恢复联系人时，保持用户删除前的状态
+    // 回收站是用户自己删除的号码，恢复时不受社区投票或认证状态影响
+    const restoreStatus = (c.status ?? 'unknown') as string;
+
+    try {
+      await db.insert(contacts).values({
+        user_id: c.user_id as string,
+        name: c.name as string,
+        phone: c.phone as string,
+        phone_hash: phoneHash,
+        avatar_url: (c.avatar_url ?? undefined) as string | undefined,
+        status: restoreStatus,
+        invalid_reason: (c.invalid_reason ?? undefined) as string | undefined,
+        invalid_report_count: (c.invalid_report_count ?? 0) as number,
+        last_contact_date: (c.last_contact_date ?? undefined) as Date | undefined,
+        notes: (c.notes ?? undefined) as string | undefined,
+        created_at: (c.created_at ?? new Date()) as Date,
+        updated_at: new Date(),
+      });
+    } catch (insertError: any) {
+      console.error('[Restore] 插入contacts表失败:', insertError);
+      // 检查是否是唯一约束冲突（号码已存在）
+      if (insertError?.code === '23505' || insertError?.message?.includes('duplicate') || insertError?.message?.includes('unique')) {
+        await db.delete(deletedContacts).where(eq(deletedContacts.id, c.id));
+        return res.json({
+          success: true,
+          message: '联系人已存在于通讯录中，已从回收站移除',
+          code: 'ALREADY_EXISTS'
+        });
+      }
+      return res.status(500).json({
+        error: '恢复联系人失败：' + (insertError?.message || '数据库写入错误'),
+        code: 'INSERT_FAILED'
+      });
+    }
 
     // Remove from deleted_contacts
     await db.delete(deletedContacts).where(eq(deletedContacts.id, c.id));
 
     res.json({
       success: true,
-      message: '恢复成功'
+      message: '恢复成功',
+      code: 'RESTORED'
     });
-  } catch (error) {
-    console.error('恢复联系人失败:', error);
-    res.status(500).json({ error: '恢复联系人失败' });
+  } catch (error: any) {
+    console.error('[Restore] 恢复联系人失败:', error);
+    res.status(500).json({
+      error: '恢复联系人失败：' + (error?.message || '未知错误'),
+      code: 'RESTORE_ERROR'
+    });
   }
 });
 
@@ -557,52 +591,83 @@ router.post('/trash/restore-batch', requireAuth, async (req: any, res: any) => {
   try {
     const { ids } = req.body as { ids: string[] };
     if (!ids || ids.length === 0) {
-      return res.status(400).json({ error: '请选择要恢复的联系人' });
+      return res.status(400).json({ error: '请选择要恢复的联系人', code: 'NO_IDS' });
     }
 
     const userId = (req as any).userId;
     let restoredCount = 0;
+    const failedItems: Array<{ id: string; name: string; reason: string }> = [];
 
     for (const id of ids) {
-      // Read from deleted_contacts
       const [record] = await db
         .select()
         .from(deletedContacts)
         .where(and(eq(deletedContacts.id, id), eq(deletedContacts.user_id, userId)))
         .limit(1);
 
-      if (!record) continue;
+      if (!record) {
+        failedItems.push({ id, name: '', reason: '回收站中未找到该联系人' });
+        continue;
+      }
+
+      // 如果phone_hash为空，重新计算（deleted_contacts.phone_hash 是 nullable 的）
+      let phoneHash = record.phone_hash as string;
+      if (!phoneHash && record.phone) {
+        phoneHash = hashPhone(record.phone as string);
+        console.log('[RestoreBatch] phone_hash was null, recalculated:', phoneHash);
+      }
+      if (!phoneHash) {
+        failedItems.push({ id, name: record.name as string, reason: '号码哈希值缺失' });
+        continue;
+      }
 
       // Check if contact already exists in contacts table
       const existingContact = await db
         .select()
         .from(contacts)
         .where(and(
-          eq(contacts.phone_hash, record.phone_hash as string),
+          eq(contacts.phone_hash, phoneHash),
           eq(contacts.user_id, userId)
         ))
         .limit(1);
 
       if (existingContact.length > 0) {
-        // Contact already exists, just remove from deleted_contacts
         await db.delete(deletedContacts).where(eq(deletedContacts.id, id));
         restoredCount++;
         continue;
       }
 
-      // Insert back into contacts
-      await db.insert(contacts).values({
-        user_id: record.user_id as string,
-        name: record.name as string,
-        phone: record.phone as string,
-        phone_hash: record.phone_hash as string,
-        avatar_url: (record.avatar_url ?? undefined) as string | undefined,
-        status: (record.status ?? 'unknown') as string,
-        invalid_reason: (record.invalid_reason ?? undefined) as string | undefined,
-        invalid_report_count: (record.invalid_report_count ?? 0) as number,
-        last_contact_date: (record.last_contact_date ?? undefined) as Date | undefined,
-        notes: (record.notes ?? undefined) as string | undefined,
-      });
+      // 恢复时保持用户删除前的状态，不受社区投票或认证状态影响
+      const restoreStatus = (record.status ?? 'unknown') as string;
+
+      try {
+        await db.insert(contacts).values({
+          user_id: record.user_id as string,
+          name: record.name as string,
+          phone: record.phone as string,
+          phone_hash: phoneHash,
+          avatar_url: (record.avatar_url ?? undefined) as string | undefined,
+          status: restoreStatus,
+          invalid_reason: (record.invalid_reason ?? undefined) as string | undefined,
+          invalid_report_count: (record.invalid_report_count ?? 0) as number,
+          last_contact_date: (record.last_contact_date ?? undefined) as Date | undefined,
+          notes: (record.notes ?? undefined) as string | undefined,
+        });
+      } catch (insertError: any) {
+        console.error('[RestoreBatch] 插入contacts表失败:', insertError);
+        // 唯一约束冲突，视为已存在
+        if (insertError?.code === '23505' || insertError?.message?.includes('duplicate') || insertError?.message?.includes('unique')) {
+          await db.delete(deletedContacts).where(eq(deletedContacts.id, id));
+          restoredCount++;
+          continue;
+        }
+        failedItems.push({
+          id,
+          name: record.name as string,
+          reason: insertError?.message || '数据库写入错误'
+        });
+        continue;
+      }
 
       // Remove from deleted_contacts
       await db.delete(deletedContacts).where(eq(deletedContacts.id, id));
@@ -611,11 +676,18 @@ router.post('/trash/restore-batch', requireAuth, async (req: any, res: any) => {
 
     res.json({
       success: true,
-      message: `成功恢复 ${restoredCount} 个联系人`
+      message: failedItems.length > 0
+        ? '成功恢复 ' + restoredCount + ' 个联系人，' + failedItems.length + ' 个恢复失败'
+        : '成功恢复 ' + restoredCount + ' 个联系人',
+      restoredCount,
+      failedItems: failedItems.length > 0 ? failedItems : undefined,
     });
-  } catch (error) {
-    console.error('批量恢复失败:', error);
-    res.status(500).json({ error: '批量恢复失败' });
+  } catch (error: any) {
+    console.error('[RestoreBatch] 批量恢复失败:', error);
+    res.status(500).json({
+      error: '批量恢复失败：' + (error?.message || '未知错误'),
+      code: 'BATCH_RESTORE_ERROR'
+    });
   }
 });
 
