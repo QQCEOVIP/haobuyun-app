@@ -133,7 +133,15 @@ export default function RecycleBinScreen() {
       if (!response.ok) {
         const errorText = await response.text();
         console.error('[RecycleBin] API error:', errorText);
-        throw new Error('Failed to restore');
+        // 尝试解析服务端返回的JSON错误信息
+        let serverError = '恢复失败';
+        try {
+          const parsed = JSON.parse(errorText);
+          serverError = parsed.error || parsed.message || serverError;
+        } catch {
+          serverError = errorText || '服务器错误';
+        }
+        throw new Error(serverError);
       }
       const result = await response.json();
       console.log('[RecycleBin] API result:', result);
