@@ -4,9 +4,9 @@ const router: ReturnType<typeof Router> = Router();
 
 // 版本信息（硬编码，后续可改为数据库存储）
 const LATEST_VERSION = {
-  version_code: 2,
-  version_name: '1.0.1',
-  download_url: 'https://kdsf38dsn9.coze.site/updates/haobuyun-latest.apk',
+  version_code: 10012,
+  version_name: '1.0.12',
+  download_url: 'https://www.coze.cn/s/dbrA17CpP4s',
   apk_size: 0,
   min_sdk_version: 21,
   release_notes: '1. 优化设备品牌显示\n2. 新增应用内检查更新功能\n3. 优化反馈邮件内容\n4. 修复回收站恢复号码问题\n5. 修复检查更新下载功能',
