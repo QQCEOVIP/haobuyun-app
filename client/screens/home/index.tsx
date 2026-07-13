@@ -155,7 +155,8 @@ export default function HomeScreen() {
       setRestoreSelectVisible(false);
       setBackupRecordsVisible(false);
       setFileNameModalVisible(false);
-      // 注意：不再重置 detectionResult，以保持检测结果持久化
+      // 重置检测结果弹窗，避免返回页面时自动弹出
+      setDetectionResult(null);
 
       (async () => {
         try {
@@ -176,7 +177,7 @@ export default function HomeScreen() {
         setRestoreSelectVisible(false);
         setBackupRecordsVisible(false);
         setFileNameModalVisible(false);
-        // 注意：不再重置 detectionResult，以保持检测结果持久化
+        setDetectionResult(null);
       };
     }, [])
   );
