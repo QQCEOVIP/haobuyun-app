@@ -63,6 +63,7 @@ export default function StoppedContactsScreen() {
     stopped_votes: number;
     normal_votes: number;
     authenticated_name?: string;
+    authenticated_at?: string;
     expires_at?: string;
     is_authenticated: boolean;
   } | null>(null);
@@ -282,6 +283,7 @@ export default function StoppedContactsScreen() {
           stopped_votes: json.stopped_count ?? 0,
           normal_votes: json.normal_count ?? 0,
           authenticated_name: json.authenticated_name || undefined,
+          authenticated_at: json.authenticated_at || undefined,
           expires_at: json.expires_at || undefined,
           is_authenticated: json.is_authenticated ?? false,
         });
@@ -647,6 +649,14 @@ export default function StoppedContactsScreen() {
                   <View style={styles.statusDialogRow}>
                     <Text style={styles.statusDialogLabel}>认证人</Text>
                     <Text style={styles.statusDialogValue}>{statusDialogData.authenticated_name}</Text>
+                  </View>
+                )}
+                {statusDialogData.authenticated_at && (
+                  <View style={styles.statusDialogRow}>
+                    <Text style={styles.statusDialogLabel}>认证时间</Text>
+                    <Text style={styles.statusDialogValue}>
+                      {new Date(statusDialogData.authenticated_at).toLocaleDateString('zh-CN')}
+                    </Text>
                   </View>
                 )}
                 {statusDialogData.expires_at && (

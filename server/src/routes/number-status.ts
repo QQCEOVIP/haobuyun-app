@@ -53,7 +53,7 @@ router.get('/:phone', async (req: any, res: any) => {
     const stoppedCount = stats?.stopped_voters || 0;
     const normalCount = stats?.normal_voters || 0;
 
-    // 查询认证信息
+    // 查询认证信息（包含时间和有效期）
     const authData = await db.execute(sql`
       SELECT 
         COUNT(*)::int as auth_count,
@@ -66,6 +66,24 @@ router.get('/:phone', async (req: any, res: any) => {
     const authCount = auth?.auth_count || 0;
     const authNames: string[] = auth?.auth_names || [];
     const encryptedNames = authNames.map((name: string) => encryptName(name));
+
+    // 查询最新认证时间和有效期
+    let authenticatedAt: string | null = null;
+    let expiresAt: string | null = null;
+    if (authCount > 0) {
+      const authTimeResult = await db.execute(sql`
+        SELECT authenticated_at, expires_at
+        FROM number_authentications
+        WHERE phone = ${normalizedPhone}
+        ORDER BY authenticated_at DESC
+        LIMIT 1
+      `);
+      const authTimeRow = (authTimeResult as any[])?.[0];
+      if (authTimeRow) {
+        authenticatedAt = authTimeRow.authenticated_at;
+        expiresAt = authTimeRow.expires_at;
+      }
+    }
 
     // 判定状态
     let status: string;
@@ -92,6 +110,11 @@ router.get('/:phone', async (req: any, res: any) => {
       auth_count: authCount,
       certified: authCount >= MAYBE_THRESHOLD && authNames.length > 0,
       auth_names: encryptedNames,
+      // 前端需要的字段
+      is_authenticated: authCount > 0,
+      authenticated_name: encryptedNames.length > 0 ? encryptedNames[0] : undefined,
+      authenticated_at: authenticatedAt,
+      expires_at: expiresAt,
     });
   } catch (error) {
     console.error('Get number status error:', error);
