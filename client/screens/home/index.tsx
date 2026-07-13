@@ -2384,6 +2384,7 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.cloudModalBody}>
+            <ScrollView showsVerticalScrollIndicator={false}>
             {cloudBackups.length > 0 ? (
               cloudBackups.map((backup, index) => {
                 const parsed = parseBackupFilename(backup.name);
@@ -2435,6 +2436,7 @@ export default function HomeScreen() {
             >
               <Text style={{ fontSize: 15, color: '#909399', fontWeight: '500' }}>取消</Text>
             </TouchableOpacity>
+            </ScrollView>
           </View>
         </View>
       </Overlay>
