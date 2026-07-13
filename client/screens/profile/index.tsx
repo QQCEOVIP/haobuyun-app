@@ -53,6 +53,32 @@ export default function ProfileScreen() {
   const { user, signOut, avatarUrl: contextAvatarUrl, setAvatarUrl: setContextAvatarUrl, refreshAvatar } = useAuth();
   const [localAvatarUrl, setLocalAvatarUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [hasNewVersion, setHasNewVersion] = useState(false);
+
+  // 检查新版本
+  useEffect(() => {
+    checkForNewVersion();
+  }, []);
+
+  const checkForNewVersion = async () => {
+    try {
+      const res = await fetch('/version.json');
+      if (!res.ok) return;
+      const data = await res.json();
+      const localVersion = Constants.expoConfig?.version || '1.0.0';
+      const localCode = parseVersionCode(localVersion);
+      if (data.version_code > localCode) {
+        setHasNewVersion(true);
+      }
+    } catch {
+      // 静默失败
+    }
+  };
+
+  const parseVersionCode = (version: string): number => {
+    const parts = version.split('.').map(Number);
+    return (parts[0] || 0) * 10000 + (parts[1] || 0) * 100 + (parts[2] || 0);
+  };
 
   // Use context avatarUrl as primary source, fallback to local state
   const avatarUrl = contextAvatarUrl || localAvatarUrl;
@@ -267,6 +293,7 @@ export default function ProfileScreen() {
               color="#909399"
               title="关于我们"
               subtitle={`内测版本 ${Constants.expoConfig?.version || '1.0.0'}`}
+              badge={hasNewVersion ? '新版本' : undefined}
               onPress={() => router.push('/about')}
             />
           </View>
