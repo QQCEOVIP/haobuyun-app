@@ -1307,6 +1307,55 @@ export default function ContactsScreen() {
         </View>
       </View>
 
+      {/* 管理助手 - 固定定位，不随列表滚动 */}
+      <View style={[styles.cleanupCard, { marginHorizontal: 20 }]}>
+        <View style={styles.cleanupHeader}>
+          <View style={styles.cleanupTitleRow}>
+            <Ionicons name="options" size={16} color="#4A90D9" style={{ marginRight: 4 }} />
+            <Text style={styles.cleanupTitle}>管理助手</Text>
+          </View>
+          <TouchableOpacity
+            onPress={() => router.push('/recycle-bin')}
+            activeOpacity={0.8}
+            style={styles.recycleBinPillWrapper}
+          >
+            <Image
+              source={require('@/assets/trash_pill.jpg')}
+              style={styles.recycleBinPillImage}
+              resizeMode="cover"
+            />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.cleanupStats}>
+          <TouchableOpacity
+            style={styles.cleanupStatItem}
+            activeOpacity={0.7}
+            onPress={() => router.push('/duplicates')}
+          >
+            <Text style={[styles.cleanupStatValue, { color: '#E6A23C' }]}>{cleanupStats.duplicate}</Text>
+            <Text style={styles.cleanupStatLabel}>疑似重复</Text>
+          </TouchableOpacity>
+          <View style={styles.cleanupStatDivider} />
+          <TouchableOpacity
+            style={styles.cleanupStatItem}
+            activeOpacity={0.7}
+            onPress={() => router.push('/stopped-contacts', { status: 'stopped' })}
+          >
+            <Text style={[styles.cleanupStatValue, { color: '#F56C6C' }]}>{cleanupStats.stopped}</Text>
+            <Text style={styles.cleanupStatLabel}>确认失效</Text>
+          </TouchableOpacity>
+          <View style={styles.cleanupStatDivider} />
+          <TouchableOpacity
+            style={styles.cleanupStatItem}
+            activeOpacity={0.7}
+            onPress={() => router.push('/stopped-contacts', { status: 'suspected_stopped' })}
+          >
+            <Text style={[styles.cleanupStatValue, { color: '#FA8C16' }]}>{cleanupStats.suspected}</Text>
+            <Text style={styles.cleanupStatLabel}>可能失效</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
       <FlatList
         data={filteredContacts}
         renderItem={renderContact}
@@ -1314,55 +1363,6 @@ export default function ContactsScreen() {
         contentContainerStyle={styles.listContainer}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-        ListHeaderComponent={
-          <View style={styles.cleanupCard}>
-            <View style={styles.cleanupHeader}>
-              <View style={styles.cleanupTitleRow}>
-                <Ionicons name="options" size={16} color="#4A90D9" style={{ marginRight: 4 }} />
-                <Text style={styles.cleanupTitle}>管理助手</Text>
-              </View>
-              <TouchableOpacity
-                onPress={() => router.push('/recycle-bin')}
-                activeOpacity={0.8}
-                style={styles.recycleBinPillWrapper}
-              >
-                <Image
-                  source={require('@/assets/trash_pill.jpg')}
-                  style={styles.recycleBinPillImage}
-                  resizeMode="cover"
-                />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.cleanupStats}>
-              <TouchableOpacity
-                style={styles.cleanupStatItem}
-                activeOpacity={0.7}
-                onPress={() => router.push('/duplicates')}
-              >
-                <Text style={[styles.cleanupStatValue, { color: '#E6A23C' }]}>{cleanupStats.duplicate}</Text>
-                <Text style={styles.cleanupStatLabel}>疑似重复</Text>
-              </TouchableOpacity>
-              <View style={styles.cleanupStatDivider} />
-              <TouchableOpacity
-                style={styles.cleanupStatItem}
-                activeOpacity={0.7}
-                onPress={() => router.push('/stopped-contacts', { status: 'stopped' })}
-              >
-                <Text style={[styles.cleanupStatValue, { color: '#F56C6C' }]}>{cleanupStats.stopped}</Text>
-                <Text style={styles.cleanupStatLabel}>确认失效</Text>
-              </TouchableOpacity>
-              <View style={styles.cleanupStatDivider} />
-              <TouchableOpacity
-                style={styles.cleanupStatItem}
-                activeOpacity={0.7}
-                onPress={() => router.push('/stopped-contacts', { status: 'suspected_stopped' })}
-              >
-                <Text style={[styles.cleanupStatValue, { color: '#FA8C16' }]}>{cleanupStats.suspected}</Text>
-                <Text style={styles.cleanupStatLabel}>可能失效</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
         }
         ListEmptyComponent={
           hasPermission === false ? (
@@ -1815,7 +1815,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F7FA',
     borderRadius: 10,
     paddingHorizontal: 12,
-    marginBottom: 12,
   },
   searchIcon: {
     marginRight: 8,
@@ -2164,7 +2163,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 16,
-    marginBottom: 16,
+    marginBottom: 12,
     shadowColor: '#4A90D9',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
