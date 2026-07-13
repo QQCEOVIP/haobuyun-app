@@ -29,7 +29,7 @@ import Constants from 'expo-constants';
 const Overlay = ({ visible, children, onClose }: { visible: boolean; children: React.ReactNode; onClose?: () => void }) => {
   if (!visible) return null;
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+    <View style={StyleSheet.absoluteFill}>
       <TouchableWithoutFeedback onPress={onClose} disabled={!onClose}>
         <View
           style={{

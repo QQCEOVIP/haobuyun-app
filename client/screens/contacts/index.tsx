@@ -80,19 +80,12 @@ interface Contact {
   note?: string;
 }
 
-const STATUS_TABS = [
-  { key: 'all', label: '全部' },
-  { key: 'normal', label: '正常' },
-  { key: 'stopped', label: '停用' },
-];
-
 export default function ContactsScreen() {
   const router = useSafeRouter();
   const { user } = useAuth();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [filteredContacts, setFilteredContacts] = useState<Contact[]>([]);
   const [searchText, setSearchText] = useState('');
-  const [activeTab, setActiveTab] = useState('all');
   const [refreshing, setRefreshing] = useState(false);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [infoModalVisible, setInfoModalVisible] = useState(false);
@@ -903,14 +896,14 @@ export default function ContactsScreen() {
         await syncContactsSnapshot(mappedContacts, userId);
 
         setContacts(finalContacts);
-        filterContacts(finalContacts, searchText, activeTab);
+        filterContacts(finalContacts, searchText);
       }
     } catch (error) {
       console.error('Failed to load contacts:', error);
     }
   }, [userId]);
 
-  const filterContacts = (contactList: Contact[], search: string, tab: string) => {
+  const filterContacts = (contactList: Contact[], search: string) => {
     let filtered = contactList;
 
     if (search) {
@@ -918,10 +911,6 @@ export default function ContactsScreen() {
         c => c.name.toLowerCase().includes(search.toLowerCase()) ||
              c.phone.includes(search)
       );
-    }
-
-    if (tab !== 'all') {
-      filtered = filtered.filter(c => c.status === tab);
     }
 
     setFilteredContacts(filtered);
@@ -1092,8 +1081,8 @@ export default function ContactsScreen() {
   };
 
   useEffect(() => {
-    filterContacts(contacts, searchText, activeTab);
-  }, [searchText, activeTab, contacts]);
+    filterContacts(contacts, searchText);
+  }, [searchText, contacts]);
 
   useEffect(() => {
     if (contacts.length > 0) {
@@ -1315,19 +1304,6 @@ export default function ContactsScreen() {
               <Ionicons name="close-circle" size={18} color="#C0C4CC" />
             </TouchableOpacity>
           )}
-        </View>
-        <View style={styles.tabContainer}>
-          {STATUS_TABS.map(tab => (
-            <TouchableOpacity
-              key={tab.key}
-              style={[styles.tab, activeTab === tab.key && styles.activeTab]}
-              onPress={() => setActiveTab(tab.key)}
-            >
-              <Text style={[styles.tabText, activeTab === tab.key && styles.activeTabText]}>
-                {tab.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
         </View>
       </View>
 
@@ -1849,27 +1825,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 14,
     color: '#303133',
-  },
-  tabContainer: {
-    flexDirection: 'row',
-  },
-  tab: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    marginRight: 8,
-    borderRadius: 16,
-    backgroundColor: '#F5F7FA',
-  },
-  activeTab: {
-    backgroundColor: '#4A90D9',
-  },
-  tabText: {
-    fontSize: 13,
-    color: '#606266',
-  },
-  activeTabText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
   },
   listContainer: {
     padding: 16,

@@ -7,6 +7,9 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  Modal,
+  ScrollView,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
@@ -50,6 +53,20 @@ export default function StoppedContactsScreen() {
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  // 号码状态对话框状态
+  const [statusDialogVisible, setStatusDialogVisible] = useState(false);
+  const [statusDialogPhone, setStatusDialogPhone] = useState('');
+  const [statusDialogData, setStatusDialogData] = useState<{
+    phone: string;
+    name?: string;
+    status: string;
+    stopped_votes: number;
+    normal_votes: number;
+    authenticated_name?: string;
+    expires_at?: string;
+    is_authenticated: boolean;
+  } | null>(null);
+  const [statusDialogLoading, setStatusDialogLoading] = useState(false);
 
   // Safely resolve status - default to 'stopped' if invalid
   const validStatus = (status === 'stopped' || status === 'suspected_stopped') ? status : 'stopped';
@@ -244,6 +261,55 @@ export default function StoppedContactsScreen() {
     });
   }, [router]);
 
+  /**
+   * 显示号码状态对话框
+   * 服务端文件：server/src/routes/number-status.ts
+   * 接口：GET /api/v1/number-status/:phone
+   */
+  const handleShowNumberStatus = useCallback(async (item: StoppedContact) => {
+    setStatusDialogPhone(item.phone);
+    setStatusDialogData(null);
+    setStatusDialogVisible(true);
+    setStatusDialogLoading(true);
+    try {
+      const response = await fetch(`${getBackendBaseUrl()}/api/v1/number-status/${encodeURIComponent(item.normalizedPhone)}`);
+      if (response.ok) {
+        const json = await response.json();
+        setStatusDialogData({
+          phone: json.phone || item.phone,
+          name: json.name || item.name,
+          status: json.status || 'unknown',
+          stopped_votes: json.stopped_votes ?? 0,
+          normal_votes: json.normal_votes ?? 0,
+          authenticated_name: json.authenticated_name || undefined,
+          expires_at: json.expires_at || undefined,
+          is_authenticated: json.is_authenticated ?? false,
+        });
+      } else {
+        setStatusDialogData({
+          phone: item.phone,
+          name: item.name,
+          status: 'unknown',
+          stopped_votes: 0,
+          normal_votes: 0,
+          is_authenticated: false,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to fetch number status:', error);
+      setStatusDialogData({
+        phone: item.phone,
+        name: item.name,
+        status: 'error',
+        stopped_votes: 0,
+        normal_votes: 0,
+        is_authenticated: false,
+      });
+    } finally {
+      setStatusDialogLoading(false);
+    }
+  }, []);
+
   const handleDeleteSelected = useCallback(() => {
     const unselectedCount = contacts.length - selectedIds.size;
     if (unselectedCount === 0) {
@@ -309,6 +375,7 @@ export default function StoppedContactsScreen() {
 
     return (
       <View style={[styles.card, isSelected && { backgroundColor: '#FEF2F2' }]}>
+        {/* 只有点击复选框才能选中 */}
         <TouchableOpacity
           style={styles.cardLeft}
           onPress={() => toggleSelect(item.id)}
@@ -319,11 +386,8 @@ export default function StoppedContactsScreen() {
           </View>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.cardContent}
-          onPress={() => toggleSelect(item.id)}
-          activeOpacity={0.7}
-        >
+        {/* 姓名/号码区域不触发选中 */}
+        <View style={styles.cardContent}>
           <View style={styles.cardNameRow}>
             <Text style={styles.cardName} numberOfLines={1}>{item.name}</Text>
             {item.authenticatedName ? (
@@ -335,11 +399,11 @@ export default function StoppedContactsScreen() {
           </View>
           <Text style={styles.cardPhone}>{item.phone}</Text>
 
-          {/* Action buttons for possibly invalid numbers */}
+          {/* Action buttons for possibly invalid numbers - 3 buttons evenly distributed */}
           {isPossiblyInvalid && (
             <View style={styles.actionRow}>
               <TouchableOpacity
-                style={[styles.actionButton, styles.confirmBtn]}
+                style={[styles.actionButton, styles.actionButtonFlex, styles.confirmBtn]}
                 onPress={() => handleConfirmStopped(item)}
                 disabled={isLoading}
                 activeOpacity={0.7}
@@ -348,22 +412,30 @@ export default function StoppedContactsScreen() {
                   <ActivityIndicator size="small" color="#EF4444" />
                 ) : (
                   <>
-                    <Ionicons name="alert-circle-outline" size={14} color="#EF4444" />
-                    <Text style={styles.confirmBtnText}>确认停用</Text>
+                    <Ionicons name="alert-circle-outline" size={12} color="#EF4444" />
+                    <Text style={styles.confirmBtnText} numberOfLines={1}>确认停用</Text>
                   </>
                 )}
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.actionButton, styles.changeOwnerBtn]}
+                style={[styles.actionButton, styles.actionButtonFlex, styles.changeOwnerBtn]}
                 onPress={() => handleChangeOwner(item)}
                 activeOpacity={0.7}
               >
-                <Ionicons name="person-circle-outline" size={14} color="#6366F1" />
-                <Text style={styles.changeOwnerBtnText}>已换机主</Text>
+                <Ionicons name="person-circle-outline" size={12} color="#6366F1" />
+                <Text style={styles.changeOwnerBtnText} numberOfLines={1}>已换机主</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionButton, styles.actionButtonFlex, styles.statusBtn]}
+                onPress={() => handleShowNumberStatus(item)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="information-circle-outline" size={12} color="#10B981" />
+                <Text style={styles.statusBtnText} numberOfLines={1}>号码状态</Text>
               </TouchableOpacity>
             </View>
           )}
-        </TouchableOpacity>
+        </View>
 
         <View style={[styles.statusBadge, { backgroundColor: `${color}18` }]}>
           <Text style={[styles.statusBadgeText, { color }]}>{label}</Text>
@@ -522,6 +594,74 @@ export default function StoppedContactsScreen() {
           )}
         </View>
       )}
+
+      {/* Status Dialog */}
+      {statusDialogVisible && (
+        <View style={styles.statusDialogOverlay}>
+          <View style={styles.statusDialogContent}>
+            <View style={styles.statusDialogHeader}>
+              <Text style={styles.statusDialogTitle}>号码状态</Text>
+              <TouchableOpacity onPress={() => setStatusDialogVisible(false)} style={styles.statusDialogClose}>
+                <Ionicons name="close" size={22} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+            {statusDialogLoading ? (
+              <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+                <ActivityIndicator size="large" color="#10B981" />
+                <Text style={{ marginTop: 10, color: '#6B7280', fontSize: 13 }}>查询中...</Text>
+              </View>
+            ) : statusDialogData ? (
+              <View>
+                <View style={styles.statusDialogRow}>
+                  <Text style={styles.statusDialogLabel}>号码</Text>
+                  <Text style={styles.statusDialogValue}>{statusDialogData.phone}</Text>
+                </View>
+                <View style={styles.statusDialogRow}>
+                  <Text style={styles.statusDialogLabel}>姓名</Text>
+                  <Text style={styles.statusDialogValue}>{statusDialogData.name || '-'}</Text>
+                </View>
+                <View style={styles.statusDialogRow}>
+                  <Text style={styles.statusDialogLabel}>社区状态</Text>
+                  <Text style={styles.statusDialogValue}>
+                    {statusDialogData.status === 'possibly_invalid' ? '可能失效' :
+                     statusDialogData.status === 'stopped' ? '已确认停用' :
+                     statusDialogData.status === 'normal' ? '正常' :
+                     statusDialogData.status === 'error' ? '查询失败' : '未知'}
+                  </Text>
+                </View>
+                <View style={styles.statusDialogRow}>
+                  <Text style={styles.statusDialogLabel}>投票停用</Text>
+                  <Text style={styles.statusDialogValueStopped}>{statusDialogData.stopped_votes} 人</Text>
+                </View>
+                <View style={styles.statusDialogRow}>
+                  <Text style={styles.statusDialogLabel}>投票正常</Text>
+                  <Text style={styles.statusDialogValueNormal}>{statusDialogData.normal_votes} 人</Text>
+                </View>
+                {statusDialogData.is_authenticated && (
+                  <View style={styles.statusDialogRow}>
+                    <Text style={styles.statusDialogLabel}>认证状态</Text>
+                    <Text style={styles.statusDialogValueNormal}>已认证</Text>
+                  </View>
+                )}
+                {statusDialogData.authenticated_name && (
+                  <View style={styles.statusDialogRow}>
+                    <Text style={styles.statusDialogLabel}>认证人</Text>
+                    <Text style={styles.statusDialogValue}>{statusDialogData.authenticated_name}</Text>
+                  </View>
+                )}
+                {statusDialogData.expires_at && (
+                  <View style={styles.statusDialogRow}>
+                    <Text style={styles.statusDialogLabel}>有效期至</Text>
+                    <Text style={styles.statusDialogValue}>
+                      {new Date(statusDialogData.expires_at).toLocaleDateString('zh-CN')}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            ) : null}
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -549,14 +689,28 @@ const styles = StyleSheet.create({
   authBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#EEF2FF', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, gap: 3 },
   authBadgeText: { fontSize: 11, color: '#6366F1', fontWeight: '500' },
   cardPhone: { fontSize: 13, color: '#6B7280' },
-  actionRow: { flexDirection: 'row', gap: 10, marginTop: 10 },
-  actionButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, gap: 4 },
+  actionRow: { flexDirection: 'row', gap: 6, marginTop: 10 },
+  actionButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6, paddingVertical: 6, borderRadius: 8, gap: 3 },
+  actionButtonFlex: { flex: 1 },
   confirmBtn: { backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FECACA' },
-  confirmBtnText: { fontSize: 12, fontWeight: '600', color: '#EF4444' },
+  confirmBtnText: { fontSize: 11, fontWeight: '600', color: '#EF4444' },
   changeOwnerBtn: { backgroundColor: '#EEF2FF', borderWidth: 1, borderColor: '#C7D2FE' },
-  changeOwnerBtnText: { fontSize: 12, fontWeight: '600', color: '#6366F1' },
+  changeOwnerBtnText: { fontSize: 11, fontWeight: '600', color: '#6366F1' },
+  statusBtn: { backgroundColor: '#ECFDF5', borderWidth: 1, borderColor: '#A7F3D0' },
+  statusBtnText: { fontSize: 11, fontWeight: '600', color: '#10B981' },
   statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginLeft: 8 },
   statusBadgeText: { fontSize: 11, fontWeight: '600' },
+  // Status dialog styles
+  statusDialogOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center', zIndex: 999 },
+  statusDialogContent: { backgroundColor: '#fff', borderRadius: 16, padding: 20, marginHorizontal: 32, minWidth: 280, maxWidth: 340 },
+  statusDialogHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  statusDialogTitle: { fontSize: 16, fontWeight: '700', color: '#111827' },
+  statusDialogClose: { padding: 4 },
+  statusDialogRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+  statusDialogLabel: { fontSize: 13, color: '#6B7280' },
+  statusDialogValue: { fontSize: 13, fontWeight: '600', color: '#111827' },
+  statusDialogValueStopped: { fontSize: 13, fontWeight: '600', color: '#EF4444' },
+  statusDialogValueNormal: { fontSize: 13, fontWeight: '600', color: '#10B981' },
   bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#E5E7EB', padding: 16, paddingBottom: 32 },
   bottomBarButtons: { flexDirection: 'row', gap: 10, marginBottom: 10 },
   batchBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 12 },
