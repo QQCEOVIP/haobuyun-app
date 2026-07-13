@@ -259,7 +259,7 @@ export default function HomeScreen() {
 
           setStats(contactStats);
           
-          // Update the saved detection result with new stats
+          // Update the saved detection result with new stats (仅更新缓存，不弹窗)
           const savedResult = await AsyncStorage.getItem('@detection_result');
           if (savedResult) {
             try {
@@ -270,7 +270,7 @@ export default function HomeScreen() {
               result.invalid = contactStats.invalid;
               result.unknown = contactStats.unknown;
               await AsyncStorage.setItem('@detection_result', JSON.stringify(result));
-              setDetectionResult(result);
+              // Bug 4 修复：不再调用 setDetectionResult(result)，避免自动弹出检测结果
             } catch (e) {
               // ignore parse error
             }
