@@ -31,14 +31,16 @@ export default function AboutScreen() {
         versionCode = (Constants.expoConfig?.version ?? '1.0.1').split('.').reduce((acc, val) => acc * 100 + parseInt(val), 0);
       } catch {}
 
-      const response = await fetch(
-        `${getBackendBaseUrl()}/api/v1/updates/check?current_version_code=${versionCode}`
-      );
+      // 从静态JSON文件获取版本信息（Coze Site不支持Express后端）
+      const response = await fetch('/version.json');
       if (!response.ok) throw new Error('Network error');
 
       const data: UpdateInfo = await response.json();
 
-      if (!data.update_available) {
+      // 比较版本号
+      const updateAvailable = data.latest_version_code > versionCode;
+
+      if (!updateAvailable) {
         const versionName = Constants.expoConfig?.version || '1.0.1';
         Alert.alert('当前已是最新版本', `版本号：v${versionName}`, [{ text: '确定' }]);
       } else {
