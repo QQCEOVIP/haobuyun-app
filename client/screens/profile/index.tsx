@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
 import { useAuth } from '@/contexts/AuthContext';
@@ -265,7 +266,7 @@ export default function ProfileScreen() {
               name="information-circle"
               color="#909399"
               title="关于我们"
-              subtitle="内测版本 1.0.0"
+              subtitle={`内测版本 ${Constants.expoConfig?.version || '1.0.0'}`}
               onPress={() => router.push('/about')}
             />
           </View>
