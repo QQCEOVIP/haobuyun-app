@@ -169,8 +169,8 @@ router.get('/my-authentications', requireAuth, async (req: any, res: any) => {
       phone: auth.phone,
       user_name: auth.user_name,
       encrypted_name: encryptName(auth.user_name),
-      authenticated_at: auth.authenticated_at,
-      expires_at: auth.expires_at,
+      authenticated_at: auth.authenticated_at ? new Date(auth.authenticated_at).toISOString() : null,
+      expires_at: auth.expires_at ? new Date(auth.expires_at).toISOString() : null,
       stopped_vote_count: auth.stopped_vote_count,
     }));
 

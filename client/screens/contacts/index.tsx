@@ -85,7 +85,7 @@ interface Contact {
 export default function ContactsScreen() {
   const router = useSafeRouter();
   const { user } = useAuth();
-  const { panHandlers } = useSwipeNavigation();
+  const { onTouchStart, onTouchEnd } = useSwipeNavigation();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [filteredContacts, setFilteredContacts] = useState<Contact[]>([]);
   const [searchText, setSearchText] = useState('');
@@ -1239,7 +1239,7 @@ export default function ContactsScreen() {
 
   return (
     <BackgroundWrapper>
-    <View style={{ flex: 1 }} {...panHandlers}>
+    <View style={{ flex: 1 }} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
     <SafeAreaView style={[styles.container, { backgroundColor: 'transparent' }]}>
       <View style={styles.header}>
         <View style={styles.titleRow}>

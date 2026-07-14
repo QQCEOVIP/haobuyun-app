@@ -72,7 +72,7 @@ interface ContactStats {
 
 export default function HomeScreen() {
   const router = useSafeRouter();
-  const { panHandlers } = useSwipeNavigation(0); // 首页索引为0
+  const { onTouchStart, onTouchEnd } = useSwipeNavigation();
   const { user, session, avatarUrl: contextAvatarUrl } = useAuth();
   const [localAvatarUrl, setLocalAvatarUrl] = useState<string | null>(null);
   const displayAvatarUrl = contextAvatarUrl || localAvatarUrl;
@@ -2121,7 +2121,7 @@ export default function HomeScreen() {
 
   return (
     <BackgroundWrapper>
-    <View style={{ flex: 1 }} {...panHandlers}>
+    <View style={{ flex: 1 }} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
     <SafeAreaView style={[styles.container, { backgroundColor: 'transparent' }]}>
       <ScrollView
         style={styles.content}

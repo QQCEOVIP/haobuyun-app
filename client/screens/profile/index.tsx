@@ -53,7 +53,7 @@ function MenuItem({ name, color, title, subtitle, badge, onPress }: MenuItemProp
 export default function ProfileScreen() {
   const router = useSafeRouter();
   const { user, signOut, avatarUrl: contextAvatarUrl, setAvatarUrl: setContextAvatarUrl, refreshAvatar } = useAuth();
-  const { panHandlers } = useSwipeNavigation();
+  const { onTouchStart, onTouchEnd } = useSwipeNavigation();
   const [localAvatarUrl, setLocalAvatarUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [hasNewVersion, setHasNewVersion] = useState(false);
@@ -219,7 +219,7 @@ export default function ProfileScreen() {
 
   return (
     <BackgroundWrapper>
-    <View style={{ flex: 1 }} {...panHandlers}>
+    <View style={{ flex: 1 }} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
     <SafeAreaView style={[styles.container, { backgroundColor: 'transparent' }]}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>

@@ -29,7 +29,7 @@ export default function CleanupScreen() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [refreshing, setRefreshing] = useState(false);
-  const { panHandlers } = useSwipeNavigation();
+  const { onTouchStart, onTouchEnd } = useSwipeNavigation();
 
   const userId = (user as any)?.id;
 
@@ -174,7 +174,7 @@ export default function CleanupScreen() {
 
   return (
     <BackgroundWrapper>
-    <View style={{ flex: 1 }} {...panHandlers}>
+    <View style={{ flex: 1 }} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
     <SafeAreaView style={[styles.container, { backgroundColor: 'transparent' }]}>
       <View style={styles.header}>
         <View>

@@ -1,55 +1,63 @@
-import { useRef } from 'react';
-import { PanResponder } from 'react-native';
+import { useRef, useCallback } from 'react';
 import { usePathname } from 'expo-router';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
 
 // Tab顺序：首页 → 通讯录 → 新玩法 → 我的
 const TAB_ROUTES = ['/', '/contacts', '/cleanup', '/profile'];
 
-const SWIPE_THRESHOLD = 80; // 滑动距离阈值（像素）
+const SWIPE_THRESHOLD = 60; // 水平滑动距离阈值（像素）
 
 /**
  * 滑动手势导航Hook
- * 支持左右滑动切换Tab页面
+ * 使用 onTouchStart/onTouchEnd 捕捉水平滑动手势
+ * 事件会冒泡，不受 FlatList/ScrollView 拦截影响
  */
 export function useSwipeNavigation() {
   const router = useSafeRouter();
   const pathname = usePathname();
+  const touchStartX = useRef<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
 
-  const panResponder = useRef(
-    PanResponder.create({
-      // 只在水平方向滑动时响应
-      onMoveShouldSetPanResponder: (evt, gestureState) => {
-        const { dx, dy } = gestureState;
-        // 水平滑动距离大于垂直滑动距离，且超过阈值
-        return Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 20;
-      },
-      onMoveShouldSetPanResponderCapture: (evt, gestureState) => {
-        const { dx, dy } = gestureState;
-        return Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 20;
-      },
-      // 滑动结束时处理
-      onPanResponderRelease: (evt, gestureState) => {
-        const { dx } = gestureState;
-        
-        // 获取当前Tab索引
-        const currentIndex = TAB_ROUTES.indexOf(pathname);
-        if (currentIndex === -1) return;
+  const handleTouchStart = useCallback((e: any) => {
+    const touch = e.nativeEvent?.touches?.[0];
+    if (touch) {
+      touchStartX.current = touch.pageX;
+      touchStartY.current = touch.pageY;
+    }
+  }, []);
 
-        // 左滑（dx < 0）→ 下一个页面
-        // 右滑（dx > 0）→ 上一个页面
-        if (dx < -SWIPE_THRESHOLD && currentIndex < TAB_ROUTES.length - 1) {
-          // 左滑，切换到下一个Tab
-          router.push(TAB_ROUTES[currentIndex + 1]);
-        } else if (dx > SWIPE_THRESHOLD && currentIndex > 0) {
-          // 右滑，切换到上一个Tab
-          router.push(TAB_ROUTES[currentIndex - 1]);
-        }
-      },
-      // 不阻止子组件响应事件
-      onPanResponderTerminationRequest: () => false,
-    })
-  ).current;
+  const handleTouchEnd = useCallback((e: any) => {
+    if (touchStartX.current === null || touchStartY.current === null) return;
 
-  return panResponder.panHandlers;
+    const touch = e.nativeEvent?.changedTouches?.[0];
+    if (!touch) return;
+
+    const dx = touch.pageX - touchStartX.current;
+    const dy = touch.pageY - touchStartY.current;
+
+    // 重置
+    touchStartX.current = null;
+    touchStartY.current = null;
+
+    // 判断是否为水平滑动（"一"字动作）：水平位移远大于垂直位移
+    if (Math.abs(dx) < Math.abs(dy)) return; // 垂直滑动，不处理
+    if (Math.abs(dx) < SWIPE_THRESHOLD) return; // 位移太小，可能是点击
+
+    // 获取当前Tab索引
+    const currentIndex = TAB_ROUTES.indexOf(pathname);
+    if (currentIndex === -1) return;
+
+    // 左滑（dx < 0）→ 下一个页面
+    // 右滑（dx > 0）→ 上一个页面
+    if (dx < 0 && currentIndex < TAB_ROUTES.length - 1) {
+      router.push(TAB_ROUTES[currentIndex + 1]);
+    } else if (dx > 0 && currentIndex > 0) {
+      router.push(TAB_ROUTES[currentIndex - 1]);
+    }
+  }, [pathname, router]);
+
+  return {
+    onTouchStart: handleTouchStart,
+    onTouchEnd: handleTouchEnd,
+  };
 }
