@@ -1243,7 +1243,7 @@ export default function ContactsScreen() {
     <View style={{ flex: 1 }} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
     <SafeAreaView style={[styles.container, { backgroundColor: 'transparent' }]}>
       <ImageBackground
-        source={require('@/assets/bg_home.jpg')}
+        source={require('@/assets/bg_contacts_header_new.jpg')}
         style={styles.header}
         imageStyle={styles.headerBg}
       >
