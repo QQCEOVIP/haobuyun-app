@@ -17,7 +17,6 @@ import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
 import { useAuth } from '@/contexts/AuthContext';
-import { getBackendBaseUrl } from '@/utils';
 
 // Force production URL - do not use environment variable
 const getBackendBaseUrl = () => {
