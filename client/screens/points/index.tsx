@@ -167,7 +167,7 @@ export default function PointsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F5F7FA" },
+  container: { flex: 1, backgroundColor: "transparent" },
   content: { padding: 20, paddingTop: 12, paddingBottom: 40 },
   // 积分概览
   balanceCard: {
