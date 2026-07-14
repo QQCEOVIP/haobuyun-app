@@ -1308,7 +1308,7 @@ export default function ContactsScreen() {
       </View>
 
       {/* 管理助手 - 固定定位，不随列表滚动 */}
-      <View style={[styles.cleanupCard, { marginHorizontal: 8 }]}>
+      <View style={[styles.cleanupCard, { marginHorizontal: 0 }]}>
         <View style={styles.cleanupHeader}>
           <View style={styles.cleanupTitleRow}>
             <Ionicons name="options" size={16} color="#4A90D9" style={{ marginRight: 4 }} />

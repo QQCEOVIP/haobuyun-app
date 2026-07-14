@@ -655,7 +655,14 @@ export default function StoppedContactsScreen() {
                   <View style={styles.statusDialogRow}>
                     <Text style={styles.statusDialogLabel}>认证时间</Text>
                     <Text style={styles.statusDialogValue}>
-                      {new Date(statusDialogData.authenticated_at).toLocaleDateString('zh-CN')}
+                      {(() => {
+                        try {
+                          const d = new Date(statusDialogData.authenticated_at);
+                          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                        } catch {
+                          return statusDialogData.authenticated_at;
+                        }
+                      })()}
                     </Text>
                   </View>
                 )}
@@ -663,7 +670,14 @@ export default function StoppedContactsScreen() {
                   <View style={styles.statusDialogRow}>
                     <Text style={styles.statusDialogLabel}>有效期至</Text>
                     <Text style={styles.statusDialogValue}>
-                      {new Date(statusDialogData.expires_at).toLocaleDateString('zh-CN')}
+                      {(() => {
+                        try {
+                          const d = new Date(statusDialogData.expires_at);
+                          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                        } catch {
+                          return statusDialogData.expires_at;
+                        }
+                      })()}
                     </Text>
                   </View>
                 )}
