@@ -293,7 +293,7 @@ export default function ProfileScreen() {
               name="information-circle"
               color="#909399"
               title="关于我们"
-              subtitle={`内测版本 ${Constants.expoConfig?.version || '1.0.1'}`}
+              subtitle={`内测版本 ${Constants.expoConfig?.version || '1.0.0'}`}
               badge={hasNewVersion ? '有新版本' : undefined}
               onPress={() => router.push('/about')}
             />

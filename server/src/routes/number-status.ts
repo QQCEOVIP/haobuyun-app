@@ -80,8 +80,9 @@ router.get('/:phone', async (req: any, res: any) => {
       `);
       const authTimeRow = (authTimeResult as any[])?.[0];
       if (authTimeRow) {
-        authenticatedAt = authTimeRow.authenticated_at;
-        expiresAt = authTimeRow.expires_at;
+        // 转换为 ISO 格式确保前端能正确解析
+        authenticatedAt = authTimeRow.authenticated_at ? new Date(authTimeRow.authenticated_at).toISOString() : null;
+        expiresAt = authTimeRow.expires_at ? new Date(authTimeRow.expires_at).toISOString() : null;
       }
     }
 

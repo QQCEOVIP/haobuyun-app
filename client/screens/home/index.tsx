@@ -216,9 +216,9 @@ export default function HomeScreen() {
             console.warn('[Home] Failed to load recycle bin count:', e);
           }
 
-          // If total is 0 (no contacts on device), skip AsyncStorage read and keep all stats at 0
+          // If total is 0, skip AsyncStorage read (no contacts on device or still loading)
+          // Don't reset stats here - let fetchStats handle the initial load
           if (stats.total === 0) {
-            setStats({ total: 0, active: 0, maybeInvalid: 0, invalid: 0, unknown: 0 });
             return;
           }
           const allKeys = await AsyncStorage.getAllKeys();
