@@ -14,7 +14,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/storage/supabase';
 import { getBackendBaseUrl } from '@/utils';
 import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
-import { BackgroundWrapper } from '@/components/BackgroundWrapper';
+import BackgroundWrapper from '@/components/BackgroundWrapper';
 
 interface Contact {
   id: string;
