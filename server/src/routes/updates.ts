@@ -4,12 +4,12 @@ const router: ReturnType<typeof Router> = Router();
 
 // 版本信息（硬编码，后续可改为数据库存储）
 const LATEST_VERSION = {
-  version_code: 10004,
-  version_name: '1.0.4',
+  version_code: 10005,
+  version_name: '1.0.5',
   download_url: 'https://www.coze.cn/s/yD2VA15E3LE',
   apk_size: 0,
   min_sdk_version: 21,
-  release_notes: '已认证号码信息重新布局、管理助手卡片铺满',
+  release_notes: '修复检查更新逻辑、已认证号码信息布局优化',
   mandatory: false,
 };
 
