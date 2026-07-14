@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import * as Linking from 'expo-linking';
 import Constants from 'expo-constants';
 import { getBackendBaseUrl } from '@/utils';
@@ -63,7 +64,7 @@ export default function AboutScreen() {
     // 方案1：使用 expo-file-system 下载 APK（带进度）
     if (Platform.OS === 'android') {
       try {
-        const downloadPath = `${FileSystem.documentDirectory}haobuyun-update.apk`;
+        const downloadPath = `${FileSystem.cacheDirectory}haobuyun-update.apk`;
 
         // 如果已存在旧文件先删除
         const fileInfo = await (FileSystem as any).getInfoAsync(downloadPath);
@@ -87,9 +88,44 @@ export default function AboutScreen() {
 
         if (result && result.uri) {
           setDownloadProgress(100);
-          // 托管式 Expo 无法直接安装 APK，提示用户通过文件管理器安装
-          Alert.alert('下载完成', 'APK 已下载到本地，请前往文件管理器找到 haobuyun-update.apk 进行安装');
-          setShowUpdateModal(false);
+          
+          // APK 文件验证：检查文件是否存在且大小合理
+          const downloadedFileInfo = await (FileSystem as any).getInfoAsync(result.uri);
+          if (!downloadedFileInfo.exists || downloadedFileInfo.size < 1000000) {
+            // 文件太小（<1MB），可能不是有效的 APK
+            Alert.alert(
+              '文件验证失败',
+              '下载的 APK 文件可能不完整，请使用浏览器重新下载',
+              [{ text: '使用浏览器下载', onPress: () => Linking.openURL(updateInfo.download_url) }]
+            );
+            setDownloading(false);
+            return;
+          }
+
+          // 使用 Sharing 调起系统安装器
+          try {
+            const isAvailable = await Sharing.isAvailableAsync();
+            if (isAvailable) {
+              await Sharing.shareAsync(result.uri, {
+                mimeType: 'application/vnd.android.package-archive',
+                dialogTitle: '安装号簿云更新',
+              });
+              setShowUpdateModal(false);
+            } else {
+              // Sharing 不可用，提示用户手动安装
+              Alert.alert(
+                '下载完成',
+                'APK 已下载，请前往文件管理器找到 haobuyun-update.apk 进行安装',
+                [{ text: '确定', onPress: () => setShowUpdateModal(false) }]
+              );
+            }
+          } catch (shareError) {
+            console.warn('[About] Sharing failed:', shareError);
+            Alert.alert(
+              '下载完成',
+              'APK 已下载，请前往文件管理器找到 haobuyun-update.apk 进行安装'
+            );
+          }
           return;
         }
       } catch (fsError) {
