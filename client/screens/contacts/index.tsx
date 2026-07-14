@@ -1242,6 +1242,11 @@ export default function ContactsScreen() {
     <BackgroundWrapper>
     <View style={{ flex: 1 }} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
     <SafeAreaView style={[styles.container, { backgroundColor: 'transparent' }]}>
+      <ImageBackground
+        source={require('@/assets/bg_contacts_header_module.jpg')}
+        style={styles.headerBg}
+        imageStyle={{ borderRadius: 16 }}
+      >
       <View style={styles.header}>
         <View style={styles.titleRow}>
           {batchMode ? (
@@ -1312,8 +1317,7 @@ export default function ContactsScreen() {
           )}
         </View>
       </View>
-
-      {/* 管理助手 - 固定定位，不随列表滚动 */}
+      </ImageBackground>
       <View style={[styles.cleanupCard, { marginHorizontal: 0 }]}>
         <View style={styles.cleanupHeader}>
           <View style={styles.cleanupTitleRow}>
