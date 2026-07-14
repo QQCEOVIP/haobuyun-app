@@ -1,6 +1,6 @@
 {
-  "version_code": 10000,
-  "version_name": "1.0.0",
+  "version_code": 10003,
+  "version_name": "1.0.3",
   "download_url": "https://www.coze.cn/s/iCe0Ut49VQA",
   "release_notes": "首页号码总数修复、认证时间显示修复",
   "force_update": false,
