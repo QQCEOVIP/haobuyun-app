@@ -145,7 +145,19 @@ export default function AboutScreen() {
   const handleInstall = async () => {
     if (!updateInfo?.download_url) return;
     try {
-      await Linking.openURL(updateInfo.download_url);
+      // 尝试从本地文件安装
+      const localUri = `${(FileSystem as any).documentDirectory}haobuyun-update.apk`;
+      const fileInfo = await (FileSystem as any).getInfoAsync(localUri);
+      if (fileInfo.exists) {
+        await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+          data: localUri,
+          type: 'application/vnd.android.package-archive',
+          flags: 1,
+        });
+      } else {
+        // 本地文件不存在，回退到浏览器下载
+        await Linking.openURL(updateInfo.download_url);
+      }
     } catch {
       Alert.alert('安装失败', '无法调起安装程序，请手动安装下载的 APK');
     }
@@ -221,7 +233,19 @@ export default function AboutScreen() {
               ) : downloadProgress >= 100 ? (
                 <TouchableOpacity style={styles.modalBtnPrimary} onPress={async () => {
                   try {
-                    await Linking.openURL(updateInfo!.download_url);
+                    // 尝试从本地文件安装
+                    const localUri = `${(FileSystem as any).documentDirectory}haobuyun-update.apk`;
+                    const fileInfo = await (FileSystem as any).getInfoAsync(localUri);
+                    if (fileInfo.exists) {
+                      await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+                        data: localUri,
+                        type: 'application/vnd.android.package-archive',
+                        flags: 1,
+                      });
+                    } else {
+                      // 本地文件不存在，回退到浏览器下载
+                      await Linking.openURL(updateInfo!.download_url);
+                    }
                   } catch {
                     Alert.alert('提示', '请前往浏览器下载并安装最新版本');
                   }
