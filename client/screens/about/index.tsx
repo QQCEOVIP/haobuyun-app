@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as FileSystem from 'expo-file-system/legacy';
-import * as IntentLauncher from 'expo-intent-launcher';
 import * as Linking from 'expo-linking';
 import Constants from 'expo-constants';
 import { getBackendBaseUrl } from '@/utils';
@@ -102,16 +101,12 @@ export default function AboutScreen() {
             return;
           }
 
-          // 使用 IntentLauncher 直接调起 APK 安装器
+          // 使用 Linking.openURL 打开本地文件 URI 调起安装器
           try {
-            await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
-              data: result.uri,
-              type: 'application/vnd.android.package-archive',
-              flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
-            });
+            await Linking.openURL(result.uri);
             setShowUpdateModal(false);
           } catch (installError) {
-            console.warn('[About] IntentLauncher failed:', installError);
+            console.warn('[About] Linking.openURL failed:', installError);
             Alert.alert(
               '安装失败',
               '无法调起安装程序，请前往文件管理器找到 haobuyun-update.apk 进行安装'
@@ -149,11 +144,7 @@ export default function AboutScreen() {
       const localUri = `${(FileSystem as any).documentDirectory}haobuyun-update.apk`;
       const fileInfo = await (FileSystem as any).getInfoAsync(localUri);
       if (fileInfo.exists) {
-        await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
-          data: localUri,
-          type: 'application/vnd.android.package-archive',
-          flags: 1,
-        });
+        await Linking.openURL(localUri);
       } else {
         // 本地文件不存在，回退到浏览器下载
         await Linking.openURL(updateInfo.download_url);
