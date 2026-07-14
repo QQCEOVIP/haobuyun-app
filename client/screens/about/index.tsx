@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as FileSystem from 'expo-file-system/legacy';
-import * as Sharing from 'expo-sharing';
+import * as IntentLauncher from 'expo-intent-launcher';
 import * as Linking from 'expo-linking';
 import Constants from 'expo-constants';
 import { getBackendBaseUrl } from '@/utils';
@@ -102,28 +102,19 @@ export default function AboutScreen() {
             return;
           }
 
-          // 使用 Sharing 调起系统安装器
+          // 使用 IntentLauncher 直接调起 APK 安装器
           try {
-            const isAvailable = await Sharing.isAvailableAsync();
-            if (isAvailable) {
-              await Sharing.shareAsync(result.uri, {
-                mimeType: 'application/vnd.android.package-archive',
-                dialogTitle: '安装号簿云更新',
-              });
-              setShowUpdateModal(false);
-            } else {
-              // Sharing 不可用，提示用户手动安装
-              Alert.alert(
-                '下载完成',
-                'APK 已下载，请前往文件管理器找到 haobuyun-update.apk 进行安装',
-                [{ text: '确定', onPress: () => setShowUpdateModal(false) }]
-              );
-            }
-          } catch (shareError) {
-            console.warn('[About] Sharing failed:', shareError);
+            await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+              data: result.uri,
+              type: 'application/vnd.android.package-archive',
+              flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
+            });
+            setShowUpdateModal(false);
+          } catch (installError) {
+            console.warn('[About] IntentLauncher failed:', installError);
             Alert.alert(
-              '下载完成',
-              'APK 已下载，请前往文件管理器找到 haobuyun-update.apk 进行安装'
+              '安装失败',
+              '无法调起安装程序，请前往文件管理器找到 haobuyun-update.apk 进行安装'
             );
           }
           return;
