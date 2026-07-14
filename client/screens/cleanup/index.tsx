@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/storage/supabase';
 import { getBackendBaseUrl } from '@/utils';
+import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
 
 interface Contact {
   id: string;
@@ -27,6 +28,7 @@ export default function CleanupScreen() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [refreshing, setRefreshing] = useState(false);
+  const { panHandlers } = useSwipeNavigation();
 
   const userId = (user as any)?.id;
 
@@ -170,6 +172,7 @@ export default function CleanupScreen() {
   };
 
   return (
+    <View style={{ flex: 1 }} {...panHandlers}>
     <SafeAreaView style={[styles.container, { backgroundColor: '#F5F7FA' }]}>
       <View style={styles.header}>
         <View>
@@ -235,6 +238,7 @@ export default function CleanupScreen() {
         </View>
       )}
     </SafeAreaView>
+    </View>
   );
 }
 

@@ -17,6 +17,7 @@ import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
 
 // Force production URL - do not use environment variable
 const getBackendBaseUrl = () => {
@@ -51,6 +52,7 @@ function MenuItem({ name, color, title, subtitle, badge, onPress }: MenuItemProp
 export default function ProfileScreen() {
   const router = useSafeRouter();
   const { user, signOut, avatarUrl: contextAvatarUrl, setAvatarUrl: setContextAvatarUrl, refreshAvatar } = useAuth();
+  const { panHandlers } = useSwipeNavigation();
   const [localAvatarUrl, setLocalAvatarUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [hasNewVersion, setHasNewVersion] = useState(false);
@@ -215,6 +217,7 @@ export default function ProfileScreen() {
   const userName = userEmail.split('@')[0] || '用户';
 
   return (
+    <View style={{ flex: 1 }} {...panHandlers}>
     <SafeAreaView style={[styles.container, { backgroundColor: '#F5F7FA' }]}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
@@ -305,6 +308,7 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
+    </View>
   );
 }
 

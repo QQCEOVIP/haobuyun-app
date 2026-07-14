@@ -27,6 +27,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { CONSENSUS, type NumberStatus } from '@/constants/numberStatus';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ContactAvatar from '@/components/ContactAvatar';
+import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
 
 // 替代 Modal 的轻量级遮罩组件，避免 Modal 原生行为导致的闪屏
 const Overlay = ({ visible, children, onClose }: { visible: boolean; children: React.ReactNode; onClose?: () => void }) => {
@@ -83,6 +84,7 @@ interface Contact {
 export default function ContactsScreen() {
   const router = useSafeRouter();
   const { user } = useAuth();
+  const { panHandlers } = useSwipeNavigation();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [filteredContacts, setFilteredContacts] = useState<Contact[]>([]);
   const [searchText, setSearchText] = useState('');
@@ -1235,6 +1237,7 @@ export default function ContactsScreen() {
   };
 
   return (
+    <View style={{ flex: 1 }} {...panHandlers}>
     <SafeAreaView style={[styles.container, { backgroundColor: '#F5F7FA' }]}>
       <View style={styles.header}>
         <View style={styles.titleRow}>
@@ -1759,6 +1762,7 @@ export default function ContactsScreen() {
         </View>
       )}
     </SafeAreaView>
+    </View>
   );
 }
 

@@ -19,6 +19,7 @@ import Svg, { Circle } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
+import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
 import * as Contacts from 'expo-contacts';
 import * as FileSystemLegacy from 'expo-file-system/legacy';
 import * as FileSystem from 'expo-file-system';
@@ -70,6 +71,7 @@ interface ContactStats {
 
 export default function HomeScreen() {
   const router = useSafeRouter();
+  const { panHandlers } = useSwipeNavigation(0); // 首页索引为0
   const { user, session, avatarUrl: contextAvatarUrl } = useAuth();
   const [localAvatarUrl, setLocalAvatarUrl] = useState<string | null>(null);
   const displayAvatarUrl = contextAvatarUrl || localAvatarUrl;
@@ -2117,6 +2119,7 @@ export default function HomeScreen() {
   console.log('[Health] Will render:', `${healthPercentage}%`);
 
   return (
+    <View style={{ flex: 1 }} {...panHandlers}>
     <SafeAreaView style={[styles.container, { backgroundColor: '#F5F7FA' }]}>
       <ScrollView
         style={styles.content}
@@ -2660,6 +2663,7 @@ export default function HomeScreen() {
         </View>
       </Overlay>
     </SafeAreaView>
+    </View>
   );
 }
 
