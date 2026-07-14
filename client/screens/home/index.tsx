@@ -2134,7 +2134,7 @@ export default function HomeScreen() {
       >
         {/* 健康度仪表盘 */}
         <ImageBackground
-          source={require('@/assets/bg_assistant.jpg')}
+          source={require('@/assets/bg_health.jpg')}
           style={styles.dashboardCard}
           imageStyle={styles.dashboardCardBg}
           resizeMode="cover"
