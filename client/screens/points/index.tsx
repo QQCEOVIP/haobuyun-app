@@ -9,8 +9,6 @@ import { getBackendBaseUrl } from "@/utils";
 import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
 import BackgroundWrapper from '@/components/BackgroundWrapper';
 
-const bgMain = require('@/assets/bg_main.jpg');
-
 interface PointsInfo {
   balance: number;
   total_earned: number;
@@ -89,11 +87,8 @@ export default function PointsScreen() {
     <SafeAreaView style={styles.container} edges={["top"]} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
       <ScrollView contentContainerStyle={styles.content}>
       {/* 积分概览 */}
-      <ImageBackground
-        source={bgMain}
-        style={styles.balanceCard}
-        imageStyle={{ borderRadius: 16, opacity: 0.3 }}
-        resizeMode="cover"
+      <View
+        style={[styles.balanceCard, { backgroundColor: '#4A90D9' }]}
       >
         <Text style={styles.balanceLabel}>当前积分</Text>
         <Text style={styles.balanceValue}>{pointsInfo?.balance ?? 0}</Text>
@@ -113,7 +108,7 @@ export default function PointsScreen() {
             <Text style={styles.balanceStatLabel}>信用分</Text>
           </View>
         </View>
-      </ImageBackground>
+      </View>
 
       {/* 签到信息 */}
       {checkinInfo.current_streak > 0 && (
