@@ -631,55 +631,73 @@ export default function StoppedContactsScreen() {
                      statusDialogData.status === 'error' ? '查询失败' : '未知'}
                   </Text>
                 </View>
-                <View style={styles.statusDialogRow}>
-                  <Text style={styles.statusDialogLabel}>投票停用</Text>
-                  <Text style={styles.statusDialogValueStopped}>{statusDialogData.stopped_votes} 人</Text>
-                </View>
-                <View style={styles.statusDialogRow}>
-                  <Text style={styles.statusDialogLabel}>投票正常</Text>
-                  <Text style={styles.statusDialogValueNormal}>{statusDialogData.normal_votes} 人</Text>
-                </View>
-                {statusDialogData.is_authenticated && (
-                  <View style={styles.statusDialogRow}>
-                    <Text style={styles.statusDialogLabel}>认证状态</Text>
-                    <Text style={styles.statusDialogValueNormal}>已认证</Text>
-                  </View>
-                )}
-                {statusDialogData.authenticated_name && (
-                  <View style={styles.statusDialogRow}>
-                    <Text style={styles.statusDialogLabel}>认证人</Text>
-                    <Text style={styles.statusDialogValue}>{statusDialogData.authenticated_name}</Text>
-                  </View>
-                )}
-                {statusDialogData.authenticated_at && (
-                  <View style={styles.statusDialogRow}>
-                    <Text style={styles.statusDialogLabel}>认证时间</Text>
-                    <Text style={styles.statusDialogValue}>
-                      {(() => {
-                        try {
-                          const d = new Date(statusDialogData.authenticated_at);
-                          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-                        } catch {
-                          return statusDialogData.authenticated_at;
-                        }
-                      })()}
-                    </Text>
-                  </View>
-                )}
-                {statusDialogData.expires_at && (
-                  <View style={styles.statusDialogRow}>
-                    <Text style={styles.statusDialogLabel}>有效期至</Text>
-                    <Text style={styles.statusDialogValue}>
-                      {(() => {
-                        try {
-                          const d = new Date(statusDialogData.expires_at);
-                          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-                        } catch {
-                          return statusDialogData.expires_at;
-                        }
-                      })()}
-                    </Text>
-                  </View>
+                {statusDialogData.is_authenticated ? (
+                  <>
+                    {/* 已认证号码：显示认证信息 + 投票信息（两列布局） */}
+                    {statusDialogData.authenticated_name && (
+                      <View style={styles.statusDialogRow}>
+                        <Text style={styles.statusDialogLabel}>认证人</Text>
+                        <Text style={styles.statusDialogValue}>{statusDialogData.authenticated_name}</Text>
+                      </View>
+                    )}
+                    {/* 第一行：认证时间 | 有效期至 */}
+                    <View style={styles.statusDialogTwoColRow}>
+                      <View style={styles.statusDialogCol}>
+                        <Text style={styles.statusDialogColLabel}>认证时间</Text>
+                        <Text style={styles.statusDialogColValue}>
+                          {statusDialogData.authenticated_at ? (() => {
+                            try {
+                              const d = new Date(statusDialogData.authenticated_at);
+                              return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                            } catch {
+                              return statusDialogData.authenticated_at;
+                            }
+                          })() : '未知'}
+                        </Text>
+                      </View>
+                      <Text style={styles.statusDialogDivider}>｜</Text>
+                      <View style={styles.statusDialogCol}>
+                        <Text style={styles.statusDialogColLabel}>有效期至</Text>
+                        <Text style={styles.statusDialogColValue}>
+                          {statusDialogData.expires_at ? (() => {
+                            try {
+                              const d = new Date(statusDialogData.expires_at);
+                              return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                            } catch {
+                              return statusDialogData.expires_at;
+                            }
+                          })() : '未知'}
+                        </Text>
+                      </View>
+                    </View>
+                    {/* 第二行：X票停用 | X票认证 */}
+                    <View style={styles.statusDialogTwoColRow}>
+                      <View style={styles.statusDialogCol}>
+                        <Text style={styles.statusDialogColLabel}>投票停用</Text>
+                        <Text style={styles.statusDialogColValueStopped}>{statusDialogData.stopped_votes} 人</Text>
+                      </View>
+                      <Text style={styles.statusDialogDivider}>｜</Text>
+                      <View style={styles.statusDialogCol}>
+                        <Text style={styles.statusDialogColLabel}>投票认证</Text>
+                        <Text style={styles.statusDialogColValueNormal}>{statusDialogData.normal_votes} 人</Text>
+                      </View>
+                    </View>
+                  </>
+                ) : (
+                  <>
+                    {/* 未认证号码：显示投票信息 */}
+                    <View style={styles.statusDialogTwoColRow}>
+                      <View style={styles.statusDialogCol}>
+                        <Text style={styles.statusDialogColLabel}>投票停用</Text>
+                        <Text style={styles.statusDialogColValueStopped}>{statusDialogData.stopped_votes} 人</Text>
+                      </View>
+                      <Text style={styles.statusDialogDivider}>｜</Text>
+                      <View style={styles.statusDialogCol}>
+                        <Text style={styles.statusDialogColLabel}>投票正常</Text>
+                        <Text style={styles.statusDialogColValueNormal}>{statusDialogData.normal_votes} 人</Text>
+                      </View>
+                    </View>
+                  </>
                 )}
               </View>
             ) : null}
@@ -735,6 +753,14 @@ const styles = StyleSheet.create({
   statusDialogValue: { fontSize: 13, fontWeight: '600', color: '#111827' },
   statusDialogValueStopped: { fontSize: 13, fontWeight: '600', color: '#EF4444' },
   statusDialogValueNormal: { fontSize: 13, fontWeight: '600', color: '#10B981' },
+  // 两列布局样式
+  statusDialogTwoColRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+  statusDialogCol: { flex: 1, alignItems: 'center' },
+  statusDialogColLabel: { fontSize: 11, color: '#9CA3AF', marginBottom: 4 },
+  statusDialogColValue: { fontSize: 13, fontWeight: '600', color: '#111827' },
+  statusDialogColValueStopped: { fontSize: 13, fontWeight: '600', color: '#EF4444' },
+  statusDialogColValueNormal: { fontSize: 13, fontWeight: '600', color: '#10B981' },
+  statusDialogDivider: { fontSize: 14, color: '#D1D5DB', marginHorizontal: 4 },
   bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#E5E7EB', padding: 16, paddingBottom: 32 },
   bottomBarButtons: { flexDirection: 'row', gap: 10, marginBottom: 10 },
   batchBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 12 },

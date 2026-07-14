@@ -65,7 +65,7 @@ export default function ProfileScreen() {
       const res = await fetch(`${getBackendBaseUrl()}/version.json`);
       if (!res.ok) return;
       const data = await res.json();
-      const localVersion = Constants.expoConfig?.version || '1.0.3';
+      const localVersion = Constants.expoConfig?.version || '1.0.4';
       const localCode = parseVersionCode(localVersion);
       if (data.version_code > localCode) {
         setHasNewVersion(true);
@@ -292,7 +292,7 @@ export default function ProfileScreen() {
               name="information-circle"
               color="#909399"
               title="关于我们"
-              subtitle={`内测版本 ${Constants.expoConfig?.version || '1.0.3'}`}
+              subtitle={`内测版本 ${Constants.expoConfig?.version || '1.0.4'}`}
               badge={hasNewVersion ? '有新版本' : undefined}
               onPress={() => router.push('/about')}
             />
