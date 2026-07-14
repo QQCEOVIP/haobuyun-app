@@ -2133,7 +2133,12 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* 健康度仪表盘 */}
-        <View style={styles.dashboardCard}>
+        <ImageBackground
+          source={require('@/assets/bg_health_module.jpg')}
+          style={styles.dashboardCard}
+          imageStyle={{ borderRadius: 24 }}
+          resizeMode="cover"
+        >
           {/* 用户头像在左上角 */}
           <View style={styles.avatarContainer}>
             <View style={styles.avatar}>
@@ -2180,7 +2185,7 @@ export default function HomeScreen() {
             {healthPercentage >= 80 ? '您的通讯录非常健康' :
              healthPercentage >= 50 ? '部分号码可能需要关注' : '建议清理失效号码'}
           </Text>
-        </View>
+        </ImageBackground>
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
             <Text style={styles.statValue}>{stats.total}</Text>
