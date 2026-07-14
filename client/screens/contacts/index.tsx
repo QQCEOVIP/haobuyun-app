@@ -1318,7 +1318,12 @@ export default function ContactsScreen() {
         </View>
       </View>
       </ImageBackground>
-      <View style={[styles.cleanupCard, { marginHorizontal: 0 }]}>
+      <ImageBackground
+        source={require('@/assets/bg_assistant_module.jpg')}
+        style={[styles.cleanupCard, { marginHorizontal: 0 }]}
+        resizeMode="cover"
+        imageStyle={{ opacity: 0.15 }}
+      >
         <View style={styles.cleanupHeader}>
           <View style={styles.cleanupTitleRow}>
             <Ionicons name="options" size={16} color="#4A90D9" style={{ marginRight: 4 }} />
@@ -1364,7 +1369,7 @@ export default function ContactsScreen() {
             <Text style={styles.cleanupStatLabel}>可能失效</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </ImageBackground>
 
       <FlatList
         data={filteredContacts}
