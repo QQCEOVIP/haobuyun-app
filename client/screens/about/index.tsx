@@ -8,12 +8,12 @@ import { getBackendBaseUrl } from '@/utils';
 import Logo from '@/components/Logo';
 
 interface UpdateInfo {
-  update_available: boolean;
-  latest_version_code: number;
-  latest_version_name: string;
+  version_code: number;
+  version_name: string;
   download_url: string;
   release_notes: string;
-  mandatory: boolean;
+  force_update: boolean;
+  updated_at?: string;
 }
 
 export default function AboutScreen() {
@@ -38,7 +38,7 @@ export default function AboutScreen() {
       const data: UpdateInfo = await response.json();
 
       // 比较版本号
-      const updateAvailable = data.latest_version_code > versionCode;
+      const updateAvailable = data.version_code > versionCode;
 
       if (!updateAvailable) {
         const versionName = Constants.expoConfig?.version || '1.0.1';
@@ -169,7 +169,7 @@ export default function AboutScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>
-              发现新版本 v{updateInfo?.latest_version_name}
+              发现新版本 v{updateInfo?.version_name}
             </Text>
             <ScrollView style={styles.releaseNotes}>
               <Text style={styles.releaseNotesText}>
