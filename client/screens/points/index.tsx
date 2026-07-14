@@ -9,7 +9,7 @@ import { getBackendBaseUrl } from "@/utils";
 import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
 import BackgroundWrapper from '@/components/BackgroundWrapper';
 
-const bgHome = require('@/assets/bg_home.jpg');
+const bgMain = require('@/assets/bg_main.jpg');
 
 interface PointsInfo {
   balance: number;
@@ -90,7 +90,7 @@ export default function PointsScreen() {
       <ScrollView contentContainerStyle={styles.content}>
       {/* 积分概览 */}
       <ImageBackground
-        source={bgHome}
+        source={bgMain}
         style={styles.balanceCard}
         imageStyle={{ borderRadius: 16, opacity: 0.3 }}
         resizeMode="cover"

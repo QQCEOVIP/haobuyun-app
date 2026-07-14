@@ -1243,7 +1243,7 @@ export default function ContactsScreen() {
     <View style={{ flex: 1 }} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
     <SafeAreaView style={[styles.container, { backgroundColor: 'transparent' }]}>
       <ImageBackground
-        source={require('@/assets/bg_contacts_header.jpg')}
+        source={require('@/assets/bg_home.jpg')}
         style={styles.header}
         imageStyle={styles.headerBg}
       >
@@ -1319,7 +1319,7 @@ export default function ContactsScreen() {
 
       {/* 管理助手 - 固定定位，不随列表滚动 */}
       <ImageBackground
-        source={require('@/assets/bg_assistant.jpg')}
+        source={require('@/assets/bg_contacts_header.jpg')}
         style={[styles.cleanupCard, { marginHorizontal: 0 }]}
         imageStyle={styles.cleanupCardBg}
       >

@@ -2134,9 +2134,10 @@ export default function HomeScreen() {
       >
         {/* 健康度仪表盘 */}
         <ImageBackground
-          source={require('@/assets/bg_home.jpg')}
+          source={require('@/assets/bg_assistant.jpg')}
           style={styles.dashboardCard}
           imageStyle={styles.dashboardCardBg}
+          resizeMode="cover"
         >
           {/* 用户头像在左上角 */}
           <View style={styles.avatarContainer}>
@@ -2684,21 +2685,21 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
   },
   dashboardCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'transparent',
     borderRadius: 16,
     padding: 20,
     alignItems: 'center',
     marginBottom: 16,
-    shadowColor: '#D1D9E6',
+    shadowColor: '#4A90D9',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 4,
     overflow: 'hidden',
   },
   dashboardCardBg: {
     borderRadius: 16,
-    opacity: 0.15,
+    opacity: 0.3,
   },
   avatarContainer: {
     position: 'absolute',
@@ -2742,11 +2743,11 @@ const styles = StyleSheet.create({
   },
   gaugeLabel: {
     fontSize: 14,
-    color: '#909399',
+    color: '#606266',
   },
   healthDesc: {
     fontSize: 14,
-    color: '#909399',
+    color: '#606266',
     marginTop: 12,
   },
   statsRow: {
