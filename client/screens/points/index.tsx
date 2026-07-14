@@ -1,11 +1,15 @@
 import React, { useState, useCallback } from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ImageBackground } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
 import { useSafeRouter } from "@/hooks/useSafeRouter";
 import { useAuth } from "@/contexts/AuthContext";
 import { getBackendBaseUrl } from "@/utils";
+import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
+import BackgroundWrapper from '@/components/BackgroundWrapper';
+
+const bgHome = require('@/assets/bg_home.jpg');
 
 interface PointsInfo {
   balance: number;
@@ -53,6 +57,7 @@ export default function PointsScreen() {
     current_streak: 0,
     longest_streak: 0,
   });
+  const { onTouchStart, onTouchEnd } = useSwipeNavigation();
 
   const fetchData = useCallback(async () => {
     if (!session?.access_token) return;
@@ -80,10 +85,16 @@ export default function PointsScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
+    <BackgroundWrapper>
+    <SafeAreaView style={styles.container} edges={["top"]} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
       <ScrollView contentContainerStyle={styles.content}>
       {/* 积分概览 */}
-      <View style={styles.balanceCard}>
+      <ImageBackground
+        source={bgHome}
+        style={styles.balanceCard}
+        imageStyle={{ borderRadius: 16, opacity: 0.3 }}
+        resizeMode="cover"
+      >
         <Text style={styles.balanceLabel}>当前积分</Text>
         <Text style={styles.balanceValue}>{pointsInfo?.balance ?? 0}</Text>
         <View style={styles.balanceRow}>
@@ -102,7 +113,7 @@ export default function PointsScreen() {
             <Text style={styles.balanceStatLabel}>信用分</Text>
           </View>
         </View>
-      </View>
+      </ImageBackground>
 
       {/* 签到信息 */}
       {checkinInfo.current_streak > 0 && (
@@ -151,6 +162,7 @@ export default function PointsScreen() {
       </View>
     </ScrollView>
     </SafeAreaView>
+    </BackgroundWrapper>
   );
 }
 
@@ -159,11 +171,11 @@ const styles = StyleSheet.create({
   content: { padding: 20, paddingTop: 12, paddingBottom: 40 },
   // 积分概览
   balanceCard: {
-    backgroundColor: "#4A90D9",
     borderRadius: 16,
     padding: 24,
     alignItems: "center",
     marginBottom: 12,
+    overflow: "hidden",
   },
   balanceLabel: { fontSize: 14, color: "rgba(255,255,255,0.8)" },
   balanceValue: { fontSize: 40, fontWeight: "800", color: "#FFF", marginTop: 4 },
