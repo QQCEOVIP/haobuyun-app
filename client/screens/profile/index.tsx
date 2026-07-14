@@ -17,6 +17,7 @@ import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
 import { useAuth } from '@/contexts/AuthContext';
+import { getBackendBaseUrl } from '@/utils';
 
 // Force production URL - do not use environment variable
 const getBackendBaseUrl = () => {
@@ -62,7 +63,7 @@ export default function ProfileScreen() {
 
   const checkForNewVersion = async () => {
     try {
-      const res = await fetch('/version.json');
+      const res = await fetch(`${getBackendBaseUrl()}/version.json`);
       if (!res.ok) return;
       const data = await res.json();
       const localVersion = Constants.expoConfig?.version || '1.0.0';
@@ -292,7 +293,7 @@ export default function ProfileScreen() {
               name="information-circle"
               color="#909399"
               title="关于我们"
-              subtitle={`v${Constants.expoConfig?.version || '1.0.1'}`}
+              subtitle={`内测版本 ${Constants.expoConfig?.version || '1.0.1'}`}
               badge={hasNewVersion ? '有新版本' : undefined}
               onPress={() => router.push('/about')}
             />
