@@ -1308,7 +1308,7 @@ export default function ContactsScreen() {
       </View>
 
       {/* 管理助手 - 固定定位，不随列表滚动 */}
-      <View style={[styles.cleanupCard, { marginHorizontal: 20 }]}>
+      <View style={[styles.cleanupCard, { marginHorizontal: 8 }]}>
         <View style={styles.cleanupHeader}>
           <View style={styles.cleanupTitleRow}>
             <Ionicons name="options" size={16} color="#4A90D9" style={{ marginRight: 4 }} />
@@ -1978,11 +1978,16 @@ const styles = StyleSheet.create({
   },
   infoCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    borderRadius: 20,
     padding: 24,
-    marginHorizontal: 40,
-    width: '80%',
-    maxWidth: 320,
+    marginHorizontal: 16,
+    width: '95%',
+    maxWidth: 500,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
   },
   infoTitle: {
     fontSize: 18,
