@@ -11,6 +11,7 @@ import {
   TouchableWithoutFeedback,
   Alert,
   Image,
+  ImageBackground,
   ScrollView,
   Platform,
 } from 'react-native';
@@ -1241,7 +1242,11 @@ export default function ContactsScreen() {
     <BackgroundWrapper>
     <View style={{ flex: 1 }} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
     <SafeAreaView style={[styles.container, { backgroundColor: 'transparent' }]}>
-      <View style={styles.header}>
+      <ImageBackground
+        source={require('@/assets/bg_contacts_header.jpg')}
+        style={styles.header}
+        imageStyle={styles.headerBg}
+      >
         <View style={styles.titleRow}>
           {batchMode ? (
             <>
@@ -1310,10 +1315,14 @@ export default function ContactsScreen() {
             </TouchableOpacity>
           )}
         </View>
-      </View>
+      </ImageBackground>
 
       {/* 管理助手 - 固定定位，不随列表滚动 */}
-      <View style={[styles.cleanupCard, { marginHorizontal: 0 }]}>
+      <ImageBackground
+        source={require('@/assets/bg_assistant.jpg')}
+        style={[styles.cleanupCard, { marginHorizontal: 0 }]}
+        imageStyle={styles.cleanupCardBg}
+      >
         <View style={styles.cleanupHeader}>
           <View style={styles.cleanupTitleRow}>
             <Ionicons name="options" size={16} color="#4A90D9" style={{ marginRight: 4 }} />
@@ -1359,7 +1368,7 @@ export default function ContactsScreen() {
             <Text style={styles.cleanupStatLabel}>可能失效</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </ImageBackground>
 
       <FlatList
         data={filteredContacts}
@@ -1781,6 +1790,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#F0F0F0',
+    overflow: 'hidden',
+  },
+  headerBg: {
+    opacity: 0.15,
   },
   titleRow: {
     flexDirection: 'row',
@@ -2183,6 +2196,11 @@ const styles = StyleSheet.create({
     elevation: 3,
     borderWidth: 1,
     borderColor: 'rgba(74, 144, 217, 0.1)',
+    overflow: 'hidden',
+  },
+  cleanupCardBg: {
+    borderRadius: 16,
+    opacity: 0.15,
   },
   cleanupHeader: {
     flexDirection: 'row',

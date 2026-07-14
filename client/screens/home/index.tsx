@@ -10,6 +10,7 @@ import {
   Platform,
   ActivityIndicator,
   Image,
+  ImageBackground,
   ScrollView,
   RefreshControl,
   DeviceEventEmitter,
@@ -2132,7 +2133,11 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* 健康度仪表盘 */}
-        <View style={styles.dashboardCard}>
+        <ImageBackground
+          source={require('@/assets/bg_home.jpg')}
+          style={styles.dashboardCard}
+          imageStyle={styles.dashboardCardBg}
+        >
           {/* 用户头像在左上角 */}
           <View style={styles.avatarContainer}>
             <View style={styles.avatar}>
@@ -2179,9 +2184,7 @@ export default function HomeScreen() {
             {healthPercentage >= 80 ? '您的通讯录非常健康' :
              healthPercentage >= 50 ? '部分号码可能需要关注' : '建议清理失效号码'}
           </Text>
-        </View>
-
-        {/* 统计数据 */}
+        </ImageBackground>
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
             <Text style={styles.statValue}>{stats.total}</Text>
@@ -2691,6 +2694,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
+    overflow: 'hidden',
+  },
+  dashboardCardBg: {
+    borderRadius: 16,
+    opacity: 0.15,
   },
   avatarContainer: {
     position: 'absolute',
