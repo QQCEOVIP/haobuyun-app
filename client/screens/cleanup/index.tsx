@@ -14,6 +14,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/storage/supabase';
 import { getBackendBaseUrl } from '@/utils';
 import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
+import { BackgroundWrapper } from '@/components/BackgroundWrapper';
 
 interface Contact {
   id: string;
@@ -172,8 +173,9 @@ export default function CleanupScreen() {
   };
 
   return (
+    <BackgroundWrapper>
     <View style={{ flex: 1 }} {...panHandlers}>
-    <SafeAreaView style={[styles.container, { backgroundColor: '#F5F7FA' }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: 'transparent' }]}>
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>清理失效号码</Text>
@@ -239,6 +241,7 @@ export default function CleanupScreen() {
       )}
     </SafeAreaView>
     </View>
+    </BackgroundWrapper>
   );
 }
 

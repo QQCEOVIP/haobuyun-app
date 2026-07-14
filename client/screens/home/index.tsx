@@ -20,6 +20,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
 import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
+import BackgroundWrapper from '@/components/BackgroundWrapper';
 import * as Contacts from 'expo-contacts';
 import * as FileSystemLegacy from 'expo-file-system/legacy';
 import * as FileSystem from 'expo-file-system';
@@ -2119,8 +2120,9 @@ export default function HomeScreen() {
   console.log('[Health] Will render:', `${healthPercentage}%`);
 
   return (
+    <BackgroundWrapper>
     <View style={{ flex: 1 }} {...panHandlers}>
-    <SafeAreaView style={[styles.container, { backgroundColor: '#F5F7FA' }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: 'transparent' }]}>
       <ScrollView
         style={styles.content}
         contentContainerStyle={styles.scrollContent}
@@ -2664,6 +2666,7 @@ export default function HomeScreen() {
       </Overlay>
     </SafeAreaView>
     </View>
+    </BackgroundWrapper>
   );
 }
 

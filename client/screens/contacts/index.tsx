@@ -28,6 +28,7 @@ import { CONSENSUS, type NumberStatus } from '@/constants/numberStatus';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ContactAvatar from '@/components/ContactAvatar';
 import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
+import { BackgroundWrapper } from '@/components/BackgroundWrapper';
 
 // 替代 Modal 的轻量级遮罩组件，避免 Modal 原生行为导致的闪屏
 const Overlay = ({ visible, children, onClose }: { visible: boolean; children: React.ReactNode; onClose?: () => void }) => {
@@ -1237,8 +1238,9 @@ export default function ContactsScreen() {
   };
 
   return (
+    <BackgroundWrapper>
     <View style={{ flex: 1 }} {...panHandlers}>
-    <SafeAreaView style={[styles.container, { backgroundColor: '#F5F7FA' }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: 'transparent' }]}>
       <View style={styles.header}>
         <View style={styles.titleRow}>
           {batchMode ? (
@@ -1763,6 +1765,7 @@ export default function ContactsScreen() {
       )}
     </SafeAreaView>
     </View>
+    </BackgroundWrapper>
   );
 }
 

@@ -18,6 +18,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
+import { BackgroundWrapper } from '@/components/BackgroundWrapper';
 
 // Force production URL - do not use environment variable
 const getBackendBaseUrl = () => {
@@ -217,8 +218,9 @@ export default function ProfileScreen() {
   const userName = userEmail.split('@')[0] || '用户';
 
   return (
+    <BackgroundWrapper>
     <View style={{ flex: 1 }} {...panHandlers}>
-    <SafeAreaView style={[styles.container, { backgroundColor: '#F5F7FA' }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: 'transparent' }]}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
           <Text style={styles.title}>我的</Text>
@@ -309,6 +311,7 @@ export default function ProfileScreen() {
       </ScrollView>
     </SafeAreaView>
     </View>
+    </BackgroundWrapper>
   );
 }
 
