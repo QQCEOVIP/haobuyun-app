@@ -1242,11 +1242,7 @@ export default function ContactsScreen() {
     <BackgroundWrapper>
     <View style={{ flex: 1 }} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
     <SafeAreaView style={[styles.container, { backgroundColor: 'transparent' }]}>
-      <ImageBackground
-        source={require('@/assets/bg_contacts_header_new.jpg')}
-        style={styles.header}
-        imageStyle={styles.headerBg}
-      >
+      <View style={styles.header}>
         <View style={styles.titleRow}>
           {batchMode ? (
             <>
@@ -1315,14 +1311,10 @@ export default function ContactsScreen() {
             </TouchableOpacity>
           )}
         </View>
-      </ImageBackground>
+      </View>
 
       {/* 管理助手 - 固定定位，不随列表滚动 */}
-      <ImageBackground
-        source={require('@/assets/bg_assistant_new.jpg')}
-        style={[styles.cleanupCard, { marginHorizontal: 0 }]}
-        imageStyle={styles.cleanupCardBg}
-      >
+      <View style={[styles.cleanupCard, { marginHorizontal: 0 }]}>
         <View style={styles.cleanupHeader}>
           <View style={styles.cleanupTitleRow}>
             <Ionicons name="options" size={16} color="#4A90D9" style={{ marginRight: 4 }} />
@@ -1368,7 +1360,7 @@ export default function ContactsScreen() {
             <Text style={styles.cleanupStatLabel}>可能失效</Text>
           </TouchableOpacity>
         </View>
-      </ImageBackground>
+      </View>
 
       <FlatList
         data={filteredContacts}
