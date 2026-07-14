@@ -42,7 +42,7 @@ export default function AboutScreen() {
 
       if (!updateAvailable) {
         const versionName = Constants.expoConfig?.version || '1.0.1';
-        Alert.alert('当前已是最新版本', `内测版本 ${versionName}`, [{ text: '确定' }]);
+        Alert.alert('当前已是最新版本', `v${versionName}`, [{ text: '确定' }]);
       } else {
         setUpdateInfo(data);
         setShowUpdateModal(true);
@@ -130,7 +130,7 @@ export default function AboutScreen() {
         <View style={styles.logoContainer}>
           <Logo size={80} />
           <Text style={styles.appName}>号簿云</Text>
-          <Text style={styles.version}>内测版本 {Constants.expoConfig?.version || '1.0.1'}</Text>
+          <Text style={styles.version}>v{Constants.expoConfig?.version || '1.0.1'}</Text>
           <TouchableOpacity
             style={styles.updateButton}
             onPress={handleCheckUpdate}
