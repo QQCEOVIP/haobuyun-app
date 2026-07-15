@@ -23,6 +23,7 @@ interface AuthenticatedNumber {
   authenticated_at: string;
   expires_at: string;
   stopped_vote_count: number;
+  auth_count: number;
 }
 
 // Normalize phone to digits without country code
@@ -143,14 +144,27 @@ export default function AuthenticatedNumbersScreen() {
               <Text style={styles.authBadgeText}>已认证: {item.encrypted_name}</Text>
             </View>
           </View>
-          <View style={styles.infoRow}>
-            <Ionicons name="calendar-outline" size={12} color="#9CA3AF" />
-            <Text style={styles.infoText}>认证时间: {formatDate(item.authenticated_at)}</Text>
-            <Text style={styles.infoText}> | 投票: {item.stopped_vote_count}人停用</Text>
+          <View style={styles.gridRow}>
+            <View style={styles.gridCell}>
+              <Ionicons name="calendar-outline" size={12} color="#9CA3AF" />
+              <Text style={styles.infoText}>认证: {formatDate(item.authenticated_at)}</Text>
+            </View>
+            <View style={styles.gridDivider} />
+            <View style={styles.gridCell}>
+              <Ionicons name="time-outline" size={12} color="#9CA3AF" />
+              <Text style={styles.infoText}>有效期至: {formatDate(item.expires_at)}</Text>
+            </View>
           </View>
-          <View style={styles.infoRow}>
-            <Ionicons name="time-outline" size={12} color="#9CA3AF" />
-            <Text style={styles.infoText}>有效期至: {formatDate(item.expires_at)}</Text>
+          <View style={styles.gridRow}>
+            <View style={styles.gridCell}>
+              <Ionicons name="alert-circle-outline" size={12} color="#9CA3AF" />
+              <Text style={styles.infoText}>停用: {item.stopped_vote_count}票</Text>
+            </View>
+            <View style={styles.gridDivider} />
+            <View style={styles.gridCell}>
+              <Ionicons name="shield-checkmark-outline" size={12} color="#9CA3AF" />
+              <Text style={styles.infoText}>认证: {item.auth_count}票</Text>
+            </View>
           </View>
         </View>
         <TouchableOpacity
@@ -231,6 +245,9 @@ const styles = StyleSheet.create({
   authBadgeText: { fontSize: 11, color: '#10B981', fontWeight: '500' },
   infoRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
   infoText: { fontSize: 12, color: '#9CA3AF' },
+  gridRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
+  gridCell: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 4 },
+  gridDivider: { width: 1, height: 14, backgroundColor: '#E5E7EB', marginHorizontal: 8 },
   revokeBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FECACA', gap: 4, marginLeft: 8 },
   revokeBtnText: { fontSize: 12, fontWeight: '600', color: '#EF4444' },
 });

@@ -151,7 +151,13 @@ router.get('/my-authentications', requireAuth, async (req: any, res: any) => {
              WHERE nv.phone = na.phone AND nv.vote = 'stopped'
              AND nv.updated_at > NOW() - INTERVAL '30 days'),
             0
-          ) as stopped_vote_count
+          ) as stopped_vote_count,
+          COALESCE(
+            (SELECT COUNT(*)::int 
+             FROM number_authentications na2 
+             WHERE na2.phone = na.phone),
+            0
+          ) as auth_count
         FROM number_authentications na
         WHERE na.user_id = ${userId}
         ORDER BY na.authenticated_at DESC
@@ -172,6 +178,7 @@ router.get('/my-authentications', requireAuth, async (req: any, res: any) => {
       authenticated_at: auth.authenticated_at ? new Date(auth.authenticated_at).toISOString() : null,
       expires_at: auth.expires_at ? new Date(auth.expires_at).toISOString() : null,
       stopped_vote_count: auth.stopped_vote_count,
+      auth_count: auth.auth_count,
     }));
 
     res.json({
