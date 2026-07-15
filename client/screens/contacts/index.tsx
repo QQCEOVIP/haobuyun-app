@@ -1788,13 +1788,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 12,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    backgroundColor: 'transparent',
     overflow: 'hidden',
   },
   headerBg: {
-    opacity: 0.15,
+    borderRadius: 16,
   },
   titleRow: {
     flexDirection: 'row',
