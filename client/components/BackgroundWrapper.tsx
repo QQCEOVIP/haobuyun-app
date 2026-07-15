@@ -14,7 +14,7 @@ interface BackgroundWrapperProps {
  * - 添加半透明遮罩层确保内容可读性
  * - 背景固定不随页面滚动
  */
-export default function BackgroundWrapper({ children, overlayOpacity = 0.75 }: BackgroundWrapperProps) {
+export default function BackgroundWrapper({ children, overlayOpacity = 0 }: BackgroundWrapperProps) {
   return (
     <ImageBackground
       source={bgImage}
