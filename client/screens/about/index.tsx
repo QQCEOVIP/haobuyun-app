@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as IntentLauncher from 'expo-intent-launcher';
 import * as Linking from 'expo-linking';
 import Constants from 'expo-constants';
 import { getBackendBaseUrl } from '@/utils';
@@ -67,77 +68,84 @@ export default function AboutScreen() {
     setDownloading(true);
     setDownloadProgress(0);
 
-    // Android: 直接用浏览器打开下载链接
-    // Android 原生下载管理器会处理下载，完成后自动弹出安装界面
-    // 这比 in-app 下载 + Linking.openURL(file://) 更可靠（Android 7.0+ 禁止 file:// URI）
+    // Android: 下载 APK 到本地，用 IntentLauncher 调起安装器
     if (Platform.OS === 'android') {
       try {
-        console.log('[About] Opening download URL in browser:', updateInfo.download_url);
-        await Linking.openURL(updateInfo.download_url);
-        setDownloading(false);
-        setShowUpdateModal(false);
-        Alert.alert(
-          '正在下载',
-          'APK 正在下载中，下载完成后系统会自动弹出安装界面，请点击安装即可。',
-          [{ text: '确定' }]
+        const downloadPath = `${FileSystem.cacheDirectory}haobuyun-update.apk`;
+
+        const fileInfo = await (FileSystem as any).getInfoAsync(downloadPath);
+        if (fileInfo.exists) {
+          await (FileSystem as any).deleteAsync(downloadPath);
+        }
+
+        const downloadResumable = (FileSystem as any).createDownloadResumable(
+          updateInfo.download_url,
+          downloadPath,
+          {},
+          (downloadProgress: any) => {
+            if (downloadProgress.totalBytesExpectedToWrite > 0) {
+              const progress = downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite;
+              setDownloadProgress(Math.round(progress * 100));
+            }
+          }
         );
-        return;
-      } catch (browserError) {
-        console.warn('[About] Browser download failed:', browserError);
-        // 浏览器打开失败，回退到 in-app 下载 + 提示手动安装
+
+        const result = await downloadResumable.downloadAsync();
+
+        if (result && result.uri) {
+          setDownloadProgress(100);
+
+          // 文件验证
+          const downloadedFileInfo = await (FileSystem as any).getInfoAsync(result.uri);
+          if (!downloadedFileInfo.exists || downloadedFileInfo.size < 1000000) {
+            Alert.alert(
+              '文件验证失败',
+              '下载的 APK 文件可能不完整，请使用浏览器重新下载',
+              [{ text: '使用浏览器下载', onPress: () => Linking.openURL(updateInfo.download_url) }]
+            );
+            setDownloading(false);
+            return;
+          }
+
+          // 用 IntentLauncher 直接调起 APK 安装器
+          try {
+            await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+              data: result.uri,
+              type: 'application/vnd.android.package-archive',
+              flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
+            });
+            setShowUpdateModal(false);
+          } catch (installError) {
+            console.warn('[About] IntentLauncher failed:', installError);
+            // IntentLauncher 失败，回退到浏览器下载
+            try {
+              await Linking.openURL(updateInfo.download_url);
+              Alert.alert('正在下载', '下载完成后系统会自动弹出安装界面');
+            } catch {
+              Alert.alert('安装失败', '无法调起安装程序，请前往文件管理器找到 haobuyun-update.apk 进行安装');
+            }
+          }
+          return;
+        }
+      } catch (fsError) {
+        console.warn('[About] FileSystem download failed:', fsError);
       }
     }
 
-    // 回退方案：in-app 下载（iOS 或其他）
+    // 回退方案：浏览器下载
     try {
-      const downloadPath = Platform.OS === 'android'
-        ? `${FileSystem.cacheDirectory}haobuyun-update.apk`
-        : `${FileSystem.documentDirectory}haobuyun-update.ipa`;
-
-      const fileInfo = await (FileSystem as any).getInfoAsync(downloadPath);
-      if (fileInfo.exists) {
-        await (FileSystem as any).deleteAsync(downloadPath);
-      }
-
-      const downloadResumable = (FileSystem as any).createDownloadResumable(
-        updateInfo.download_url,
-        downloadPath,
-        {},
-        (downloadProgress: any) => {
-          if (downloadProgress.totalBytesExpectedToWrite > 0) {
-            const progress = downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite;
-            setDownloadProgress(Math.round(progress * 100));
-          }
-        }
-      );
-
-      const result = await downloadResumable.downloadAsync();
-
-      if (result && result.uri) {
-        setDownloadProgress(100);
-        try {
-          await Linking.openURL(result.uri);
-        } catch {
-          Alert.alert(
-            '下载完成',
-            '文件已下载，请前往文件管理器进行安装',
-            [{ text: '确定' }]
-          );
-        }
-      }
-    } catch (dlError) {
-      console.error('[About] Download failed:', dlError);
+      await Linking.openURL(updateInfo.download_url);
+      setShowUpdateModal(false);
+    } catch {
       Alert.alert('下载失败', '请检查网络连接后重试，或联系客服获取更新包');
     } finally {
       setDownloading(false);
-      setShowUpdateModal(false);
     }
   };
 
   const handleInstall = async () => {
     if (!updateInfo?.download_url) return;
     try {
-      // 直接用浏览器打开下载链接，Android 下载管理器会处理安装
       await Linking.openURL(updateInfo.download_url);
     } catch {
       Alert.alert('安装失败', '无法打开下载链接，请手动下载安装');
