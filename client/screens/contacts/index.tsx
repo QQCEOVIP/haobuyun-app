@@ -1295,7 +1295,7 @@ export default function ContactsScreen() {
                   style={styles.headerButton}
                   onPress={() => setInfoModalVisible(true)}
                 >
-                  <Ionicons name="information-circle-outline" size={24} color="#4A90D9" />
+                  <Ionicons name="information-circle-outline" size={24} color="#FF8C00" />
                 </TouchableOpacity>
               </View>
             </>
@@ -1807,7 +1807,7 @@ const styles = StyleSheet.create({
   titleCount: {
     fontSize: 16,
     fontWeight: '400',
-    color: '#909399',
+    color: '#111827',
   },
   headerButtons: {
     flexDirection: 'row',
