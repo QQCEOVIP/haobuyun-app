@@ -1,8 +1,8 @@
 {
-  "version_code": 10008,
-  "version_name": "1.0.8",
+  "version_code": 10009,
+  "version_name": "1.0.9",
+  "min_supported_version_code": 10000,
+  "release_notes": "优化已认证号码信息展示排版",
   "download_url": "https://www.coze.cn/s/mNkhFerDK44",
-  "release_notes": "已认证号码排版优化，新增认证票数字段",
-  "force_update": false,
-  "updated_at": "2025-07-15"
+  "force_update": false
 }

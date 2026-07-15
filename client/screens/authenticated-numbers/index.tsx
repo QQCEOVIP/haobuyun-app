@@ -146,24 +146,20 @@ export default function AuthenticatedNumbersScreen() {
           </View>
           <View style={styles.gridRow}>
             <View style={styles.gridCell}>
-              <Ionicons name="calendar-outline" size={12} color="#9CA3AF" />
-              <Text style={styles.infoText}>认证: {formatDate(item.authenticated_at)}</Text>
+              <Text style={styles.infoText}>认证时间：{formatDate(item.authenticated_at)}</Text>
             </View>
             <View style={styles.gridDivider} />
             <View style={styles.gridCell}>
-              <Ionicons name="time-outline" size={12} color="#9CA3AF" />
-              <Text style={styles.infoText}>有效期至: {formatDate(item.expires_at)}</Text>
+              <Text style={styles.infoText}>停用票：{item.stopped_vote_count}票</Text>
             </View>
           </View>
           <View style={styles.gridRow}>
             <View style={styles.gridCell}>
-              <Ionicons name="alert-circle-outline" size={12} color="#9CA3AF" />
-              <Text style={styles.infoText}>停用: {item.stopped_vote_count}票</Text>
+              <Text style={styles.infoText}>有效时间：{formatDate(item.expires_at)}</Text>
             </View>
             <View style={styles.gridDivider} />
             <View style={styles.gridCell}>
-              <Ionicons name="shield-checkmark-outline" size={12} color="#9CA3AF" />
-              <Text style={styles.infoText}>认证: {item.auth_count}票</Text>
+              <Text style={styles.infoText}>认证票：{item.auth_count}票</Text>
             </View>
           </View>
         </View>
