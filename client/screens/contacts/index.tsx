@@ -2186,7 +2186,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   cleanupCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'transparent',
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
