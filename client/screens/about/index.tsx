@@ -2,9 +2,8 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as FileSystem from 'expo-file-system/legacy';
-import * as IntentLauncher from 'expo-intent-launcher';
-import * as Linking from 'expo-linking';
 import * as Sharing from 'expo-sharing';
+import * as Linking from 'expo-linking';
 import Constants from 'expo-constants';
 import { getBackendBaseUrl } from '@/utils';
 import Logo from '@/components/Logo';
@@ -33,30 +32,23 @@ export default function AboutScreen() {
         versionCode = (Constants.expoConfig?.version ?? '1.0.1').split('.').reduce((acc, val) => acc * 100 + parseInt(val), 0);
       } catch {}
 
-      const versionName = Constants.expoConfig?.version || '1.0.1';
-      console.log('[Update] Local version:', versionName, 'versionCode:', versionCode);
-
-      // 从静态JSON文件获取版本信息，加时间戳防缓存
-      const url = `${getBackendBaseUrl()}/version.json?_t=${Date.now()}`;
-      console.log('[Update] Fetching:', url);
-      const response = await fetch(url, { cache: 'no-store' });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      // 从静态JSON文件获取版本信息（Coze Site不支持Express后端）
+      const response = await fetch(`${getBackendBaseUrl()}/version.json`);
+      if (!response.ok) throw new Error('Network error');
 
       const data: UpdateInfo = await response.json();
-      console.log('[Update] Server version_code:', data.version_code, 'name:', data.version_name);
 
       // 比较版本号
       const updateAvailable = data.version_code > versionCode;
-      console.log('[Update] updateAvailable:', updateAvailable, `(${data.version_code} > ${versionCode})`);
 
       if (!updateAvailable) {
+        const versionName = Constants.expoConfig?.version || '1.0.1';
         Alert.alert('当前已是最新版本', `内测版本${versionName}`, [{ text: '确定' }]);
       } else {
         setUpdateInfo(data);
         setShowUpdateModal(true);
       }
-    } catch (err) {
-      console.error('[Update] Check failed:', err);
+    } catch {
       Alert.alert('检查失败', '无法检查更新，请检查网络连接后重试');
     } finally {
       setCheckingUpdate(false);
@@ -69,11 +61,12 @@ export default function AboutScreen() {
     setDownloading(true);
     setDownloadProgress(0);
 
-    // Android: 下载 APK 到本地，用 IntentLauncher 调起安装器
+    // 方案1：使用 expo-file-system 下载 APK（带进度）
     if (Platform.OS === 'android') {
       try {
         const downloadPath = `${FileSystem.cacheDirectory}haobuyun-update.apk`;
 
+        // 如果已存在旧文件先删除
         const fileInfo = await (FileSystem as any).getInfoAsync(downloadPath);
         if (fileInfo.exists) {
           await (FileSystem as any).deleteAsync(downloadPath);
@@ -95,10 +88,11 @@ export default function AboutScreen() {
 
         if (result && result.uri) {
           setDownloadProgress(100);
-
-          // 文件验证
+          
+          // APK 文件验证：检查文件是否存在且大小合理
           const downloadedFileInfo = await (FileSystem as any).getInfoAsync(result.uri);
           if (!downloadedFileInfo.exists || downloadedFileInfo.size < 1000000) {
+            // 文件太小（<1MB），可能不是有效的 APK
             Alert.alert(
               '文件验证失败',
               '下载的 APK 文件可能不完整，请使用浏览器重新下载',
@@ -108,40 +102,29 @@ export default function AboutScreen() {
             return;
           }
 
-          // 构造 content:// URI（利用 expo-sharing 内置的 FileProvider）
-          // Android 7.0+ 禁止 file:// URI 跨应用传递，必须用 content:// URI
-          const packageName = (Constants.expoConfig as any)?.android?.package
-            || `com.${(Constants.expoConfig as any)?.slug?.replace(/[^a-z0-9]/gi, '')}`
-            || 'host.exp.exponent';
-          const fileName = result.uri.split('/').pop() || 'haobuyun-update.apk';
-          const contentUri = `content://${packageName}.SharingFileProvider/cached_expo_files/${fileName}`;
-          console.log('[About] Package:', packageName, 'Content URI:', contentUri);
-
-          // 用 IntentLauncher + content:// URI 调起 APK 安装器
+          // 使用 Sharing 调起系统安装器
           try {
-            await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
-              data: contentUri,
-              type: 'application/vnd.android.package-archive',
-              flags: 1 | 268435456, // FLAG_GRANT_READ_URI_PERMISSION | FLAG_ACTIVITY_NEW_TASK
-            });
-            setShowUpdateModal(false);
-          } catch (installError) {
-            console.warn('[About] IntentLauncher with content:// failed:', installError);
-            // content:// URI 失败，回退到 Sharing（显示分享面板，用户可选择"软件包安装程序"）
-            try {
+            const isAvailable = await Sharing.isAvailableAsync();
+            if (isAvailable) {
               await Sharing.shareAsync(result.uri, {
                 mimeType: 'application/vnd.android.package-archive',
                 dialogTitle: '安装号簿云更新',
               });
               setShowUpdateModal(false);
-            } catch (shareError) {
-              console.warn('[About] Sharing also failed:', shareError);
+            } else {
+              // Sharing 不可用，提示用户手动安装
               Alert.alert(
-                '安装失败',
-                '请手动到文件管理器中找到 haobuyun-update.apk 进行安装',
+                '下载完成',
+                'APK 已下载，请前往文件管理器找到 haobuyun-update.apk 进行安装',
                 [{ text: '确定', onPress: () => setShowUpdateModal(false) }]
               );
             }
+          } catch (shareError) {
+            console.warn('[About] Sharing failed:', shareError);
+            Alert.alert(
+              '下载完成',
+              'APK 已下载，请前往文件管理器找到 haobuyun-update.apk 进行安装'
+            );
           }
           return;
         }
@@ -150,24 +133,30 @@ export default function AboutScreen() {
       }
     }
 
-    // 回退方案：浏览器下载
+    // 方案2：回退到浏览器下载
     try {
-      await Linking.openURL(updateInfo.download_url);
-      setShowUpdateModal(false);
-    } catch {
+      const supported = await Linking.canOpenURL(updateInfo.download_url);
+      if (supported) {
+        await Linking.openURL(updateInfo.download_url);
+        Alert.alert('提示', '正在浏览器中下载更新包，下载完成后请点击安装');
+      } else {
+        Alert.alert('下载失败', '无法打开下载链接，请联系客服获取更新包');
+      }
+    } catch (linkError) {
+      console.error('[About] Failed to open download URL:', linkError);
       Alert.alert('下载失败', '请检查网络连接后重试，或联系客服获取更新包');
     } finally {
       setDownloading(false);
+      setShowUpdateModal(false);
     }
   };
 
   const handleInstall = async () => {
     if (!updateInfo?.download_url) return;
-    // 直接打开下载链接，Android 下载管理器会处理 APK 下载和安装
     try {
       await Linking.openURL(updateInfo.download_url);
     } catch {
-      Alert.alert('安装失败', '无法打开下载链接，请手动下载安装');
+      Alert.alert('安装失败', '无法调起安装程序，请手动安装下载的 APK');
     }
   };
 
@@ -241,13 +230,7 @@ export default function AboutScreen() {
               ) : downloadProgress >= 100 ? (
                 <TouchableOpacity style={styles.modalBtnPrimary} onPress={async () => {
                   try {
-                    const localUri = `${(FileSystem as any).cacheDirectory}haobuyun-update.apk`;
-                    const fileInfo = await (FileSystem as any).getInfoAsync(localUri);
-                    if (fileInfo.exists) {
-                      await Linking.openURL(localUri);
-                    } else {
-                      await Linking.openURL(updateInfo!.download_url);
-                    }
+                    await Linking.openURL(updateInfo!.download_url);
                   } catch {
                     Alert.alert('提示', '请前往浏览器下载并安装最新版本');
                   }
