@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, varchar, timestamp, boolean, integer, jsonb, index, text } from "drizzle-orm/pg-core";
+import { pgTable, varchar, timestamp, boolean, integer, jsonb, index, text, uuid } from "drizzle-orm/pg-core";
 
 // 联系人表
 export const contacts = pgTable(
@@ -321,8 +321,8 @@ export const flaggedAccounts = pgTable(
 export const profiles = pgTable(
   "profiles",
   {
-    id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-    user_id: varchar("user_id", { length: 36 }).notNull().unique(),
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    user_id: uuid("user_id").notNull().unique(),
     nickname: text("nickname"),
     nickname_updated_at: timestamp("nickname_updated_at", { withTimezone: true }),
     created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
