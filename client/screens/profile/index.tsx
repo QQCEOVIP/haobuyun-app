@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -92,13 +92,26 @@ export default function ProfileScreen() {
   // Use context avatarUrl as primary source, fallback to local state
   const avatarUrl = contextAvatarUrl || localAvatarUrl;
 
-  // Load profile on focus
-  // 初始加载（仅挂载时，Tab切换不重新加载以避免闪屏）
-  useEffect(() => {
-    loadProfile();
-    loadNickname();
-  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
+  // 加载昵称 - 定义在 useEffect 之前
+  const loadNickname = async () => {
+    if (!user?.id) return;
+    try {
+      const res = await fetch(`${getBackendBaseUrl()}/api/v1/users/profile`, {
+        headers: { 'x-session': user.id },
+      });
+      if (res.ok) {
+        const result = await res.json();
+        // API 返回格式: { success: true, data: { nickname, nickname_updated_at, ... } }
+        const profileData = result.data || result;
+        setNickname(profileData.nickname || null);
+        setNicknameUpdatedAt(profileData.nickname_updated_at || null);
+      }
+    } catch (error) {
+      console.error('Load nickname error:', error);
+    }
+  };
 
+  // 加载用户资料 - 定义在 useEffect 之前
   const loadProfile = async () => {
     if (!user?.id) return;
     try {
@@ -128,6 +141,13 @@ export default function ProfileScreen() {
       console.error('Load profile error:', error);
     }
   };
+
+  // Load profile on focus
+  // 初始加载（仅挂载时，Tab切换不重新加载以避免闪屏）
+  useEffect(() => {
+    loadProfile();
+    loadNickname();
+  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const handlePickAvatar = async () => {
     // Request permission
@@ -220,23 +240,6 @@ export default function ProfileScreen() {
       ]
     );
   };
-
-  // 加载昵称
-  const loadNickname = useCallback(async () => {
-    if (!user?.id) return;
-    try {
-      const res = await fetch(`${getBackendBaseUrl()}/api/v1/users/profile`, {
-        headers: { 'x-session': user.id },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setNickname(data.nickname || null);
-        setNicknameUpdatedAt(data.nickname_updated_at || null);
-      }
-    } catch (error) {
-      console.error('Load nickname error:', error);
-    }
-  }, [user?.id]);
 
   // 保存昵称
   const handleSaveNickname = async () => {
