@@ -31,23 +31,30 @@ export default function AboutScreen() {
         versionCode = (Constants.expoConfig?.version ?? '1.0.1').split('.').reduce((acc, val) => acc * 100 + parseInt(val), 0);
       } catch {}
 
-      // 从静态JSON文件获取版本信息（Coze Site不支持Express后端）
-      const response = await fetch(`${getBackendBaseUrl()}/version.json`);
-      if (!response.ok) throw new Error('Network error');
+      const versionName = Constants.expoConfig?.version || '1.0.1';
+      console.log('[Update] Local version:', versionName, 'versionCode:', versionCode);
+
+      // 从静态JSON文件获取版本信息，加时间戳防缓存
+      const url = `${getBackendBaseUrl()}/version.json?_t=${Date.now()}`;
+      console.log('[Update] Fetching:', url);
+      const response = await fetch(url, { cache: 'no-store' });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
       const data: UpdateInfo = await response.json();
+      console.log('[Update] Server version_code:', data.version_code, 'name:', data.version_name);
 
       // 比较版本号
       const updateAvailable = data.version_code > versionCode;
+      console.log('[Update] updateAvailable:', updateAvailable, `(${data.version_code} > ${versionCode})`);
 
       if (!updateAvailable) {
-        const versionName = Constants.expoConfig?.version || '1.0.1';
         Alert.alert('当前已是最新版本', `内测版本${versionName}`, [{ text: '确定' }]);
       } else {
         setUpdateInfo(data);
         setShowUpdateModal(true);
       }
-    } catch {
+    } catch (err) {
+      console.error('[Update] Check failed:', err);
       Alert.alert('检查失败', '无法检查更新，请检查网络连接后重试');
     } finally {
       setCheckingUpdate(false);
@@ -224,17 +231,11 @@ export default function AboutScreen() {
               ) : downloadProgress >= 100 ? (
                 <TouchableOpacity style={styles.modalBtnPrimary} onPress={async () => {
                   try {
-                    // 尝试从本地文件安装
-                    const localUri = `${(FileSystem as any).documentDirectory}haobuyun-update.apk`;
+                    const localUri = `${(FileSystem as any).cacheDirectory}haobuyun-update.apk`;
                     const fileInfo = await (FileSystem as any).getInfoAsync(localUri);
                     if (fileInfo.exists) {
-                      await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
-                        data: localUri,
-                        type: 'application/vnd.android.package-archive',
-                        flags: 1,
-                      });
+                      await Linking.openURL(localUri);
                     } else {
-                      // 本地文件不存在，回退到浏览器下载
                       await Linking.openURL(updateInfo!.download_url);
                     }
                   } catch {
