@@ -1322,7 +1322,6 @@ export default function ContactsScreen() {
         source={require('@/assets/bg_assistant_module.jpg')}
         style={[styles.cleanupCard, { marginHorizontal: 0 }]}
         resizeMode="cover"
-        imageStyle={{ opacity: 0.15 }}
       >
         <View style={styles.cleanupHeader}>
           <View style={styles.cleanupTitleRow}>
