@@ -6,7 +6,7 @@ const router: ReturnType<typeof Router> = Router();
 const LATEST_VERSION = {
   version_code: 10014,
   version_name: '1.0.14',
-  download_url: 'https://www.coze.cn/s/RwEufzc9NM0',
+  download_url: 'https://www.coze.cn/s/U8lbHjSDJNM',
   apk_size: 0,
   min_sdk_version: 21,
   release_notes: '新增用户昵称设置功能',
