@@ -67,76 +67,66 @@ export default function AboutScreen() {
     setDownloading(true);
     setDownloadProgress(0);
 
-    // 方案1：使用 expo-file-system 下载 APK（带进度）
+    // Android: 直接用浏览器打开下载链接
+    // Android 原生下载管理器会处理下载，完成后自动弹出安装界面
+    // 这比 in-app 下载 + Linking.openURL(file://) 更可靠（Android 7.0+ 禁止 file:// URI）
     if (Platform.OS === 'android') {
       try {
-        const downloadPath = `${FileSystem.cacheDirectory}haobuyun-update.apk`;
-
-        // 如果已存在旧文件先删除
-        const fileInfo = await (FileSystem as any).getInfoAsync(downloadPath);
-        if (fileInfo.exists) {
-          await (FileSystem as any).deleteAsync(downloadPath);
-        }
-
-        const downloadResumable = (FileSystem as any).createDownloadResumable(
-          updateInfo.download_url,
-          downloadPath,
-          {},
-          (downloadProgress: any) => {
-            if (downloadProgress.totalBytesExpectedToWrite > 0) {
-              const progress = downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite;
-              setDownloadProgress(Math.round(progress * 100));
-            }
-          }
+        console.log('[About] Opening download URL in browser:', updateInfo.download_url);
+        await Linking.openURL(updateInfo.download_url);
+        setDownloading(false);
+        setShowUpdateModal(false);
+        Alert.alert(
+          '正在下载',
+          'APK 正在下载中，下载完成后系统会自动弹出安装界面，请点击安装即可。',
+          [{ text: '确定' }]
         );
-
-        const result = await downloadResumable.downloadAsync();
-
-        if (result && result.uri) {
-          setDownloadProgress(100);
-          
-          // APK 文件验证：检查文件是否存在且大小合理
-          const downloadedFileInfo = await (FileSystem as any).getInfoAsync(result.uri);
-          if (!downloadedFileInfo.exists || downloadedFileInfo.size < 1000000) {
-            // 文件太小（<1MB），可能不是有效的 APK
-            Alert.alert(
-              '文件验证失败',
-              '下载的 APK 文件可能不完整，请使用浏览器重新下载',
-              [{ text: '使用浏览器下载', onPress: () => Linking.openURL(updateInfo.download_url) }]
-            );
-            setDownloading(false);
-            return;
-          }
-
-          // 使用 Linking.openURL 打开本地文件 URI 调起安装器
-          try {
-            await Linking.openURL(result.uri);
-            setShowUpdateModal(false);
-          } catch (installError) {
-            console.warn('[About] Linking.openURL failed:', installError);
-            Alert.alert(
-              '安装失败',
-              '无法调起安装程序，请前往文件管理器找到 haobuyun-update.apk 进行安装'
-            );
-          }
-          return;
-        }
-      } catch (fsError) {
-        console.warn('[About] FileSystem download failed:', fsError);
+        return;
+      } catch (browserError) {
+        console.warn('[About] Browser download failed:', browserError);
+        // 浏览器打开失败，回退到 in-app 下载 + 提示手动安装
       }
     }
 
-    // 方案2：回退到浏览器下载
+    // 回退方案：in-app 下载（iOS 或其他）
     try {
-      const supported = await Linking.canOpenURL(updateInfo.download_url);
-      if (supported) {
-        await Linking.openURL(updateInfo.download_url);
-        Alert.alert('提示', '正在浏览器中下载更新包，下载完成后请点击安装');
-      } else {
-        Alert.alert('下载失败', '无法打开下载链接，请联系客服获取更新包');
+      const downloadPath = Platform.OS === 'android'
+        ? `${FileSystem.cacheDirectory}haobuyun-update.apk`
+        : `${FileSystem.documentDirectory}haobuyun-update.ipa`;
+
+      const fileInfo = await (FileSystem as any).getInfoAsync(downloadPath);
+      if (fileInfo.exists) {
+        await (FileSystem as any).deleteAsync(downloadPath);
       }
-    } catch (linkError) {
-      console.error('[About] Failed to open download URL:', linkError);
+
+      const downloadResumable = (FileSystem as any).createDownloadResumable(
+        updateInfo.download_url,
+        downloadPath,
+        {},
+        (downloadProgress: any) => {
+          if (downloadProgress.totalBytesExpectedToWrite > 0) {
+            const progress = downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite;
+            setDownloadProgress(Math.round(progress * 100));
+          }
+        }
+      );
+
+      const result = await downloadResumable.downloadAsync();
+
+      if (result && result.uri) {
+        setDownloadProgress(100);
+        try {
+          await Linking.openURL(result.uri);
+        } catch {
+          Alert.alert(
+            '下载完成',
+            '文件已下载，请前往文件管理器进行安装',
+            [{ text: '确定' }]
+          );
+        }
+      }
+    } catch (dlError) {
+      console.error('[About] Download failed:', dlError);
       Alert.alert('下载失败', '请检查网络连接后重试，或联系客服获取更新包');
     } finally {
       setDownloading(false);
@@ -147,17 +137,10 @@ export default function AboutScreen() {
   const handleInstall = async () => {
     if (!updateInfo?.download_url) return;
     try {
-      // 尝试从本地文件安装
-      const localUri = `${(FileSystem as any).documentDirectory}haobuyun-update.apk`;
-      const fileInfo = await (FileSystem as any).getInfoAsync(localUri);
-      if (fileInfo.exists) {
-        await Linking.openURL(localUri);
-      } else {
-        // 本地文件不存在，回退到浏览器下载
-        await Linking.openURL(updateInfo.download_url);
-      }
+      // 直接用浏览器打开下载链接，Android 下载管理器会处理安装
+      await Linking.openURL(updateInfo.download_url);
     } catch {
-      Alert.alert('安装失败', '无法调起安装程序，请手动安装下载的 APK');
+      Alert.alert('安装失败', '无法打开下载链接，请手动下载安装');
     }
   };
 
