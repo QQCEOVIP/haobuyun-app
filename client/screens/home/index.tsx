@@ -2895,7 +2895,7 @@ const styles = StyleSheet.create({
     color: '#303133',
   },
   cloudListContainer: {
-    backgroundColor: '#F5F7FA',
+    backgroundColor: 'transparent',
     borderRadius: 12,
     overflow: 'hidden',
     marginTop: 4,
