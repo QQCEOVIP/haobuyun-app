@@ -622,20 +622,25 @@ export default function ContactsScreen() {
                 }
               }
 
-              // 2. 写入 deleted_contacts 表（回收站）
-              const { data: { user } } = await supabase.auth.getUser();
-              if (user) {
-                for (const phone of editingContact.phoneNumbers) {
-                  try {
-                    await supabase.from('deleted_contacts').upsert({
-                      user_id: user.id,
-                      phone: phone,
+              // 2. 调用后端API移入回收站
+              if (userId && editingContact.phone) {
+                try {
+                  const response = await fetch(`${getBackendBaseUrl()}/api/v1/contacts/trash`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'x-user-id': userId,
+                    },
+                    body: JSON.stringify({
                       name: editingContact.name,
-                      deleted_at: new Date().toISOString(),
-                    });
-                  } catch (dbErr) {
-                    console.warn('[Contacts] Failed to write to deleted_contacts:', dbErr);
+                      phone: editingContact.phone,
+                    }),
+                  });
+                  if (!response.ok) {
+                    console.warn('[Contacts] Failed to move to trash via API:', response.status);
                   }
+                } catch (apiErr) {
+                  console.warn('[Contacts] Failed to call trash API:', apiErr);
                 }
               }
 
@@ -700,19 +705,31 @@ export default function ContactsScreen() {
           onPress: async () => {
             try {
               const selectedContacts = contacts.filter(c => selectedIds.has(c.id));
-              // Write to deleted_contacts for cloud sync (recycle bin)
-              const deleteRecords = selectedContacts
-                .filter(c => c.phone)
-                .map(c => ({
-                  user_id: userId,
-                  phone: c.phone || '',
-                  name: c.name || '',
-                  deleted_at: new Date().toISOString(),
-                }));
-              if (deleteRecords.length > 0) {
-                await supabase.from('deleted_contacts').upsert(deleteRecords, { onConflict: 'user_id,phone' });
+
+              // 1. 调用后端API批量移入回收站
+              if (userId) {
+                const phones = selectedContacts.filter(c => c.phone).map(c => c.phone!);
+                const names = selectedContacts.filter(c => c.phone).map(c => c.name || '');
+                if (phones.length > 0) {
+                  try {
+                    const response = await fetch(`${getBackendBaseUrl()}/api/v1/contacts/batch-delete`, {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        'x-user-id': userId,
+                      },
+                      body: JSON.stringify({ phones, names }),
+                    });
+                    if (!response.ok) {
+                      console.warn('[Contacts] Batch delete API failed:', response.status);
+                    }
+                  } catch (apiErr) {
+                    console.warn('[Contacts] Batch delete API error:', apiErr);
+                  }
+                }
               }
-              // Remove from device
+
+              // 2. Remove from device
               for (const c of selectedContacts) {
                 if (c.deviceContactId) {
                   try { await Contacts.removeContactAsync(c.deviceContactId); } catch {}

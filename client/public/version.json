@@ -1,7 +1,6 @@
 {
-  "version_code": 10010,
-  "version_name": "1.0.10",
+  "version_code": 10011,
+  "version_name": "1.0.11",
   "download_url": "https://www.coze.cn/s/t2R7lZvj_2w",
-  "release_notes": "修复APK安装功能，优化已认证号码信息展示",
-  "force_update": false
+  "release_notes": "修复删除号码和回收站功能"
 }
