@@ -22,7 +22,7 @@ export default function TabLayout() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#F5F7FA' }}>
+    <View style={{ flex: 1, backgroundColor: 'transparent' }}>
       <Tabs
         detachInactiveScreens={false}
         screenOptions={{
