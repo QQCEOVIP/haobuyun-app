@@ -108,17 +108,26 @@ export default function AboutScreen() {
             return;
           }
 
-          // 用 IntentLauncher 直接调起 APK 安装器
+          // 构造 content:// URI（利用 expo-sharing 内置的 FileProvider）
+          // Android 7.0+ 禁止 file:// URI 跨应用传递，必须用 content:// URI
+          const packageName = (Constants.expoConfig as any)?.android?.package
+            || `com.${(Constants.expoConfig as any)?.slug?.replace(/[^a-z0-9]/gi, '')}`
+            || 'host.exp.exponent';
+          const fileName = result.uri.split('/').pop() || 'haobuyun-update.apk';
+          const contentUri = `content://${packageName}.SharingFileProvider/cached_expo_files/${fileName}`;
+          console.log('[About] Package:', packageName, 'Content URI:', contentUri);
+
+          // 用 IntentLauncher + content:// URI 调起 APK 安装器
           try {
             await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
-              data: result.uri,
+              data: contentUri,
               type: 'application/vnd.android.package-archive',
-              flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
+              flags: 1 | 268435456, // FLAG_GRANT_READ_URI_PERMISSION | FLAG_ACTIVITY_NEW_TASK
             });
             setShowUpdateModal(false);
           } catch (installError) {
-            console.warn('[About] IntentLauncher failed:', installError);
-            // IntentLauncher 失败（Android 7.0+ file:// URI 被阻止），尝试 Sharing
+            console.warn('[About] IntentLauncher with content:// failed:', installError);
+            // content:// URI 失败，回退到 Sharing（显示分享面板，用户可选择"软件包安装程序"）
             try {
               await Sharing.shareAsync(result.uri, {
                 mimeType: 'application/vnd.android.package-archive',
@@ -128,8 +137,8 @@ export default function AboutScreen() {
             } catch (shareError) {
               console.warn('[About] Sharing also failed:', shareError);
               Alert.alert(
-                '下载完成',
-                'APK 已下载到本地缓存，请前往文件管理器找到 haobuyun-update.apk 进行安装',
+                '安装失败',
+                '请手动到文件管理器中找到 haobuyun-update.apk 进行安装',
                 [{ text: '确定', onPress: () => setShowUpdateModal(false) }]
               );
             }

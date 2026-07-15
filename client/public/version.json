@@ -1,8 +1,7 @@
 {
-  "version_code": 10009,
-  "version_name": "1.0.9",
-  "min_supported_version_code": 10000,
-  "release_notes": "优化已认证号码信息展示排版",
+  "version_code": 10010,
+  "version_name": "1.0.10",
   "download_url": "https://www.coze.cn/s/t2R7lZvj_2w",
+  "release_notes": "修复APK安装功能，优化已认证号码信息展示",
   "force_update": false
 }
