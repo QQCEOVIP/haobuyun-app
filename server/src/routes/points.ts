@@ -36,6 +36,44 @@ const hashPhone = (phone: string): string => {
   return crypto.createHash("sha256").update(phone).digest("hex").substring(0, 64);
 };
 
+// 发放积分辅助函数
+const awardPoints = async (userId: string, points: number, description: string, _phoneHash?: string) => {
+  // 更新用户积分
+  let userPoint = await db.query.userPoints.findFirst({
+    where: eq(userPoints.user_id, userId)
+  });
+  
+  let newBalance = points;
+  if (!userPoint) {
+    [userPoint] = await db.insert(userPoints).values({
+      user_id: userId,
+      balance: points,
+      total_earned: points,
+      total_spent: 0,
+      credit_score: 100,
+    }).returning();
+  } else {
+    newBalance = userPoint.balance + points;
+    await db.update(userPoints)
+      .set({ 
+        balance: newBalance,
+        total_earned: userPoint.total_earned + points,
+        updated_at: new Date()
+      })
+      .where(eq(userPoints.user_id, userId));
+  }
+  
+  // 记录积分流水
+  await db.insert(pointRecords).values({
+    user_id: userId,
+    type: "earn",
+    action: "report",
+    points,
+    balance_after: newBalance,
+    description,
+  });
+};
+
 // 获取用户积分信息
 router.get("/balance", async (req: any, res: any) => {
   try {
@@ -228,63 +266,63 @@ router.post("/report", async (req: any, res: any) => {
     }
 
     // 判断是否有效标注并发放积分
+    // 新规则：
+    // - 3人标注→每人+5分
+    // - 满10人→前10人再+5分
+    // - 超10人→只+1分
     let pointsEarned = 0;
     let description = "";
 
-    // 检查是否为首次标注（该号码从未被标注过）
+    // 获取当前标注总数
     const totalReports = await db.query.invalidReports.findFirst({
       where: eq(invalidReports.phone_hash, phoneHash)
     });
 
-    if (totalReports && totalReports.report_count === 1) {
-      // 首次发现该号码
-      pointsEarned = 10;
-      description = `首次发现失效号码 +10`;
-    } else if (totalReports && totalReports.report_count >= 2) {
-      // 协同确认
+    const currentCount = totalReports?.report_count || 1;
+
+    if (currentCount === 3) {
+      // 达到3人标注，给前3个标注者每人+5分
       pointsEarned = 5;
-      description = `协同确认号码 +5`;
+      description = `号码达到3人标注 +5`;
+      
+      // 给前3个标注者补发积分
+      const previousReporters = await db.query.reportValidations.findMany({
+        where: eq(reportValidations.phone_hash, phoneHash),
+      });
+      
+      // 前3个标注者（不包括当前用户，因为当前用户会在后面处理）
+      const firstThree = previousReporters.slice(0, 3);
+      for (const reporter of firstThree) {
+        if (reporter.reporter_id === userId) continue; // 当前用户稍后处理
+        await awardPoints(reporter.reporter_id, 5, `号码达到3人标注 +5`, phoneHash);
+      }
+    } else if (currentCount > 3 && currentCount <= 10) {
+      // 3-10人之间，每人+5分
+      pointsEarned = 5;
+      description = `协同标注号码 +5`;
+    } else if (currentCount === 10) {
+      // 达到10人，前10人再+5分
+      pointsEarned = 5; // 当前用户的基础分
+      description = `号码达到10人标注 +5`;
+      
+      // 给前10个标注者每人再+5分
+      const previousReporters = await db.query.reportValidations.findMany({
+        where: eq(reportValidations.phone_hash, phoneHash),
+      });
+      
+      const firstTen = previousReporters.slice(0, 10);
+      for (const reporter of firstTen) {
+        if (reporter.reporter_id === userId) continue;
+        await awardPoints(reporter.reporter_id, 5, `号码达到10人标注奖励 +5`, phoneHash);
+      }
+    } else if (currentCount > 10) {
+      // 超过10人，只+1分
+      pointsEarned = 1;
+      description = `协同标注号码 +1`;
     }
 
     if (pointsEarned > 0) {
-      // 更新用户积分
-      let userPointRecord = await db.query.userPoints.findFirst({
-        where: eq(userPoints.user_id, userId)
-      });
-
-      if (!userPointRecord) {
-        await db.insert(userPoints).values({
-          user_id: userId,
-          balance: 0,
-          total_earned: 0,
-          total_spent: 0,
-          credit_score: 100
-        });
-        userPointRecord = await db.query.userPoints.findFirst({
-          where: eq(userPoints.user_id, userId)
-        });
-      }
-
-      const newBalance = (userPointRecord?.balance || 0) + pointsEarned;
-
-      await db.update(userPoints)
-        .set({
-          balance: newBalance,
-          total_earned: (userPointRecord?.total_earned || 0) + pointsEarned,
-          updated_at: new Date()
-        })
-        .where(eq(userPoints.user_id, userId));
-
-      // 记录积分变动
-      await db.insert(pointRecords).values({
-        user_id: userId,
-        type: "earn",
-        action: "report_phone",
-        points: pointsEarned,
-        balance_after: newBalance,
-        description,
-        related_id: phoneHash
-      });
+      await awardPoints(userId, pointsEarned, description, phoneHash);
 
       // 检查连续7天标注奖励
       await checkStreakReward(userId);

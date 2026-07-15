@@ -1,7 +1,9 @@
 import { Router } from 'express';
 import { db } from '../storage/database';
 import { sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { isValidPhone, normalizePhone } from '../middleware/rate-limit';
+import { userPoints, pointRecords } from '../storage/database/shared/schema';
 
 const router: any = Router();
 
@@ -68,7 +70,14 @@ router.post('/', requireAuth, async (req: any, res: any) => {
     const normalizedPhone = normalizePhone(phone);
 
     // UPSERT 认证记录（容错：表不存在时返回友好提示）
+    let isNewAuth = false;
     try {
+      const existingAuth = await db.execute(sql`
+        SELECT id FROM number_authentications
+        WHERE phone = ${normalizedPhone} AND user_id = ${userId}
+      `);
+      isNewAuth = (existingAuth as any[]).length === 0;
+
       await db.execute(sql`
         INSERT INTO number_authentications (phone, user_id, user_name, authenticated_at, expires_at)
         VALUES (${normalizedPhone}, ${userId}, ${user_name}, NOW(), NOW() + INTERVAL '1 month')
@@ -80,6 +89,53 @@ router.post('/', requireAuth, async (req: any, res: any) => {
         return res.status(503).json({ error: '认证服务暂未开放' });
       }
       throw err;
+    }
+
+    // 认证赋分规则：
+    // - 认证→每人+5分
+    // - 超10人→只+1分
+    let pointsAwarded = 0;
+    if (isNewAuth) {
+      try {
+        const authCountResult = await db.execute(sql`
+          SELECT COUNT(*)::int as count
+          FROM number_authentications
+          WHERE phone = ${normalizedPhone}
+        `);
+        const authCount = (authCountResult as any[])?.[0]?.count || 0;
+
+        // 超10人→只+1分，否则+5分
+        pointsAwarded = authCount > 10 ? 1 : 5;
+
+        // 更新积分余额
+        await db.execute(sql`
+          INSERT INTO user_points (user_id, balance, total_earned, total_spent)
+          VALUES (${userId}, ${pointsAwarded}, ${pointsAwarded}, 0)
+          ON CONFLICT (user_id)
+          DO UPDATE SET 
+            balance = user_points.balance + ${pointsAwarded},
+            total_earned = user_points.total_earned + ${pointsAwarded},
+            updated_at = NOW()
+        `);
+
+        // 记录积分明细
+        const balanceResult = await db.execute(sql`
+          SELECT balance FROM user_points WHERE user_id = ${userId}
+        `);
+        const currentBalance = (balanceResult as any[])?.[0]?.balance || 0;
+
+        await db.insert(pointRecords).values({
+          user_id: userId,
+          type: 'earn',
+          action: 'authenticate',
+          points: pointsAwarded,
+          balance_after: currentBalance,
+          description: `认证号码 ${normalizedPhone}`,
+        });
+      } catch (err) {
+        console.error('认证赋分失败:', err);
+        // 赋分失败不影响认证结果
+      }
     }
 
     // 查询该号码的所有认证，检查是否>=5人认证同一姓名
