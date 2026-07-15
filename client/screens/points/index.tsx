@@ -96,20 +96,20 @@ export default function PointsScreen() {
         resizeMode="cover"
       >
         <Text style={styles.balanceLabel}>当前积分</Text>
-        <Text style={styles.balanceValue}>{pointsInfo?.balance ?? 0}</Text>
+        <Text style={[styles.balanceValue, { color: '#111827' }]}>{pointsInfo?.balance ?? 0}</Text>
         <View style={styles.balanceRow}>
           <View style={styles.balanceStat}>
-            <Text style={styles.balanceStatValue}>{pointsInfo?.total_earned ?? 0}</Text>
+            <Text style={[styles.balanceStatValue, { color: '#2563EB' }]}>{pointsInfo?.total_earned ?? 0}</Text>
             <Text style={styles.balanceStatLabel}>累计获取</Text>
           </View>
           <View style={styles.balanceDivider} />
           <View style={styles.balanceStat}>
-            <Text style={styles.balanceStatValue}>{pointsInfo?.total_spent ?? 0}</Text>
+            <Text style={[styles.balanceStatValue, { color: '#16A34A' }]}>{pointsInfo?.total_spent ?? 0}</Text>
             <Text style={styles.balanceStatLabel}>累计消耗</Text>
           </View>
           <View style={styles.balanceDivider} />
           <View style={styles.balanceStat}>
-            <Text style={styles.balanceStatValue}>{pointsInfo?.credit_score ?? 100}</Text>
+            <Text style={[styles.balanceStatValue, { color: '#F97316' }]}>{pointsInfo?.credit_score ?? 100}</Text>
             <Text style={styles.balanceStatLabel}>信用分</Text>
           </View>
         </View>
