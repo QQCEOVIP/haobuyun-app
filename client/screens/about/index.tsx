@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as IntentLauncher from 'expo-intent-launcher';
 import * as Linking from 'expo-linking';
+import * as Sharing from 'expo-sharing';
 import Constants from 'expo-constants';
 import { getBackendBaseUrl } from '@/utils';
 import Logo from '@/components/Logo';
@@ -117,12 +118,20 @@ export default function AboutScreen() {
             setShowUpdateModal(false);
           } catch (installError) {
             console.warn('[About] IntentLauncher failed:', installError);
-            // IntentLauncher 失败，回退到浏览器下载
+            // IntentLauncher 失败（Android 7.0+ file:// URI 被阻止），尝试 Sharing
             try {
-              await Linking.openURL(updateInfo.download_url);
-              Alert.alert('正在下载', '下载完成后系统会自动弹出安装界面');
-            } catch {
-              Alert.alert('安装失败', '无法调起安装程序，请前往文件管理器找到 haobuyun-update.apk 进行安装');
+              await Sharing.shareAsync(result.uri, {
+                mimeType: 'application/vnd.android.package-archive',
+                dialogTitle: '安装号簿云更新',
+              });
+              setShowUpdateModal(false);
+            } catch (shareError) {
+              console.warn('[About] Sharing also failed:', shareError);
+              Alert.alert(
+                '下载完成',
+                'APK 已下载到本地缓存，请前往文件管理器找到 haobuyun-update.apk 进行安装',
+                [{ text: '确定', onPress: () => setShowUpdateModal(false) }]
+              );
             }
           }
           return;
@@ -145,6 +154,7 @@ export default function AboutScreen() {
 
   const handleInstall = async () => {
     if (!updateInfo?.download_url) return;
+    // 直接打开下载链接，Android 下载管理器会处理 APK 下载和安装
     try {
       await Linking.openURL(updateInfo.download_url);
     } catch {
