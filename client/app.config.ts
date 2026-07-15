@@ -9,7 +9,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ...config,
     "name": "号簿云",
     "slug": slugAppName,
-    "version": "1.0.14",
+    "version": "1.0.15",
     "orientation": "portrait",
     "icon": "./assets/images/icon-512.png",
     "scheme": "myapp",
@@ -19,6 +19,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       "supportsTablet": true
     },
     "android": {
+      "versionCode": 10015,
       "enableProguardInReleaseBuilds": true,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/ic_launcher_foreground.png",
