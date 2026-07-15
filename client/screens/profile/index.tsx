@@ -8,6 +8,8 @@ import {
   Alert,
   Image,
   ActivityIndicator,
+  Modal,
+  TextInput,
   DeviceEventEmitter,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -57,6 +59,10 @@ export default function ProfileScreen() {
   const [localAvatarUrl, setLocalAvatarUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [hasNewVersion, setHasNewVersion] = useState(false);
+  const [nickname, setNickname] = useState<string | null>(null);
+  const [nicknameUpdatedAt, setNicknameUpdatedAt] = useState<string | null>(null);
+  const [showNicknameModal, setShowNicknameModal] = useState(false);
+  const [nicknameInput, setNicknameInput] = useState('');
 
   // 检查新版本
   useEffect(() => {
@@ -90,6 +96,7 @@ export default function ProfileScreen() {
   // 初始加载（仅挂载时，Tab切换不重新加载以避免闪屏）
   useEffect(() => {
     loadProfile();
+    loadNickname();
   }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadProfile = async () => {
@@ -214,6 +221,81 @@ export default function ProfileScreen() {
     );
   };
 
+  // 加载昵称
+  const loadNickname = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const res = await fetch(`${getBackendBaseUrl()}/api/v1/users/profile`, {
+        headers: { 'x-session': user.id },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setNickname(data.nickname || null);
+        setNicknameUpdatedAt(data.nickname_updated_at || null);
+      }
+    } catch (error) {
+      console.error('Load nickname error:', error);
+    }
+  }, [user?.id]);
+
+  // 保存昵称
+  const handleSaveNickname = async () => {
+    if (!user?.id) return;
+    const trimmed = nicknameInput.trim();
+    if (!trimmed) {
+      Alert.alert('提示', '昵称不能为空');
+      return;
+    }
+    if (trimmed.length > 20) {
+      Alert.alert('提示', '昵称不能超过20个字符');
+      return;
+    }
+    try {
+      const res = await fetch(`${getBackendBaseUrl()}/api/v1/users/nickname`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-session': user.id,
+        },
+        body: JSON.stringify({ nickname: trimmed }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setNickname(trimmed);
+        setNicknameUpdatedAt(new Date().toISOString());
+        setShowNicknameModal(false);
+        Alert.alert('成功', '昵称已更新');
+      } else {
+        Alert.alert('失败', data.error || '修改昵称失败');
+      }
+    } catch (error) {
+      console.error('Save nickname error:', error);
+      Alert.alert('错误', '网络错误，请稍后重试');
+    }
+  };
+
+  // 计算剩余可修改天数
+  const getRemainingDays = (): number | null => {
+    if (!nicknameUpdatedAt) return null;
+    const updatedAt = new Date(nicknameUpdatedAt);
+    const now = new Date();
+    const diffMs = now.getTime() - updatedAt.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const remaining = 30 - diffDays;
+    return remaining > 0 ? remaining : 0;
+  };
+
+  // 打开昵称编辑弹窗
+  const openNicknameModal = () => {
+    const remaining = getRemainingDays();
+    if (remaining !== null && remaining > 0) {
+      Alert.alert('提示', `昵称修改间隔为30天，还需等待${remaining}天`);
+      return;
+    }
+    setNicknameInput(nickname || '');
+    setShowNicknameModal(true);
+  };
+
   const userEmail = (user as any)?.email || '';
   const userName = userEmail.split('@')[0] || '用户';
 
@@ -255,6 +337,13 @@ export default function ProfileScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>设置</Text>
           <View style={styles.menuCard}>
+            <MenuItem
+              name="person"
+              color="#4A90D9"
+              title="昵称设置"
+              subtitle={nickname ? `当前昵称：${nickname}` : '点击设置昵称'}
+              onPress={openNicknameModal}
+            />
             <MenuItem
               name="notifications"
               color="#F56C6C"
@@ -309,6 +398,50 @@ export default function ProfileScreen() {
           <Text style={styles.logoutText}>退出登录</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* 昵称设置弹窗 */}
+      <Modal
+        visible={showNicknameModal}
+        transparent
+        animationType="fade"
+        onRequestClose={closeNicknameModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>设置昵称</Text>
+            <Text style={styles.modalLabel}>昵称（2-20字符）</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={nicknameInput}
+              onChangeText={setNicknameInput}
+              placeholder="请输入昵称"
+              maxLength={20}
+            />
+            {nicknameCooldown > 0 && (
+              <Text style={styles.cooldownText}>
+                修改间隔：还需等待 {nicknameCooldown} 天
+              </Text>
+            )}
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={closeNicknameModal}
+              >
+                <Text style={styles.cancelButtonText}>取消</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.confirmButton]}
+                onPress={saveNickname}
+                disabled={savingNickname || nicknameCooldown > 0}
+              >
+                <Text style={styles.confirmButtonText}>
+                  {savingNickname ? '保存中...' : '保存'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
     </View>
     </BackgroundWrapper>
@@ -479,5 +612,59 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#F56C6C',
+  },
+  nicknameModal: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  nicknameModalContent: {
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    padding: 24,
+  },
+  nicknameModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#303133',
+    marginBottom: 16,
+  },
+  nicknameInput: {
+    backgroundColor: '#F5F7FA',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    color: '#303133',
+    marginBottom: 8,
+  },
+  nicknameHint: {
+    fontSize: 12,
+    color: '#909399',
+    marginBottom: 16,
+  },
+  nicknameButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+  },
+  nicknameCancelBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  nicknameCancelText: {
+    fontSize: 14,
+    color: '#909399',
+  },
+  nicknameSaveBtn: {
+    backgroundColor: '#4A90D9',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  nicknameSaveText: {
+    fontSize: 14,
+    color: '#FFF',
+    fontWeight: '600',
   },
 });

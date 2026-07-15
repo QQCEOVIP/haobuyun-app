@@ -15,6 +15,7 @@ import communityStatusesRouter from "./routes/community-statuses";
 import detectRouter from "./routes/detect";
 import authenticateRouter from "./routes/authenticate";
 import updatesRouter from "./routes/updates";
+import usersRouter from "./routes/users";
 import { createRateLimiter } from "./middleware/rate-limit";
 import { startScheduledCleanup } from "./utils/cleanup";
 // TODO: 扩展点预留 - 广告和游戏路由
@@ -94,6 +95,7 @@ app.use('/api/v1/detect', createRateLimiter(3), detectRouter);
 app.use('/api/v1/authenticate', createRateLimiter(5), authenticateRouter);
 // 版本检查
 app.use('/api/v1/updates', createRateLimiter(10), updatesRouter);
+  app.use('/api/v1/users', usersRouter);
 
 // 测试账号路由
 

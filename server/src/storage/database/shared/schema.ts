@@ -316,3 +316,22 @@ export const flaggedAccounts = pgTable(
     index("flagged_accounts_status_idx").on(table.status),
   ]
 );
+
+// 用户资料表（昵称等）
+export const profiles = pgTable(
+  "profiles",
+  {
+    id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+    user_id: varchar("user_id", { length: 36 }).notNull().unique(),
+    nickname: text("nickname"),
+    nickname_updated_at: timestamp("nickname_updated_at", { withTimezone: true }),
+    created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("profiles_user_id_idx").on(table.user_id),
+  ]
+);
+
+export type InsertProfile = typeof profiles.$inferInsert;
+export type Profile = typeof profiles.$inferSelect;

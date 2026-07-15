@@ -1,9 +1,7 @@
 {
-  "version_code": 10013,
-  "version_name": "1.0.13",
+  "version_code": 10014,
+  "version_name": "1.0.14",
   "download_url": "https://www.coze.cn/s/RwEufzc9NM0",
-  "apk_size": 0,
-  "min_sdk_version": 21,
-  "release_notes": "修复回收站+标注赋分规则",
-  "mandatory": false
+  "release_notes": "新增用户昵称设置功能",
+  "min_version_code": 10000
 }
