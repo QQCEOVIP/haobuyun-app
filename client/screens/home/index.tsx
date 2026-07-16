@@ -2393,7 +2393,7 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.cloudModalBody}>
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>
             {cloudBackups.length > 0 ? (
               cloudBackups.map((backup, index) => {
                 const parsed = parseBackupFilename(backup.name);
