@@ -595,7 +595,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   logoutButton: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F5F7FA',
     marginHorizontal: 20,
     marginTop: 24,
     paddingVertical: 16,
