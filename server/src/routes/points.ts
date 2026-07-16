@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "../storage/database";
-import { userPoints, pointRecords, shopProducts, exchangeRecords, medals, userMedals, reportValidations, checkinStreaks, dailyReports, flaggedAccounts, invalidReports } from "../storage/database/shared/schema";
+import { userPoints, pointRecords, shopProducts, exchangeRecords, medals, userMedals, reportValidations, checkinStreaks, dailyReports, flaggedAccounts, invalidReports, profiles } from "../storage/database/shared/schema";
 import { eq, desc, and, sql, gte, lt } from "drizzle-orm";
 import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
@@ -730,17 +730,21 @@ router.get("/leaderboard", async (req: any, res: any) => {
       orderBy: [desc(userPoints.total_earned)]
     });
 
-    // 获取用户信息
-    const supabase = getSupabaseAdmin();
-    const { data: profiles } = await supabase.auth.admin.listUsers();
+    // 获取所有用户的昵称（从 profiles 表）
+    const allProfiles = await db.query.profiles.findMany();
+    const nicknameMap = new Map(allProfiles.map(p => [p.user_id, p.nickname]));
 
-    const profileMap = new Map(profiles?.users.map(u => [u.id, u]));    
+    // 获取用户头像信息（从 Supabase）
+    const supabase = getSupabaseAdmin();
+    const { data: supabaseProfiles } = await supabase.auth.admin.listUsers();
+    const avatarMap = new Map(supabaseProfiles?.users.map(u => [u.id, u.user_metadata?.avatar_url]));
 
     const leaderboard = allUsers.slice(0, limit).map((u, index) => ({
       rank: index + 1,
       user_id: u.user_id,
-      nickname: profileMap.get(u.user_id)?.user_metadata?.nickname || "热心用户",
-      avatar_url: profileMap.get(u.user_id)?.user_metadata?.avatar_url || null,
+      // 有昵称显示昵称，无昵称显示"热心用户"
+      nickname: nicknameMap.get(u.user_id) || "热心用户",
+      avatar_url: avatarMap.get(u.user_id) || null,
       total_earned: u.total_earned,
       is_me: userId === u.user_id
     }));

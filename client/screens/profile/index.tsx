@@ -332,9 +332,9 @@ export default function ProfileScreen() {
           </TouchableOpacity>
           <View style={styles.userInfo}>
             <TouchableOpacity onPress={openNicknameModal}>
-              <Text style={styles.userName}>{userName}</Text>
+              {/* 有昵称时显示昵称，无昵称时显示手机号 */}
+              <Text style={styles.userName}>{nickname || userName}</Text>
               <Text style={styles.userEmail}>{userEmail}</Text>
-              {nickname && <Text style={styles.userNickname}>昵称：{nickname}</Text>}
             </TouchableOpacity>
           </View>
         </View>
@@ -665,12 +665,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#FFF',
     fontWeight: '600',
-  },
-  // 用户昵称显示
-  userNickname: {
-    fontSize: 12,
-    color: '#4A90D9',
-    marginTop: 4,
   },
   // 昵称设置 Modal 样式
   modalOverlay: {
