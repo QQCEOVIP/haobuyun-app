@@ -407,7 +407,7 @@ export default function ProfileScreen() {
         visible={showNicknameModal}
         transparent
         animationType="fade"
-        onRequestClose={closeNicknameModal}
+        onRequestClose={() => setShowNicknameModal(false)}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -420,25 +420,25 @@ export default function ProfileScreen() {
               placeholder="请输入昵称"
               maxLength={20}
             />
-            {nicknameCooldown > 0 && (
+            {getRemainingDays() !== null && getRemainingDays()! > 0 && (
               <Text style={styles.cooldownText}>
-                修改间隔：还需等待 {nicknameCooldown} 天
+                修改间隔：还需等待 {getRemainingDays()} 天
               </Text>
             )}
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={[styles.modalButton, styles.cancelButton]}
-                onPress={closeNicknameModal}
+                onPress={() => setShowNicknameModal(false)}
               >
                 <Text style={styles.cancelButtonText}>取消</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalButton, styles.confirmButton]}
-                onPress={saveNickname}
-                disabled={savingNickname || nicknameCooldown > 0}
+                onPress={handleSaveNickname}
+                disabled={getRemainingDays() !== null && getRemainingDays()! > 0}
               >
                 <Text style={styles.confirmButtonText}>
-                  {savingNickname ? '保存中...' : '保存'}
+                  保存
                 </Text>
               </TouchableOpacity>
             </View>
