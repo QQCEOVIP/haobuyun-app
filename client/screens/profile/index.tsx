@@ -11,6 +11,7 @@ import {
   Modal,
   TextInput,
   DeviceEventEmitter,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -392,6 +393,15 @@ export default function ProfileScreen() {
           </View>
         </View>
 
+        {/* 管理后台入口 */}
+        <TouchableOpacity 
+          style={styles.adminButton} 
+          onPress={() => Linking.openURL('https://admin-haobuyun.coze.site')}
+        >
+          <Ionicons name="settings-outline" size={18} color="#4A90D9" />
+          <Text style={styles.adminButtonText}>管理后台</Text>
+        </TouchableOpacity>
+
         {/* 退出登录 */}
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Text style={styles.logoutText}>退出登录</Text>
@@ -594,10 +604,28 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontWeight: '600',
   },
+  adminButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F0F7FF',
+    marginHorizontal: 20,
+    marginTop: 16,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#4A90D9',
+    gap: 8,
+  },
+  adminButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#4A90D9',
+  },
   logoutButton: {
     backgroundColor: '#F5F7FA',
     marginHorizontal: 20,
-    marginTop: 24,
+    marginTop: 16,
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
