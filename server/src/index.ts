@@ -18,6 +18,7 @@ import updatesRouter from "./routes/updates";
 import usersRouter from "./routes/users";
 import { createRateLimiter } from "./middleware/rate-limit";
 import { startScheduledCleanup } from "./utils/cleanup";
+import { adminLoginHandler, adminMeHandler, adminAuthMiddleware } from "./adminAuth";
 // TODO: 扩展点预留 - 广告和游戏路由
 // import adsRouter from "./routes/ads";    // 广告回调 (AdMob/穿山甲/优量汇)
 // import gameRouter from "./routes/game";  // 小游戏 (H5/外部渠道)
@@ -67,6 +68,10 @@ app.post('/api/v1/verify-env', (req, res) => {
     timestamp: new Date().toISOString(),
   });
 });
+
+// 管理后台路由
+app.post('/api/v1/admin/login', adminLoginHandler);
+app.get('/api/v1/admin/me', adminAuthMiddleware, adminMeHandler);
 
 // 积分体系路由
 app.use('/api/v1/points', pointsRouter);
