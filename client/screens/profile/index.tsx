@@ -331,8 +331,11 @@ export default function ProfileScreen() {
             </View>
           </TouchableOpacity>
           <View style={styles.userInfo}>
-            <Text style={styles.userName}>{userName}</Text>
-            <Text style={styles.userEmail}>{userEmail}</Text>
+            <TouchableOpacity onPress={openNicknameModal}>
+              <Text style={styles.userName}>{userName}</Text>
+              <Text style={styles.userEmail}>{userEmail}</Text>
+              {nickname && <Text style={styles.userNickname}>昵称：{nickname}</Text>}
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -340,13 +343,6 @@ export default function ProfileScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>设置</Text>
           <View style={styles.menuCard}>
-            <MenuItem
-              name="person"
-              color="#4A90D9"
-              title="昵称设置"
-              subtitle={nickname ? `当前昵称：${nickname}` : '点击设置昵称'}
-              onPress={openNicknameModal}
-            />
             <MenuItem
               name="notifications"
               color="#F56C6C"
@@ -668,6 +664,81 @@ const styles = StyleSheet.create({
   nicknameSaveText: {
     fontSize: 14,
     color: '#FFF',
+    fontWeight: '600',
+  },
+  // 用户昵称显示
+  userNickname: {
+    fontSize: 12,
+    color: '#4A90D9',
+    marginTop: 4,
+  },
+  // 昵称设置 Modal 样式
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 320,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#303133',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  modalLabel: {
+    fontSize: 14,
+    color: '#606266',
+    marginBottom: 12,
+  },
+  modalInput: {
+    backgroundColor: '#F5F7FA',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    color: '#303133',
+    marginBottom: 12,
+  },
+  cooldownText: {
+    fontSize: 12,
+    color: '#E6A23C',
+    marginBottom: 12,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+    marginTop: 8,
+  },
+  modalButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  cancelButton: {
+    backgroundColor: '#F5F7FA',
+  },
+  cancelButtonText: {
+    fontSize: 14,
+    color: '#606266',
+    fontWeight: '500',
+  },
+  confirmButton: {
+    backgroundColor: '#4A90D9',
+  },
+  confirmButtonText: {
+    fontSize: 14,
+    color: '#FFFFFF',
     fontWeight: '600',
   },
 });
