@@ -16,6 +16,7 @@ import detectRouter from "./routes/detect";
 import authenticateRouter from "./routes/authenticate";
 import updatesRouter from "./routes/updates";
 import usersRouter from "./routes/users";
+import adminRouter from "./routes/admin";
 import { createRateLimiter } from "./middleware/rate-limit";
 import { startScheduledCleanup } from "./utils/cleanup";
 import { adminLoginHandler, adminMeHandler, adminAuthMiddleware } from "./adminAuth";
@@ -70,8 +71,7 @@ app.post('/api/v1/verify-env', (req, res) => {
 });
 
 // 管理后台路由
-app.post('/api/v1/admin/login', adminLoginHandler);
-app.get('/api/v1/admin/me', adminAuthMiddleware, adminMeHandler);
+app.use('/api/v1/admin', adminRouter);
 
 // 积分体系路由
 app.use('/api/v1/points', pointsRouter);
@@ -344,11 +344,22 @@ app.get('/api/v1/debug/backup-info', async (req, res) => {
   }
 });
 
-// === serve client bundle ===
+// === serve admin panel ===
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const adminDistPath = path.resolve(__dirname, "..", "public", "admin");
+app.use('/admin', express.static(adminDistPath));
+
+// === serve client bundle ===
 const clientDistPath = path.resolve(__dirname, "..", "..", "client", "dist");
 app.use(express.static(clientDistPath));
+
+// Admin SPA fallback (must be before main SPA fallback)
+app.get('/admin/*', (req, res) => {
+  res.sendFile(path.join(adminDistPath, "index.html"));
+});
+
+// Main SPA fallback
 app.get(/.*/, (req, res) => { res.sendFile(path.join(clientDistPath, "index.html")); });
 // === end ===
 

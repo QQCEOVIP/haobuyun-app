@@ -396,7 +396,17 @@ export default function ProfileScreen() {
         {/* 管理后台入口 */}
         <TouchableOpacity 
           style={styles.adminButton} 
-          onPress={() => Linking.openURL('https://admin-haobuyun.coze.site')}
+          onPress={() => {
+            // 获取当前域名，拼接 /admin/ 路径
+            if (Platform.OS === 'web') {
+              window.location.href = '/admin/';
+            } else {
+              // 移动端使用当前部署域名
+              const baseUrl = process.env.EXPO_PUBLIC_BACKEND_BASE_URL || '';
+              const adminUrl = baseUrl ? `${baseUrl}/admin/` : '/admin/';
+              Linking.openURL(adminUrl);
+            }
+          }}
         >
           <Ionicons name="settings-outline" size={18} color="#4A90D9" />
           <Text style={styles.adminButtonText}>管理后台</Text>
