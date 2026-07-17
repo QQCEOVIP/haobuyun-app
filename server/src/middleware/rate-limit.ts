@@ -92,6 +92,8 @@ export async function voteRateCheck(req: Request, res: Response, next: NextFunct
  */
 export function isValidPhone(phone: string): boolean {
   if (!phone || typeof phone !== 'string') return false;
+  // DEBUG: 部署验证标记 v1.1.0-2024
+  console.log('[DEBUG] isValidPhone called with:', phone, '- version 1.1.0-2024');
   return /^\+?\d{4,20}$/.test(phone.replace(/[\s\-()]/g, ''));
 }
 
