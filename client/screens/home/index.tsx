@@ -386,8 +386,8 @@ export default function HomeScreen() {
 
       // 收集所有电话号码用于社区投票查询
       const allPhones = deviceContacts
-        .map(c => c.phoneNumbers?.[0]?.number || '')
-        .filter(p => p.length > 0);
+        .map((c: any) => c.phoneNumbers?.[0]?.number || '')
+        .filter((p: string) => p.length > 0);
 
       // 查询社区投票结果
       const communityVotesMap = new Map<string, { stoppedCount: number; communityStatus: string | null }>();
@@ -422,10 +422,10 @@ export default function HomeScreen() {
 
       // Fetch authenticated numbers to skip during detection (Fix 5)
       const authenticatedPhones = new Set<string>();
-      if (user) {
+      if (user?.id) {
         try {
           const authResponse = await fetch(`${getBackendBaseUrl()}/api/v1/authenticate/my-authentications`, {
-            headers: { 'x-user-id': user },
+            headers: { 'x-user-id': user.id },
           });
           if (authResponse.ok) {
             const authData = await authResponse.json();
@@ -454,7 +454,7 @@ export default function HomeScreen() {
       // Collect per-phone detection results for batch AsyncStorage save
       const detectionEntries: Array<{ phone: string; status: string }> = [];
 
-      deviceContacts.forEach(contact => {
+      deviceContacts.forEach((contact: any) => {
         const rawPhone = contact.phoneNumbers?.[0]?.number || '';
         const phone = normalizePhone(rawPhone); // 标准化电话号码
         
