@@ -142,34 +142,83 @@ router.get('/votes/stats', adminAuthMiddleware, async (req: Request, res: Respon
 router.get('/votes/:phone/details', adminAuthMiddleware, async (req: Request, res: Response) => {
   try {
     const { phone } = req.params;
+    
+    // 1. 获取该号码所有投票
     const { data: votes, error } = await supabaseAdmin
       .from('number_votes')
       .select('*')
       .eq('phone', phone)
       .order('created_at', { ascending: false });
-
+    
     if (error) throw error;
-
-    // 关联查询投票人信息
-    const userIds = [...new Set((votes || []).map(v => v.user_id))];
-    let users: any[] = [];
-    if (userIds.length > 0) {
-      const { data } = await supabaseAdmin
-        .from('profiles')
-        .select('id, phone, email')
-        .in('id', userIds);
-      users = data || [];
+    if (!votes || votes.length === 0) {
+      return res.json({ success: true, data: [], total: 0 });
     }
-
-    const userMap = Object.fromEntries(users.map(u => [u.id, u]));
-    const details = (votes || []).map(v => ({
+    
+    // 2. 收集所有user_id
+    const userIds = [...new Set(votes.map(v => v.user_id).filter(Boolean))];
+    
+    // 3. 多表查找用户信息
+    const userMap: Record<string, { phone: string; email: string; nickname: string }> = {};
+    
+    // 3a. 从profiles表查（按id或user_id匹配）
+    if (userIds.length > 0) {
+      const { data: profilesData } = await supabaseAdmin
+        .from('profiles')
+        .select('id, user_id, phone, email, nickname')
+        .or(userIds.map(id => `id.eq.${id},user_id.eq.${id}`).join(','));
+      
+      if (profilesData) {
+        for (const p of profilesData) {
+          const info = { 
+            phone: p.phone || '', 
+            email: p.email || '', 
+            nickname: p.nickname || '' 
+          };
+          // 同时映射id和user_id
+          if (p.id) userMap[p.id] = info;
+          if (p.user_id) userMap[p.user_id] = info;
+        }
+      }
+      
+      // 3b. 对仍未匹配到的user_id，尝试auth.users
+      const unmatchedIds = userIds.filter(id => !userMap[id]);
+      if (unmatchedIds.length > 0) {
+        try {
+          const { data: authData } = await supabaseAdmin.auth.admin.listUsers();
+          if (authData?.users) {
+            for (const u of authData.users) {
+              if (unmatchedIds.includes(u.id)) {
+                const phoneFromEmail = u.email?.split('@')[0] || '';
+                userMap[u.id] = { 
+                  phone: phoneFromEmail || u.phone || '', 
+                  email: u.email || '',
+                  nickname: ''
+                };
+              }
+            }
+          }
+        } catch (e) {
+          // auth.admin可能没权限，忽略
+          console.log('无法查询auth.users:', e);
+        }
+      }
+    }
+    
+    // 4. 组装结果
+    const details = votes.map(v => ({
       id: v.id,
       vote: v.vote,
       created_at: v.created_at,
       updated_at: v.updated_at,
-      voter: userMap[v.user_id] || { id: v.user_id, phone: '未知', email: '' }
+      user_id: v.user_id,
+      voter: userMap[v.user_id] || { 
+        phone: v.user_id?.startsWith('test-') ? v.user_id : (v.user_id || '未知'),
+        email: '',
+        nickname: ''
+      }
     }));
-
+    
     res.json({ success: true, data: details, total: details.length });
   } catch (err: any) {
     console.error('获取投票详情失败:', err);
