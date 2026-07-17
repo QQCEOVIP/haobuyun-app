@@ -141,7 +141,7 @@ router.get('/votes/stats', adminAuthMiddleware, async (req: Request, res: Respon
 // 获取用户列表
 router.get('/users', adminAuthMiddleware, async (req: Request, res: Response) => {
   try {
-    const { page = 1, limit = 20, search } = req.query;
+    const { page = 1, limit = 20, search, banned } = req.query;
 
     // 使用 Supabase Admin API 获取用户列表
     const { data, error } = await supabaseAdmin.auth.admin.listUsers();
@@ -157,6 +157,13 @@ router.get('/users', adminAuthMiddleware, async (req: Request, res: Response) =>
         u.id?.toLowerCase().includes(keyword) ||
         u.user_metadata?.phone?.includes(keyword)
       );
+    }
+
+    // 封禁状态过滤
+    if (banned === 'true') {
+      users = users.filter(u => u.user_metadata?.banned === true);
+    } else if (banned === 'false') {
+      users = users.filter(u => !u.user_metadata?.banned);
     }
 
     // 分页
@@ -186,7 +193,7 @@ router.get('/users', adminAuthMiddleware, async (req: Request, res: Response) =>
   }
 });
 
-// 获取单个用户详情
+// 获取单个用户详情（包含投票记录）
 router.get('/users/:userId', adminAuthMiddleware, async (req: Request, res: Response) => {
   try {
     const userId = req.params.userId as string;
@@ -197,6 +204,18 @@ router.get('/users/:userId', adminAuthMiddleware, async (req: Request, res: Resp
     }
 
     const user = data.user;
+
+    // 获取用户的投票记录
+    const { data: votesData, error: votesError } = await supabaseAdmin
+      .from('number_votes')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (votesError) {
+      console.error('获取用户投票记录失败:', votesError);
+    }
+
     res.json({
       success: true,
       data: {
@@ -209,7 +228,8 @@ router.get('/users/:userId', adminAuthMiddleware, async (req: Request, res: Resp
         banned: user.user_metadata?.banned || false,
         ban_reason: user.user_metadata?.ban_reason || '',
         raw_metadata: user.user_metadata
-      }
+      },
+      votes: votesData || []
     });
   } catch (err: any) {
     console.error('获取用户详情失败:', err);
