@@ -34,7 +34,11 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 app.get('/api/v1/health', (req, res) => {
   console.log('Health check success');
-  res.status(200).json({ status: 'ok' });
+  res.status(200).json({ 
+    status: 'ok',
+    version: 'DEPLOY-CHECK-20260718-V3',
+    timestamp: new Date().toISOString()
+  });
 });
 
 // === Environment integrity verification (hbyun-watermark-v1) ===
