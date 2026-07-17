@@ -26,6 +26,61 @@ const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
 // 管理员登录
 router.post('/login', adminLoginHandler);
 
+// ==================== 诊断接口（临时） ====================
+
+// 数据库诊断接口 - 用于排查数据不一致问题
+router.get('/debug/db', async (req: Request, res: Response) => {
+  try {
+    // 1. 返回当前使用的配置
+    const config = {
+      SUPABASE_URL,
+      hasServiceRoleKey: !!SUPABASE_SERVICE_ROLE_KEY,
+      serviceRoleKeyLength: SUPABASE_SERVICE_ROLE_KEY.length,
+      env_SUPABASE_URL: process.env.COZE_SUPABASE_URL || 'NOT SET',
+    };
+
+    // 2. 查询 number_votes 全表
+    const { data: allVotes, error: allVotesError, status: allVotesStatus } = await supabaseAdmin
+      .from('number_votes')
+      .select('*');
+
+    // 3. 查询 phone='13800013800' 的记录
+    const { data: phoneVotes, error: phoneError, status: phoneStatus } = await supabaseAdmin
+      .from('number_votes')
+      .select('*')
+      .eq('phone', '13800013800');
+
+    // 4. 查询所有不同的 phone 值
+    const { data: distinctPhones, error: distinctError } = await supabaseAdmin
+      .from('number_votes')
+      .select('phone');
+
+    const uniquePhones = distinctPhones ? [...new Set(distinctPhones.map(r => r.phone))] : [];
+
+    res.json({
+      success: true,
+      config,
+      allVotes: {
+        count: allVotes?.length || 0,
+        error: allVotesError ? { message: allVotesError.message, code: allVotesError.code, details: allVotesError.details } : null,
+        status: allVotesStatus,
+        data: allVotes || []
+      },
+      phoneQuery: {
+        phone: '13800013800',
+        count: phoneVotes?.length || 0,
+        error: phoneError ? { message: phoneError.message, code: phoneError.code, details: phoneError.details } : null,
+        status: phoneStatus,
+        data: phoneVotes || []
+      },
+      uniquePhones,
+      timestamp: new Date().toISOString()
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message, stack: err.stack });
+  }
+});
+
 // ==================== 需要认证的接口 ====================
 
 // 获取当前管理员信息
