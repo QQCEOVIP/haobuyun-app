@@ -391,6 +391,8 @@ export default function HomeScreen() {
 
       // 查询社区投票结果
       const communityVotesMap = new Map<string, { stoppedCount: number; communityStatus: string | null }>();
+      // 记录所有查询过的号码（用于清除旧缓存）
+      const allQueriedPhones = new Set<string>();
       try {
         const response = await fetch(`${getBackendBaseUrl()}/api/v1/votes/batch-query`, {
           method: 'POST',
@@ -400,7 +402,9 @@ export default function HomeScreen() {
         if (response.ok) {
           const data = await response.json();
           if (data.results) {
+            // 记录所有查询过的号码
             for (const item of data.results) {
+              allQueriedPhones.add(item.phone);
               if (item.stopped_count > 0) {
                 communityVotesMap.set(item.phone, {
                   stoppedCount: item.stopped_count,
@@ -466,17 +470,23 @@ export default function HomeScreen() {
         
         const localData = allLocalContacts?.find((lc: any) => lc.phone === phone);
         // AsyncStorage 手动标签优先，其次 Supabase 检测结果
-        const localStatus = localStatusMap.get(phone) || localData?.status;
+        const cachedStatus = localStatusMap.get(phone) || localData?.status;
         const communityVote = communityVotesMap.get(phone);
         
         // 综合判断：本地状态 + 社区投票
-        // 确认停用：本地标记stopped OR 社区确认停用（>=6人标记）
-        // 疑似停用：社区疑似停用（>=3人标记）且本地未标记stopped
-        let finalStatus = localStatus;
+        // 修复：如果没有社区投票，不使用旧的缓存状态（避免投票删除后仍显示"可能失效"）
+        let finalStatus: string | undefined;
         if (communityVote?.communityStatus === 'confirmed_stopped') {
           finalStatus = 'stopped';
-        } else if (communityVote?.communityStatus === 'maybe_stopped' && localStatus !== 'stopped') {
+        } else if (communityVote?.communityStatus === 'maybe_stopped') {
           finalStatus = 'suspected_stopped';
+        } else if (cachedStatus === 'stopped' && !communityVote) {
+          // 用户手动标记的 stopped 保留（但社区投票已清除的不保留）
+          // 检查是否是 Supabase 中的手动标记（而非 AsyncStorage 缓存）
+          if (localData?.status === 'stopped') {
+            finalStatus = 'stopped';
+          }
+          // 否则不设置 finalStatus，让号码显示为 normal/unknown
         }
         
         // Record detection result for this phone
@@ -502,7 +512,8 @@ export default function HomeScreen() {
             result.invalid++;
             break;
           default:
-            result.unknown++;
+            // undefined 或没有社区投票的号码视为正常
+            result.active++;
         }
       });
 
@@ -524,6 +535,32 @@ export default function HomeScreen() {
         // Save individual phone statuses so contacts page can count them
         for (const entry of detectionEntries) {
           await AsyncStorage.setItem(`@contact_status_${entry.phone}`, entry.status);
+        }
+        
+        // 清除不再失效的号码的旧缓存（Fix: 解决投票删除后仍显示"可能失效"的问题）
+        // 遍历所有查询过的号码，如果没有社区投票且有旧缓存，清除缓存
+        const keysToRemove: string[] = [];
+        for (const phone of allQueriedPhones) {
+          if (!communityVotesMap.has(phone)) {
+            // 该号码没有社区投票，检查是否有旧缓存
+            const normalizedDigits = phone.replace(/\D/g, '');
+            const normalizedPhone = (normalizedDigits.length === 13 && normalizedDigits.startsWith('86'))
+              ? normalizedDigits.slice(2)
+              : normalizedDigits;
+            if (normalizedPhone) {
+              const cacheKey = `@contact_status_${normalizedPhone}`;
+              const cachedStatus = localStatusMap.get(phone);
+              // 如果旧缓存是 suspected_stopped 或 stopped，清除它
+              if (cachedStatus === 'suspected_stopped' || cachedStatus === 'stopped') {
+                keysToRemove.push(cacheKey);
+              }
+            }
+          }
+        }
+        // 批量清除旧缓存
+        if (keysToRemove.length > 0) {
+          await AsyncStorage.multiRemove(keysToRemove);
+          console.log(`[Home] 清除了 ${keysToRemove.length} 个不再失效的号码的旧缓存`);
         }
       } catch (e) {
         console.warn('Failed to save detection result:', e);
