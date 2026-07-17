@@ -152,11 +152,22 @@ const SERVICE_NUMBERS = new Set([
 ]);
 
 /**
+ * 服务号码模式匹配（用于可变长度的服务号码）
+ */
+const SERVICE_NUMBER_PATTERNS = [
+  /^400\d{4,7}$/,  // 400企业服务热线（400 + 4-7位，共8-11位）
+  /^800\d{4,7}$/,  // 800免费服务热线
+];
+
+/**
  * 检查是否为服务号码
  * 服务号码不允许用户投票/标记
  */
 export function isServiceNumber(phone: string): boolean {
   if (!phone || typeof phone !== 'string') return false;
   const normalized = normalizePhone(phone);
-  return SERVICE_NUMBERS.has(normalized);
+  // 先检查精确匹配
+  if (SERVICE_NUMBERS.has(normalized)) return true;
+  // 再检查模式匹配（400、800等）
+  return SERVICE_NUMBER_PATTERNS.some(pattern => pattern.test(normalized));
 }
