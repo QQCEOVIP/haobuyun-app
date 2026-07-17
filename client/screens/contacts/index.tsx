@@ -28,6 +28,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { CONSENSUS, type NumberStatus } from '@/constants/numberStatus';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ContactAvatar from '@/components/ContactAvatar';
+import { isServiceNumber, getServiceNumberMessage } from '@/utils/serviceNumber';
 import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
 import BackgroundWrapper from '@/components/BackgroundWrapper';
 
@@ -207,6 +208,12 @@ export default function ContactsScreen() {
 
   // 上传投票到服务端
   const uploadVote = async (phone: string, vote: 'stopped' | 'valid') => {
+    // 服务号码检查
+    if (isServiceNumber(phone)) {
+      Alert.alert('提示', getServiceNumberMessage(phone));
+      return;
+    }
+
     // 新用户检查：注册未满7天不能投票
     if (isUserNew()) {
       // 检查是否已显示过提示

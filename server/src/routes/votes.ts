@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { db } from '../storage/database';
 import { sql } from 'drizzle-orm';
-import { isValidPhone, normalizePhone } from '../middleware/rate-limit';
+import { isValidPhone, normalizePhone, isServiceNumber } from '../middleware/rate-limit';
 
 const router: any = Router();
 
@@ -51,11 +51,16 @@ router.post('/', requireAuth, async (req: any, res: any) => {
       return res.status(400).json({ error: '手机号格式无效' });
     }
 
+    const normalizedPhone = normalizePhone(phone);
+
+    // 服务号码不允许投票
+    if (isServiceNumber(normalizedPhone)) {
+      return res.status(400).json({ error: '该号码是官方服务号码，不允许投票' });
+    }
+
     if (!['stopped', 'valid'].includes(vote)) {
       return res.status(400).json({ error: '无效的投票类型' });
     }
-
-    const normalizedPhone = normalizePhone(phone);
 
     // 防刷检查：1 分钟内最多 10 票
     try {
@@ -109,6 +114,11 @@ router.delete('/', requireAuth, async (req: any, res: any) => {
 
     const normalizedPhone = normalizePhone(phone);
 
+    // 服务号码不允许操作
+    if (isServiceNumber(normalizedPhone)) {
+      return res.status(400).json({ error: '该号码是官方服务号码，不允许操作' });
+    }
+
     await db.execute(sql`
       DELETE FROM number_votes 
       WHERE phone = ${normalizedPhone} AND user_id = ${userId}
@@ -147,10 +157,11 @@ router.post('/batch-query', async (req: any, res: any) => {
       return res.status(400).json({ error: '单次最多查询 500 个号码' });
     }
 
-    // 过滤并标准化有效手机号
+    // 过滤并标准化有效手机号，排除服务号码
     const validPhones = phones
       .filter((p: string) => isValidPhone(p))
-      .map((p: string) => normalizePhone(p));
+      .map((p: string) => normalizePhone(p))
+      .filter((p: string) => !isServiceNumber(p));
 
     if (validPhones.length === 0) {
       return res.json({ results: [] });
