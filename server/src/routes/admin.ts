@@ -164,6 +164,76 @@ router.get('/debug/backups', async (req: Request, res: Response) => {
   }
 });
 
+// 数据恢复接口 - 将投票记录插入到当前数据库
+router.post('/debug/restore', async (req: Request, res: Response) => {
+  try {
+    const { records } = req.body; // records: Array<{phone, user_id, vote, created_at?, updated_at?}>
+    
+    if (!Array.isArray(records) || records.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'records 必须是非空数组',
+        example: { records: [{ phone: '13800013800', user_id: 'test-user-123', vote: 'stopped' }] }
+      });
+    }
+
+    // 验证每条记录的必要字段
+    for (let i = 0; i < records.length; i++) {
+      const r = records[i];
+      if (!r.phone || !r.user_id || !r.vote) {
+        return res.status(400).json({
+          success: false,
+          error: `第 ${i + 1} 条记录缺少必要字段 (phone, user_id, vote)`,
+          record: r
+        });
+      }
+      if (!['normal', 'stopped', 'suspected_stopped'].includes(r.vote)) {
+        return res.status(400).json({
+          success: false,
+          error: `第 ${i + 1} 条记录的 vote 字段无效，必须是 'normal'、'stopped' 或 'suspected_stopped'`,
+          record: r
+        });
+      }
+    }
+
+    // 准备插入的数据
+    const insertData = records.map(r => ({
+      phone: r.phone,
+      user_id: r.user_id,
+      vote: r.vote,
+      created_at: r.created_at || new Date().toISOString(),
+      updated_at: r.updated_at || new Date().toISOString()
+    }));
+
+    // 执行插入
+    const { data, error, status } = await supabaseAdmin
+      .from('number_votes')
+      .insert(insertData)
+      .select();
+
+    if (error) {
+      return res.status(500).json({
+        success: false,
+        error: error.message,
+        code: error.code,
+        details: error.details
+      });
+    }
+
+    res.json({
+      success: true,
+      message: `成功插入 ${data?.length || 0} 条记录`,
+      inserted_count: data?.length || 0,
+      data: data || [],
+      target_db: SUPABASE_URL.includes('br-slick-peep') ? 'br-slick-peep-6b368f8f' : 
+                 SUPABASE_URL.includes('br-jolly-cat') ? 'br-jolly-cat-a3661c04' : 'unknown',
+      timestamp: new Date().toISOString()
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message, stack: err.stack });
+  }
+});
+
 // ==================== 需要认证的接口 ====================
 
 // 获取当前管理员信息
