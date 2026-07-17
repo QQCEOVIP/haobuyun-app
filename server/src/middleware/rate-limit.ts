@@ -88,6 +88,7 @@ export async function voteRateCheck(req: Request, res: Response, next: NextFunct
 /**
  * 手机号格式校验
  * 只允许数字和+号开头，长度 4-20 位（支持10086等短号码）
+ * @version 1.1.0 - 2024: 支持4位短号码，添加服务号码黑名单
  */
 export function isValidPhone(phone: string): boolean {
   if (!phone || typeof phone !== 'string') return false;
