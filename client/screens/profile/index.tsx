@@ -74,37 +74,6 @@ export default function ProfileScreen() {
   const [showNicknameModal, setShowNicknameModal] = useState(false);
   const [nicknameInput, setNicknameInput] = useState('');
 
-  // 管理后台隐藏入口 - 连续点击版本号10次激活
-  const adminTapCount = useRef(0);
-  const adminLastTapTime = useRef(0);
-
-  const handleVersionTap = () => {
-    const now = Date.now();
-    // 如果距离上次点击超过2秒，重置计数器
-    if (now - adminLastTapTime.current > 2000) {
-      adminTapCount.current = 0;
-    }
-    adminTapCount.current += 1;
-    adminLastTapTime.current = now;
-
-    // 第5次点击时提示
-    if (adminTapCount.current === 5) {
-      Alert.alert('提示', '再点击5次进入管理后台');
-    }
-
-    // 第10次点击时跳转管理后台
-    if (adminTapCount.current >= 10) {
-      adminTapCount.current = 0;
-      if (Platform.OS === 'web') {
-        window.location.href = '/admin/';
-      } else {
-        const baseUrl = process.env.EXPO_PUBLIC_BACKEND_BASE_URL || '';
-        const adminUrl = baseUrl ? `${baseUrl}/admin/` : '/admin/';
-        Linking.openURL(adminUrl);
-      }
-    }
-  };
-
   // 检查新版本
   useEffect(() => {
     checkForNewVersion();
@@ -429,7 +398,6 @@ export default function ProfileScreen() {
               subtitle={`内测版本 ${Constants.expoConfig?.version || '1.0.5'}`}
               badge={hasNewVersion ? '有新版本' : undefined}
               onPress={() => router.push('/about')}
-              onSubtitlePress={handleVersionTap}
             />
           </View>
         </View>

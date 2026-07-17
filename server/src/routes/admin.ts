@@ -33,32 +33,68 @@ router.get('/me', adminAuthMiddleware, adminMeHandler);
 
 // ==================== 投票明细查询 ====================
 
-// 获取所有投票记录
+// 获取投票记录（按号码聚合）
 router.get('/votes', adminAuthMiddleware, async (req: Request, res: Response) => {
   try {
-    const { page = 1, limit = 20, phone, vote } = req.query;
-    const offset = (Number(page) - 1) * Number(limit);
+    const { page = 1, limit = 20, phone } = req.query;
 
+    // 获取所有投票记录进行聚合
     let query = supabaseAdmin
       .from('number_votes')
-      .select('*', { count: 'exact' })
-      .order('created_at', { ascending: false })
-      .range(offset, offset + Number(limit) - 1);
+      .select('phone, vote, user_id');
 
     if (phone) {
       query = query.eq('phone', phone);
     }
-    if (vote) {
-      query = query.eq('vote', vote);
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    // 按号码聚合统计
+    const statsMap: Record<string, { valid_count: number; stopped_count: number; user_ids: Set<string> }> = {};
+    
+    for (const row of data || []) {
+      if (!statsMap[row.phone]) {
+        statsMap[row.phone] = { valid_count: 0, stopped_count: 0, user_ids: new Set() };
+      }
+      statsMap[row.phone].user_ids.add(row.user_id);
+      if (row.vote === 'valid') {
+        statsMap[row.phone].valid_count++;
+      } else if (row.vote === 'stopped') {
+        statsMap[row.phone].stopped_count++;
+      }
     }
 
-    const { data, error, count } = await query;
-    if (error) throw error;
+    // 转换为数组并计算状态
+    let result = Object.entries(statsMap).map(([phone, stats]) => {
+      const unique_users = stats.user_ids.size;
+      let status = '正常';
+      if (stats.stopped_count >= 11) {
+        status = '确认停用';
+      } else if (stats.stopped_count >= 3) {
+        status = '疑似停用';
+      }
+      return {
+        phone,
+        valid_count: stats.valid_count,
+        stopped_count: stats.stopped_count,
+        unique_users,
+        status
+      };
+    });
+
+    // 按总票数排序
+    result.sort((a, b) => (b.valid_count + b.stopped_count) - (a.valid_count + a.stopped_count));
+
+    // 分页
+    const total = result.length;
+    const offset = (Number(page) - 1) * Number(limit);
+    result = result.slice(offset, offset + Number(limit));
 
     res.json({
       success: true,
-      data: data || [],
-      total: count || 0,
+      data: result,
+      total,
       page: Number(page),
       limit: Number(limit)
     });
