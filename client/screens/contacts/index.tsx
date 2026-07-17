@@ -227,9 +227,10 @@ export default function ContactsScreen() {
 
     try {
       const baseUrl = getBackendBaseUrl();
+      let response: Response;
       if (vote === 'valid') {
         // 撤回投票
-        await fetch(`${baseUrl}/api/v1/votes`, {
+        response = await fetch(`${baseUrl}/api/v1/votes`, {
           method: 'DELETE',
           headers: {
             'Content-Type': 'application/json',
@@ -239,7 +240,7 @@ export default function ContactsScreen() {
         });
       } else {
         // 提交/更新投票
-        await fetch(`${baseUrl}/api/v1/votes`, {
+        response = await fetch(`${baseUrl}/api/v1/votes`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -248,9 +249,16 @@ export default function ContactsScreen() {
           body: JSON.stringify({ phone, vote }),
         });
       }
-      await incrementVoteCount();
+
+      if (response.ok) {
+        await incrementVoteCount();
+      } else {
+        const err = await response.json().catch(() => ({}));
+        Alert.alert('投票失败', (err as any).error || '请稍后重试');
+      }
     } catch (error) {
       console.warn('Failed to upload vote:', error);
+      Alert.alert('投票失败', '网络错误，请稍后重试');
     }
   };
 

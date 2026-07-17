@@ -87,11 +87,11 @@ export async function voteRateCheck(req: Request, res: Response, next: NextFunct
 
 /**
  * 手机号格式校验
- * 只允许数字和+号开头，长度 7-20 位
+ * 只允许数字和+号开头，长度 4-20 位（支持10086等短号码）
  */
 export function isValidPhone(phone: string): boolean {
   if (!phone || typeof phone !== 'string') return false;
-  return /^\+?\d{7,20}$/.test(phone.replace(/[\s\-()]/g, ''));
+  return /^\+?\d{4,20}$/.test(phone.replace(/[\s\-()]/g, ''));
 }
 
 /**
