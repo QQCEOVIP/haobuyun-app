@@ -37,6 +37,9 @@ router.get('/debug/db', async (req: Request, res: Response) => {
       hasServiceRoleKey: !!SUPABASE_SERVICE_ROLE_KEY,
       serviceRoleKeyLength: SUPABASE_SERVICE_ROLE_KEY.length,
       env_SUPABASE_URL: process.env.COZE_SUPABASE_URL || 'NOT SET',
+      // 标识实际连接的数据库
+      dbIdentifier: SUPABASE_URL.includes('br-slick-peep') ? 'br-slick-peep-6b368f8f' : 
+                    SUPABASE_URL.includes('br-jolly-cat') ? 'br-jolly-cat-a3661c04' : 'unknown'
     };
 
     // 2. 查询 number_votes 全表
@@ -57,23 +60,103 @@ router.get('/debug/db', async (req: Request, res: Response) => {
 
     const uniquePhones = distinctPhones ? [...new Set(distinctPhones.map(r => r.phone))] : [];
 
+    // 5. 查询 profiles 表总数
+    const { count: profilesCount, error: profilesCountError } = await supabaseAdmin
+      .from('profiles')
+      .select('*', { count: 'exact', head: true });
+
+    // 6. 查询 auth.users 中 phone 包含 13800013800 的用户
+    const { data: authUsers, error: authUsersError } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    const usersWithPhone = authUsers?.users?.filter(u => 
+      u.user_metadata?.phone?.includes('13800013800') || 
+      u.email?.includes('13800013800')
+    ) || [];
+
     res.json({
       success: true,
       config,
-      allVotes: {
-        count: allVotes?.length || 0,
+      number_votes: {
+        total_count: allVotes?.length || 0,
         error: allVotesError ? { message: allVotesError.message, code: allVotesError.code, details: allVotesError.details } : null,
         status: allVotesStatus,
-        data: allVotes || []
+        all_records: allVotes || [],
+        unique_phones: uniquePhones
       },
-      phoneQuery: {
-        phone: '13800013800',
+      phone_13800013800: {
         count: phoneVotes?.length || 0,
         error: phoneError ? { message: phoneError.message, code: phoneError.code, details: phoneError.details } : null,
         status: phoneStatus,
-        data: phoneVotes || []
+        records: phoneVotes || []
       },
-      uniquePhones,
+      profiles: {
+        total_count: profilesCount || 0,
+        count_error: profilesCountError?.message || null,
+        note: 'profiles 表没有 phone 列，改用 auth.users 查询'
+      },
+      auth_users_with_13800013800: {
+        count: usersWithPhone.length,
+        users: usersWithPhone.map(u => ({
+          id: u.id,
+          email: u.email,
+          phone: u.user_metadata?.phone || null,
+          created_at: u.created_at
+        })),
+        error: authUsersError?.message || null
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message, stack: err.stack });
+  }
+});
+
+// 数据库备份信息查询接口
+router.get('/debug/backups', async (req: Request, res: Response) => {
+  try {
+    // 尝试查询 Supabase 备份信息
+    // 注意：这需要通过 Supabase Management API，普通客户端可能无法直接访问
+    
+    // 尝试查询 pg_stat 相关信息
+    const { data: dbInfo, error: dbInfoError } = await supabaseAdmin.rpc('get_database_info').select('*');
+    
+    // 查询当前数据库名称和大小
+    const { data: dbSize, error: dbSizeError } = await supabaseAdmin.rpc('pg_database_size', { dbname: 'postgres' });
+
+    // 查询最近的备份（如果 accessible）
+    const { data: backups, error: backupsError } = await supabaseAdmin
+      .from('backups')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    res.json({
+      success: true,
+      config: {
+        SUPABASE_URL,
+        dbIdentifier: SUPABASE_URL.includes('br-slick-peep') ? 'br-slick-peep-6b368f8f' : 
+                      SUPABASE_URL.includes('br-jolly-cat') ? 'br-jolly-cat-a3661c04' : 'unknown'
+      },
+      database: {
+        info: dbInfo || null,
+        info_error: dbInfoError?.message || null,
+        size: dbSize || null,
+        size_error: dbSizeError?.message || null
+      },
+      backups: {
+        available: backups || [],
+        error: backupsError ? { message: backupsError.message, code: backupsError.code } : null,
+        note: backupsError ? '备份表可能不存在或无权限访问' : null
+      },
+      pitr_info: {
+        note: 'PITR (Point-in-Time Recovery) 需要通过 Supabase Dashboard 或 Management API 操作',
+        dashboard_url: SUPABASE_URL.replace('.supabase2.', '.dashboard.').replace('/rest/v1', ''),
+        instructions: [
+          '1. 登录 Supabase Dashboard',
+          '2. 进入 Database > Backups 页面',
+          '3. 查看是否有可用的备份',
+          '4. 如果启用了 PITR，可以选择时间点恢复'
+        ]
+      },
       timestamp: new Date().toISOString()
     });
   } catch (err: any) {
