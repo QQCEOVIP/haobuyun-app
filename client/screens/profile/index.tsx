@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -35,9 +35,10 @@ interface MenuItemProps {
   subtitle?: string;
   badge?: string;
   onPress: () => void;
+  onSubtitlePress?: () => void;
 }
 
-function MenuItem({ name, color, title, subtitle, badge, onPress }: MenuItemProps) {
+function MenuItem({ name, color, title, subtitle, badge, onPress, onSubtitlePress }: MenuItemProps) {
   return (
     <TouchableOpacity style={styles.menuItem} onPress={onPress}>
       <View style={[styles.menuIconContainer, { backgroundColor: `${color}20` }]}>
@@ -45,7 +46,15 @@ function MenuItem({ name, color, title, subtitle, badge, onPress }: MenuItemProp
       </View>
       <View style={styles.menuTextContainer}>
         <Text style={styles.menuTitle}>{title}</Text>
-        {subtitle && <Text style={styles.menuSubtitle}>{subtitle}</Text>}
+        {subtitle && (
+          onSubtitlePress ? (
+            <TouchableOpacity onPress={onSubtitlePress} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Text style={styles.menuSubtitle}>{subtitle}</Text>
+            </TouchableOpacity>
+          ) : (
+            <Text style={styles.menuSubtitle}>{subtitle}</Text>
+          )
+        )}
       </View>
       {badge && <View style={styles.badge}><Text style={styles.badgeText}>{badge}</Text></View>}
       <Ionicons name="chevron-forward" size={20} color="#C0C4CC" />
@@ -64,6 +73,37 @@ export default function ProfileScreen() {
   const [nicknameUpdatedAt, setNicknameUpdatedAt] = useState<string | null>(null);
   const [showNicknameModal, setShowNicknameModal] = useState(false);
   const [nicknameInput, setNicknameInput] = useState('');
+
+  // 管理后台隐藏入口 - 连续点击版本号10次激活
+  const adminTapCount = useRef(0);
+  const adminLastTapTime = useRef(0);
+
+  const handleVersionTap = () => {
+    const now = Date.now();
+    // 如果距离上次点击超过2秒，重置计数器
+    if (now - adminLastTapTime.current > 2000) {
+      adminTapCount.current = 0;
+    }
+    adminTapCount.current += 1;
+    adminLastTapTime.current = now;
+
+    // 第5次点击时提示
+    if (adminTapCount.current === 5) {
+      Alert.alert('提示', '再点击5次进入管理后台');
+    }
+
+    // 第10次点击时跳转管理后台
+    if (adminTapCount.current >= 10) {
+      adminTapCount.current = 0;
+      if (Platform.OS === 'web') {
+        window.location.href = '/admin/';
+      } else {
+        const baseUrl = process.env.EXPO_PUBLIC_BACKEND_BASE_URL || '';
+        const adminUrl = baseUrl ? `${baseUrl}/admin/` : '/admin/';
+        Linking.openURL(adminUrl);
+      }
+    }
+  };
 
   // 检查新版本
   useEffect(() => {
@@ -389,28 +429,10 @@ export default function ProfileScreen() {
               subtitle={`内测版本 ${Constants.expoConfig?.version || '1.0.5'}`}
               badge={hasNewVersion ? '有新版本' : undefined}
               onPress={() => router.push('/about')}
+              onSubtitlePress={handleVersionTap}
             />
           </View>
         </View>
-
-        {/* 管理后台入口 */}
-        <TouchableOpacity 
-          style={styles.adminButton} 
-          onPress={() => {
-            // 获取当前域名，拼接 /admin/ 路径
-            if (Platform.OS === 'web') {
-              window.location.href = '/admin/';
-            } else {
-              // 移动端使用当前部署域名
-              const baseUrl = process.env.EXPO_PUBLIC_BACKEND_BASE_URL || '';
-              const adminUrl = baseUrl ? `${baseUrl}/admin/` : '/admin/';
-              Linking.openURL(adminUrl);
-            }
-          }}
-        >
-          <Ionicons name="settings-outline" size={18} color="#4A90D9" />
-          <Text style={styles.adminButtonText}>管理后台</Text>
-        </TouchableOpacity>
 
         {/* 退出登录 */}
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
@@ -613,24 +635,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#FFF',
     fontWeight: '600',
-  },
-  adminButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F0F7FF',
-    marginHorizontal: 20,
-    marginTop: 16,
-    paddingVertical: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#4A90D9',
-    gap: 8,
-  },
-  adminButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#4A90D9',
   },
   logoutButton: {
     backgroundColor: '#F5F7FA',
