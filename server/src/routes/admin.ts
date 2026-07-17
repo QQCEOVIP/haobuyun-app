@@ -28,7 +28,7 @@ router.post('/login', adminLoginHandler);
 
 // ==================== 诊断接口（临时） ====================
 
-// 数据库诊断接口 - 用于排查数据不一致问题
+// 数据库诊断接口 - 用于排查数据不一致问题（查询生产库）
 router.get('/debug/db', async (req: Request, res: Response) => {
   try {
     // 1. 返回当前使用的配置
@@ -53,28 +53,67 @@ router.get('/debug/db', async (req: Request, res: Response) => {
       .select('*')
       .eq('phone', '13800013800');
 
-    // 4. 查询所有不同的 phone 值
+    // 4. 查询 __admin_override__ 记录（管理员标记）
+    const { data: adminOverrideVotes, error: adminOverrideError } = await supabaseAdmin
+      .from('number_votes')
+      .select('*')
+      .eq('user_id', '__admin_override__');
+
+    // 5. 查询所有不同的 phone 值
     const { data: distinctPhones, error: distinctError } = await supabaseAdmin
       .from('number_votes')
       .select('phone');
 
     const uniquePhones = distinctPhones ? [...new Set(distinctPhones.map(r => r.phone))] : [];
 
-    // 5. 查询 profiles 表总数
+    // 6. 查询 profiles 表总数
     const { count: profilesCount, error: profilesCountError } = await supabaseAdmin
       .from('profiles')
       .select('*', { count: 'exact', head: true });
 
-    // 6. 查询 auth.users 中 phone 包含 13800013800 的用户
-    const { data: authUsers, error: authUsersError } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-    const usersWithPhone = authUsers?.users?.filter(u => 
+    // 7. 查询所有 auth.users（完整列表）
+    const { data: allAuthUsers, error: allAuthUsersError } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    const allUsersList = allAuthUsers?.users?.map(u => ({
+      id: u.id,
+      email: u.email,
+      phone: u.user_metadata?.phone || null,
+      id_card: u.user_metadata?.id_card ? '****' + u.user_metadata.id_card.slice(-4) : null,
+      banned: u.user_metadata?.banned || false,
+      created_at: u.created_at,
+      last_sign_in_at: u.last_sign_in_at
+    })) || [];
+
+    // 8. 筛选 phone 包含 13800013800 的用户
+    const usersWithPhone = allAuthUsers?.users?.filter(u => 
       u.user_metadata?.phone?.includes('13800013800') || 
       u.email?.includes('13800013800')
     ) || [];
 
+    // 9. 查询 number_authentications 表（号码认证记录）
+    const { data: authentications, error: authenticationsError } = await supabaseAdmin
+      .from('number_authentications')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(50);
+
     res.json({
       success: true,
       config,
+      auth_users: {
+        total_count: allUsersList.length,
+        error: allAuthUsersError?.message || null,
+        all_users: allUsersList
+      },
+      auth_users_with_13800013800: {
+        count: usersWithPhone.length,
+        users: usersWithPhone.map(u => ({
+          id: u.id,
+          email: u.email,
+          phone: u.user_metadata?.phone || null,
+          created_at: u.created_at
+        })),
+        error: null
+      },
       number_votes: {
         total_count: allVotes?.length || 0,
         error: allVotesError ? { message: allVotesError.message, code: allVotesError.code, details: allVotesError.details } : null,
@@ -88,20 +127,21 @@ router.get('/debug/db', async (req: Request, res: Response) => {
         status: phoneStatus,
         records: phoneVotes || []
       },
+      admin_override: {
+        count: adminOverrideVotes?.length || 0,
+        error: adminOverrideError ? { message: adminOverrideError.message, code: adminOverrideError.code } : null,
+        records: adminOverrideVotes || [],
+        note: '如果有记录，说明有人执行过管理员标记操作，会删除该号码的所有真实投票'
+      },
+      number_authentications: {
+        count: authentications?.length || 0,
+        error: authenticationsError ? { message: authenticationsError.message, code: authenticationsError.code } : null,
+        records: authentications || [],
+        note: '号码认证记录（用户声称换机主）'
+      },
       profiles: {
         total_count: profilesCount || 0,
-        count_error: profilesCountError?.message || null,
-        note: 'profiles 表没有 phone 列，改用 auth.users 查询'
-      },
-      auth_users_with_13800013800: {
-        count: usersWithPhone.length,
-        users: usersWithPhone.map(u => ({
-          id: u.id,
-          email: u.email,
-          phone: u.user_metadata?.phone || null,
-          created_at: u.created_at
-        })),
-        error: authUsersError?.message || null
+        count_error: profilesCountError?.message || null
       },
       timestamp: new Date().toISOString()
     });
