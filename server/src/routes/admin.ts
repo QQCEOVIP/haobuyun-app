@@ -136,6 +136,118 @@ router.get('/votes/stats', adminAuthMiddleware, async (req: Request, res: Respon
   }
 });
 
+// ==================== 投票操作 ====================
+
+// 获取号码的投票详情
+router.get('/votes/:phone/details', adminAuthMiddleware, async (req: Request, res: Response) => {
+  try {
+    const { phone } = req.params;
+    const { data: votes, error } = await supabaseAdmin
+      .from('number_votes')
+      .select('*')
+      .eq('phone', phone)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    // 关联查询投票人信息
+    const userIds = [...new Set((votes || []).map(v => v.user_id))];
+    let users: any[] = [];
+    if (userIds.length > 0) {
+      const { data } = await supabaseAdmin
+        .from('profiles')
+        .select('id, phone, email')
+        .in('id', userIds);
+      users = data || [];
+    }
+
+    const userMap = Object.fromEntries(users.map(u => [u.id, u]));
+    const details = (votes || []).map(v => ({
+      id: v.id,
+      vote: v.vote,
+      created_at: v.created_at,
+      updated_at: v.updated_at,
+      voter: userMap[v.user_id] || { id: v.user_id, phone: '未知', email: '' }
+    }));
+
+    res.json({ success: true, data: details, total: details.length });
+  } catch (err: any) {
+    console.error('获取投票详情失败:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 删除指定投票
+router.delete('/votes/:voteId', adminAuthMiddleware, async (req: Request, res: Response) => {
+  try {
+    const { voteId } = req.params;
+    const { error } = await supabaseAdmin
+      .from('number_votes')
+      .delete()
+      .eq('id', voteId);
+
+    if (error) throw error;
+    res.json({ success: true, message: '投票已删除' });
+  } catch (err: any) {
+    console.error('删除投票失败:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 管理员强制标记号码状态
+router.post('/votes/:phone/override', adminAuthMiddleware, async (req: Request, res: Response) => {
+  try {
+    const { phone } = req.params;
+    const { status, reason } = req.body; // status: 'normal' | 'stopped'
+
+    if (!status || !['normal', 'stopped'].includes(status)) {
+      return res.status(400).json({ success: false, error: 'status 必须是 normal 或 stopped' });
+    }
+
+    // 先删除该号码所有社区投票
+    await supabaseAdmin
+      .from('number_votes')
+      .delete()
+      .eq('phone', phone)
+      .neq('user_id', '__admin_override__');
+
+    // 插入或更新管理员标记记录
+    const { error } = await supabaseAdmin
+      .from('number_votes')
+      .upsert({
+        phone,
+        user_id: '__admin_override__',
+        vote: status === 'stopped' ? 'stopped' : 'valid',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        metadata: { admin_override: true, reason: reason || '管理员手动标记' }
+      }, { onConflict: 'phone,user_id' });
+
+    if (error) throw error;
+    res.json({ success: true, message: `号码${phone}已标记为${status === 'stopped' ? '停用' : '正常'}` });
+  } catch (err: any) {
+    console.error('管理员标记失败:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 清空号码所有投票
+router.delete('/votes/:phone/all', adminAuthMiddleware, async (req: Request, res: Response) => {
+  try {
+    const { phone } = req.params;
+    const { error } = await supabaseAdmin
+      .from('number_votes')
+      .delete()
+      .eq('phone', phone);
+
+    if (error) throw error;
+    res.json({ success: true, message: `号码${phone}的所有投票已清空` });
+  } catch (err: any) {
+    console.error('清空投票失败:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // ==================== 用户管理 ====================
 
 // 获取用户列表
