@@ -39,6 +39,7 @@ function requireAuth(req: any, res: any, next: any) {
  * - 同一用户对同一号码只能投一次（UPSERT 覆盖）
  */
 router.post('/', requireAuth, async (req: any, res: any) => {
+  console.log('=== SERVER VERSION: FIX-20260718 ===');
   try {
     const { phone, vote } = req.body;
     const userId = req.userId;
