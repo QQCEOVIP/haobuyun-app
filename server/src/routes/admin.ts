@@ -214,14 +214,13 @@ router.post('/votes/:phone/override', adminAuthMiddleware, async (req: Request, 
     // 插入或更新管理员标记记录
     const { error } = await supabaseAdmin
       .from('number_votes')
-      .upsert({
+      .insert({
         phone,
         user_id: '__admin_override__',
         vote: status === 'stopped' ? 'stopped' : 'valid',
         created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        metadata: { admin_override: true, reason: reason || '管理员手动标记' }
-      }, { onConflict: 'phone,user_id' });
+        updated_at: new Date().toISOString()
+      });
 
     if (error) throw error;
     res.json({ success: true, message: `号码${phone}已标记为${status === 'stopped' ? '停用' : '正常'}` });
