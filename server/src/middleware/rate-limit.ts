@@ -87,14 +87,14 @@ export async function voteRateCheck(req: Request, res: Response, next: NextFunct
 
 /**
  * 手机号格式校验
- * 只允许数字和+号开头，长度 4-20 位（支持10086等短号码）
- * @version 1.1.0 - 2024: 支持4位短号码，添加服务号码黑名单
+ * 只允许数字和+号开头，长度 3-20 位（支持110、119等3位紧急号码）
+ * @version 1.2.0 - 支持3位短号码
  */
 export function isValidPhone(phone: string): boolean {
   if (!phone || typeof phone !== 'string') return false;
-  // DEBUG: 部署验证标记 v1.1.0-2024
-  console.log('[DEBUG] isValidPhone called with:', phone, '- version 1.1.0-2024');
-  return /^\+?\d{4,20}$/.test(phone.replace(/[\s\-()]/g, ''));
+  // DEBUG: 部署验证标记 v1.2.0
+  console.log('[DEBUG] isValidPhone called with:', phone, '- version 1.2.0');
+  return /^\+?\d{3,20}$/.test(phone.replace(/[\s\-()]/g, ''));
 }
 
 /**

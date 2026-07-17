@@ -39,7 +39,7 @@ function requireAuth(req: any, res: any, next: any) {
  * - 同一用户对同一号码只能投一次（UPSERT 覆盖）
  */
 router.post('/', requireAuth, async (req: any, res: any) => {
-  console.log('=== SERVER VERSION: FIX-20260718 ===');
+  console.log('=== SERVER VERSION: FIX-20260718-V2 ===');
   try {
     const { phone, vote } = req.body;
     const userId = req.userId;
@@ -48,15 +48,17 @@ router.post('/', requireAuth, async (req: any, res: any) => {
       return res.status(400).json({ error: '缺少必要参数' });
     }
 
-    if (!isValidPhone(phone)) {
-      return res.status(400).json({ error: '手机号格式无效' });
-    }
-
+    // 先规范化号码
     const normalizedPhone = normalizePhone(phone);
 
-    // 服务号码不允许投票
+    // 服务号码检查优先（支持3位短号码如110、119等）
     if (isServiceNumber(normalizedPhone)) {
       return res.status(400).json({ error: '该号码是官方服务号码，不允许投票' });
+    }
+
+    // 手机号格式校验（3-20位）
+    if (!isValidPhone(phone)) {
+      return res.status(400).json({ error: '手机号格式无效' });
     }
 
     if (!['stopped', 'valid'].includes(vote)) {
