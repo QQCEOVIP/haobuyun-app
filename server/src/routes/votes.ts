@@ -186,6 +186,32 @@ router.post('/batch-query', async (req: any, res: any) => {
       GROUP BY phone
     `);
 
+    // 查询号码变更通知（active 且未过期）
+    let changesMap = new Map<string, string>();
+    try {
+      const changes = await db.execute(sql`
+        SELECT old_phone, display_name 
+        FROM number_changes
+        WHERE old_phone IN (
+          ${sql.join(
+            validPhones.map(phone => sql`${phone}`),
+            sql`, `
+          )}
+        ) AND status = 'active'
+          AND expires_at > NOW()
+      `);
+      for (const row of changes as any[]) {
+        // 生成 display_name_hint：首字 + *
+        const hint = row.display_name.length > 1 
+          ? row.display_name[0] + '*' 
+          : row.display_name;
+        changesMap.set(row.old_phone, hint);
+      }
+    } catch (e) {
+      // number_changes 表可能不存在，忽略错误
+      console.log('number_changes table not found, skipping');
+    }
+
     // 构建结果
     const voterMap = new Map<string, number>();
     for (const row of votes as any[]) {
@@ -202,12 +228,17 @@ router.post('/batch-query', async (req: any, res: any) => {
       } else if (voterCount >= MAYBE_THRESHOLD) {
         communityStatus = 'maybe_stopped';
       }
+
+      const hasChange = changesMap.has(phone);
+      const displayNameHint = changesMap.get(phone) || null;
       
       results.push({
         phone,
         stopped_count: voterCount,  // 现在是不同用户数
         voter_count: voterCount,
         community_status: communityStatus,
+        has_change: hasChange,
+        display_name_hint: displayNameHint,
       });
     }
 

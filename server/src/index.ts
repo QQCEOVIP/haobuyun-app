@@ -17,6 +17,7 @@ import authenticateRouter from "./routes/authenticate";
 import updatesRouter from "./routes/updates";
 import usersRouter from "./routes/users";
 import adminRouter from "./routes/admin";
+import numberChangesRouter from "./routes/number-changes";
 import { createRateLimiter } from "./middleware/rate-limit";
 import { startScheduledCleanup } from "./utils/cleanup";
 import { adminLoginHandler, adminMeHandler, adminAuthMiddleware } from "./adminAuth";
@@ -105,6 +106,9 @@ app.use('/api/v1/authenticate', createRateLimiter(5), authenticateRouter);
 // 版本检查
 app.use('/api/v1/updates', createRateLimiter(10), updatesRouter);
   app.use('/api/v1/users', usersRouter);
+
+// 号码变更通知路由（限流：每用户每分钟 10 次）
+app.use('/api/v1/number-changes', createRateLimiter(10), numberChangesRouter);
 
 // 测试账号路由
 
