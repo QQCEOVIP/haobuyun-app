@@ -50,7 +50,12 @@ router.post('/', async (req: any, res: any) => {
       return res.status(401).json({ error: '未授权' });
     }
 
-    const { old_phone, new_phone, display_name, remark } = req.body;
+    const { old_phone, new_phone, display_name, remark, disclaimer_agreed } = req.body;
+
+    // 验证免责声明同意
+    if (disclaimer_agreed !== true) {
+      return res.status(400).json({ error: '请先阅读并同意免责声明' });
+    }
 
     // 验证必填字段
     if (!old_phone || !new_phone || !display_name) {
