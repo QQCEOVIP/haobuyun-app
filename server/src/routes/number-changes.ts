@@ -50,7 +50,7 @@ router.post('/', async (req: any, res: any) => {
       return res.status(401).json({ error: '未授权' });
     }
 
-    const { old_phone, new_phone, display_name, remark, disclaimer_agreed } = req.body;
+    const { old_phone, new_phone, display_name, remark, disclaimer_agreed, id_card, expire_days } = req.body;
 
     // 验证免责声明同意
     if (disclaimer_agreed !== true) {
@@ -58,8 +58,32 @@ router.post('/', async (req: any, res: any) => {
     }
 
     // 验证必填字段
-    if (!old_phone || !new_phone || !display_name) {
+    if (!old_phone || !new_phone || !display_name || !id_card) {
       return res.status(400).json({ error: '缺少必填字段' });
+    }
+
+    // 验证 expire_days（只接受 30/90/180/360）
+    const validExpireDays = [30, 90, 180, 360];
+    const finalExpireDays = expire_days || 90;
+    if (!validExpireDays.includes(finalExpireDays)) {
+      return res.status(400).json({ error: '保留期限只能是30、90、180或360天' });
+    }
+
+    // 身份证验证：从 auth.users 获取用户的 id_card
+    const { data: userData, error: userError } = await supabaseAdmin
+      .from('users')
+      .select('raw_user_meta_data')
+      .eq('id', userId)
+      .single();
+
+    if (userError || !userData) {
+      console.error('[number-changes] User lookup error:', userError);
+      return res.status(400).json({ error: '无法获取用户信息' });
+    }
+
+    const storedIdCard = userData.raw_user_meta_data?.id_card;
+    if (!storedIdCard || id_card !== storedIdCard) {
+      return res.status(400).json({ error: '身份证号码与注册信息不一致' });
     }
 
     // 验证 display_name 长度
@@ -91,6 +115,10 @@ router.post('/', async (req: any, res: any) => {
     // 生成 name_hash
     const nameHash = await bcrypt.hash(display_name, 12);
 
+    // 计算过期时间
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + finalExpireDays);
+
     // 如果已有 active 记录，先 revoke
     await supabaseAdmin
       .from('number_changes')
@@ -109,8 +137,10 @@ router.post('/', async (req: any, res: any) => {
         name_hash: nameHash,
         remark: remark || '',
         status: 'active',
+        expire_days: finalExpireDays,
+        expires_at: expiresAt.toISOString(),
       })
-      .select('id, old_phone, status')
+      .select('id, old_phone, status, expires_at')
       .single();
 
     if (error) {

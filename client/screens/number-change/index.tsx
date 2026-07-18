@@ -25,10 +25,19 @@ export default function ChangeNumberForm({ onSuccess }: ChangeNumberFormProps) {
   const [newPhone, setNewPhone] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [remark, setRemark] = useState('');
+  const [idCard, setIdCard] = useState('');
+  const [expireDays, setExpireDays] = useState(90);
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const isFormValid = oldPhone && newPhone && displayName && agreed;
+  const EXPIRE_OPTIONS = [
+    { label: '30天', value: 30 },
+    { label: '90天', value: 90 },
+    { label: '180天', value: 180 },
+    { label: '360天', value: 360 },
+  ];
+
+  const isFormValid = oldPhone && newPhone && displayName && idCard && agreed;
 
   const handleSubmit = async () => {
     if (!isFormValid || loading) return;
@@ -51,6 +60,8 @@ export default function ChangeNumberForm({ onSuccess }: ChangeNumberFormProps) {
           new_phone: newPhone,
           display_name: displayName,
           remark: remark,
+          id_card: idCard,
+          expire_days: expireDays,
           disclaimer_agreed: true,
         }),
       });
@@ -64,6 +75,8 @@ export default function ChangeNumberForm({ onSuccess }: ChangeNumberFormProps) {
         setNewPhone('');
         setDisplayName('');
         setRemark('');
+        setIdCard('');
+        setExpireDays(90);
         setAgreed(false);
         onSuccess?.();
       } else {
@@ -128,6 +141,42 @@ export default function ChangeNumberForm({ onSuccess }: ChangeNumberFormProps) {
             multiline
             maxLength={200}
           />
+        </View>
+
+        <View style={styles.field}>
+          <Text style={styles.label}>身份证号码 *</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="请输入身份证号码进行身份验证"
+            value={idCard}
+            onChangeText={setIdCard}
+            maxLength={18}
+          />
+          <Text style={styles.hint}>需与注册时填写的身份证号码一致</Text>
+        </View>
+
+        <View style={styles.field}>
+          <Text style={styles.label}>保留期限</Text>
+          <View style={styles.expireSelector}>
+            {EXPIRE_OPTIONS.map((option) => (
+              <TouchableOpacity
+                key={option.value}
+                style={[
+                  styles.expireOption,
+                  expireDays === option.value && styles.expireOptionActive,
+                ]}
+                onPress={() => setExpireDays(option.value)}>
+                <Text
+                  style={[
+                    styles.expireOptionText,
+                    expireDays === option.value && styles.expireOptionTextActive,
+                  ]}>
+                  {option.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <Text style={styles.hint}>到期后通知将自动失效</Text>
         </View>
 
         {/* 免责声明 */}
@@ -213,6 +262,31 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#999',
     marginTop: 4,
+  },
+  expireSelector: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  expireOption: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: 'center',
+    backgroundColor: '#fafafa',
+  },
+  expireOptionActive: {
+    borderColor: '#4CAF50',
+    backgroundColor: '#e8f5e9',
+  },
+  expireOptionText: {
+    fontSize: 14,
+    color: '#666',
+  },
+  expireOptionTextActive: {
+    color: '#4CAF50',
+    fontWeight: '600',
   },
   disclaimer: {
     flexDirection: 'row',
