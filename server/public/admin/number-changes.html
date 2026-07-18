@@ -69,6 +69,7 @@
   <div id="loginPage" class="login-container">
     <h2>号簿云管理后台</h2>
     <p style="text-align:center;color:#888;margin-bottom:20px;font-size:14px;">号码变更通知管理</p>
+    <input type="text" id="loginUsername" placeholder="用户名" value="admin" style="margin-bottom:10px;">
     <input type="password" id="loginPassword" placeholder="请输入管理密码" onkeypress="if(event.key==='Enter')doLogin()">
     <button onclick="doLogin()">登 录</button>
   </div>
@@ -135,17 +136,18 @@
     if (authToken) showMain();
 
     async function doLogin() {
+      const username = document.getElementById("loginUsername").value || "admin";
       const password = document.getElementById("loginPassword").value;
       if (!password) return showToast("请输入密码", "error");
       try {
         const res = await fetch(API_BASE + "/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ password })
+          body: JSON.stringify({ username, password })
         });
         const data = await res.json();
-        if (data.token) {
-          authToken = data.token;
+        if (data.data && data.data.token) {
+          authToken = data.data.token;
           localStorage.setItem("admin_token", authToken);
           showMain();
         } else {
