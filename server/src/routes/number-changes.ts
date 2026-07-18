@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { createClient } from '@supabase/supabase-js';
+import { db } from '../storage/database';
+import { sql } from 'drizzle-orm';
 import { isValidPhone, normalizePhone, isServiceNumber } from '../middleware/rate-limit.js';
 
 const router: any = Router();
@@ -150,6 +152,21 @@ router.post('/', async (req: any, res: any) => {
     if (error) {
       console.error('[number-changes] Insert error:', error);
       return res.status(500).json({ error: '创建失败' });
+    }
+
+    // 13. 同时往 number_votes 插入一条 "stopped" 投票
+    // 本人标记 = 投1票停用，进入投票统计体系
+    try {
+      await db.execute(sql`
+        INSERT INTO number_votes (phone, user_id, vote)
+        VALUES (${normalizedOld}, ${userId}, 'stopped')
+        ON CONFLICT (phone, user_id) 
+        DO UPDATE SET vote = 'stopped', updated_at = NOW()
+      `);
+      console.log(`[number-changes] Vote inserted: phone=${normalizedOld}, user=${userId}, vote=stopped`);
+    } catch (voteErr) {
+      // 投票写入失败不影响主流程，仅记录日志
+      console.error('[number-changes] Vote insert error (non-fatal):', voteErr);
     }
 
     console.log(`[number-changes] Created: old_phone=${normalizedOld}, publisher=${userId}`);
@@ -302,6 +319,17 @@ router.delete('/', async (req: any, res: any) => {
     if (error) {
       console.error('[number-changes] Revoke error:', error);
       return res.status(500).json({ error: '撤回失败' });
+    }
+
+    // 同时删除对应的投票
+    try {
+      await db.execute(sql`
+        DELETE FROM number_votes 
+        WHERE phone = ${normalizedPhone} AND user_id = ${userId}
+      `);
+      console.log(`[number-changes] Vote removed: phone=${normalizedPhone}, user=${userId}`);
+    } catch (voteErr) {
+      console.error('[number-changes] Vote delete error (non-fatal):', voteErr);
     }
 
     console.log(`[number-changes] Revoked: old_phone=${normalizedPhone}, user=${userId}`);

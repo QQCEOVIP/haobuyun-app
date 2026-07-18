@@ -375,4 +375,49 @@ app.listen(port, () => {
   console.log(`Server listening at http://localhost:${port}/`);
   // 启动定时清理任务（每6小时清理超过30天的投票）
   startScheduledCleanup();
+  
+  // 一次性数据修复：为已有的 active number_changes 补投 stopped 票
+  // 确保"本人标记"进入投票统计体系
+  (async () => {
+    try {
+      const { db } = await import('./storage/database');
+      const { sql } = await import('drizzle-orm');
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabaseUrl = process.env.COZE_SUPABASE_URL || '';
+      const supabaseKey = process.env.COZE_SUPABASE_SERVICE_ROLE_KEY || '';
+      if (!supabaseUrl || !supabaseKey) return;
+      const supabaseAdmin = createClient(supabaseUrl, supabaseKey, {
+        auth: { autoRefreshToken: false, persistSession: false }
+      });
+      
+      // 查找所有 active 的 number_changes
+      const { data: activeChanges } = await supabaseAdmin
+        .from('number_changes')
+        .select('old_phone, publisher_id')
+        .eq('status', 'active');
+      
+      if (activeChanges && activeChanges.length > 0) {
+        for (const change of activeChanges) {
+          // 检查是否已有对应投票
+          const existing = await db.execute(sql`
+            SELECT id FROM number_votes 
+            WHERE phone = ${change.old_phone} AND user_id = ${change.publisher_id}
+            LIMIT 1
+          `);
+          if ((existing as any[]).length === 0) {
+            // 补投 stopped 票
+            await db.execute(sql`
+              INSERT INTO number_votes (phone, user_id, vote)
+              VALUES (${change.old_phone}, ${change.publisher_id}, 'stopped')
+              ON CONFLICT (phone, user_id) DO UPDATE SET vote = 'stopped', updated_at = NOW()
+            `);
+            console.log(`[Migration] Backfilled vote: ${change.old_phone} by ${change.publisher_id}`);
+          }
+        }
+        console.log(`[Migration] Checked ${activeChanges.length} active number_changes`);
+      }
+    } catch (e) {
+      console.error('[Migration] Backfill error:', e);
+    }
+  })();
 });

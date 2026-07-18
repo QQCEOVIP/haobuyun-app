@@ -99,7 +99,7 @@ export default function ContactsScreen() {
   const [infoModalVisible, setInfoModalVisible] = useState(false);
   const [statusMenuContact, setStatusMenuContact] = useState<Contact | null>(null);
   const [cleanupStats, setCleanupStats] = useState({ duplicate: 0, stopped: 0, suspected: 0 });
-  const [communityMarks, setCommunityMarks] = useState<Map<string, { status: NumberStatus; voteCount: number }>>(new Map());
+  const [communityMarks, setCommunityMarks] = useState<Map<string, { status: NumberStatus; voteCount: number; isSelfMark?: boolean }>>(new Map());
   const [syncLoading, setSyncLoading] = useState(false);
   const [contactAvatars, setContactAvatars] = useState<Record<string, string>>({});
   const [avatarMenuContact, setAvatarMenuContact] = useState<Contact | null>(null);
@@ -1084,33 +1084,40 @@ export default function ContactsScreen() {
 
   const fetchCommunityMarks = async () => {
     try {
-      const response = await fetch(`${getBackendBaseUrl()}/api/v1/community-statuses`);
+      // 传递 user_id 以支持本人标记双重判定
+      const url = userId
+        ? `${getBackendBaseUrl()}/api/v1/community-statuses?user_id=${encodeURIComponent(userId)}`
+        : `${getBackendBaseUrl()}/api/v1/community-statuses`;
+      const response = await fetch(url);
       if (!response.ok) return;
       const json = await response.json();
       const data = json.statuses || [];
       if (!data.length) return;
 
-      // Build a map: normalized phone -> { status, voteCount }
-      const markMap = new Map<string, { status: NumberStatus; voteCount: number }>();
+      // Build a map: normalized phone -> { status, voteCount, isSelfMark }
+      const markMap = new Map<string, { status: NumberStatus; voteCount: number; isSelfMark?: boolean }>();
       for (const row of data) {
-        if (row.vote_count >= CONSENSUS.MIN_MARKS) {
-          // Normalize phone to digits without country code
-          const digits = (row.phone || '').replace(/\D/g, '');
-          const normalizedPhone = (digits.length === 13 && digits.startsWith('86'))
-            ? digits.slice(2)
-            : digits;
-          if (normalizedPhone) {
-            markMap.set(normalizedPhone, {
-              status: row.status as NumberStatus,
-              voteCount: row.vote_count,
-            });
-          }
+        // 本人标记：无视 MIN_MARKS 阈值，直接显示
+        // 普通社区标记：需要 >= MIN_MARKS 票才显示
+        const isSelfMark = row.is_self_mark === true;
+        if (!isSelfMark && row.vote_count < CONSENSUS.MIN_MARKS) continue;
+
+        // Normalize phone to digits without country code
+        const digits = (row.phone || '').replace(/\D/g, '');
+        const normalizedPhone = (digits.length === 13 && digits.startsWith('86'))
+          ? digits.slice(2)
+          : digits;
+        if (normalizedPhone) {
+          markMap.set(normalizedPhone, {
+            status: row.status as NumberStatus,
+            voteCount: row.vote_count,
+            isSelfMark,
+          });
         }
       }
 
       // Build a phone -> community mark map for easy lookup in render
-      // Normalize contact phone the same way for matching
-      const phoneCommunityMap = new Map<string, { status: NumberStatus; voteCount: number }>();
+      const phoneCommunityMap = new Map<string, { status: NumberStatus; voteCount: number; isSelfMark?: boolean }>();
       for (const contact of contacts) {
         if (contact.phone) {
           const contactDigits = contact.phone.replace(/\D/g, '');
@@ -1181,10 +1188,12 @@ export default function ContactsScreen() {
     if (contacts.length > 0) {
       fetchCleanupStats();
       fetchNumberChanges(contacts);
+      fetchCommunityMarks();
     } else {
       // 通讯录为0时，清除残留的旧统计数据
       setCleanupStats({ duplicate: 0, stopped: 0, suspected: 0 });
       setNumberChanges(new Map());
+      setCommunityMarks(new Map());
     }
   }, [contacts]);
 
@@ -1229,9 +1238,14 @@ export default function ContactsScreen() {
   const renderContact = ({ item }: { item: Contact }) => {
     const statusStyle = getStatusStyle(item.status);
     const communityVote = communityVotes.get(item.phone);
-    const communityVoteStyle = communityVote?.communityStatus ? getCommunityVoteStyle(communityVote.communityStatus) : null;
+    // 检查本人标记（来自 communityMarks，包含 is_self_mark 信息）
+    const communityMark = communityMarks.get(item.phone);
+    const isSelfMark = communityMark?.isSelfMark === true;
+    // 本人标记时强制显示"确认失效"
+    const effectiveCommunityStatus = isSelfMark ? 'confirmed_stopped' : (communityVote?.communityStatus || null);
+    const communityVoteStyle = effectiveCommunityStatus ? getCommunityVoteStyle(effectiveCommunityStatus) : null;
     const customAvatarUri = contactAvatars[item.phone];
-    const totalCount = communityVote ? communityVote.stoppedCount : 0;
+    const totalCount = communityVote ? communityVote.stoppedCount : (communityMark?.voteCount || 0);
     const isSelected = selectedIds.has(item.id);
     const numberChange = numberChanges.get(item.phone);
     const hasNumberChange = numberChange?.has_change === true;
@@ -1326,10 +1340,10 @@ export default function ContactsScreen() {
                   fetchNumberStatus(item.phone);
                 }}
               >
-                <Text style={styles.badgeLabel}>社区</Text>
+                <Text style={styles.badgeLabel}>{isSelfMark ? '本人' : '社区'}</Text>
                 <View style={[styles.statusBadge, { backgroundColor: communityVoteStyle.bg }]}>
                   <Text style={[styles.statusText, { color: communityVoteStyle.text }]}>
-                    {totalCount}人标记{communityVoteStyle.label}
+                    {isSelfMark ? `本人标记${communityVoteStyle.label}` : `${totalCount}人标记${communityVoteStyle.label}`}
                   </Text>
                 </View>
               </TouchableOpacity>

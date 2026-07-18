@@ -137,19 +137,21 @@ router.delete('/', requireAuth, async (req: any, res: any) => {
 /**
  * 批量查询社区投票结果
  * POST /api/v1/votes/batch-query
- * Body: { phones: string[] }
- * Returns: { results: { phone, stopped_count, voter_count, community_status }[] }
+ * Body: { phones: string[], user_id?: string }
+ * Returns: { results: { phone, stopped_count, voter_count, community_status, has_change, display_name_hint, is_self_mark? }[] }
  * 
  * 社区状态计算（基于不同用户数）：
- * - 不同用户投 stopped >= 3 → 'confirmed_stopped' (确认停用)
- * - 不同用户投 stopped >= 1 → 'maybe_stopped' (疑似停用)
+ * - 本人标记双重判定：如果 user_id 对应的用户有 active 的 number_changes，
+ *   则对该用户返回 'confirmed_stopped'（即使只有1票）
+ * - 不同用户投 stopped >= 3 → 'maybe_stopped' (疑似停用)
+ * - 不同用户投 stopped >= 11 → 'confirmed_stopped' (确认停用)
  * - 无 stopped 投票 → null
  * 
  * 限制：单次最多 500 个号码
  */
 router.post('/batch-query', async (req: any, res: any) => {
   try {
-    const { phones } = req.body;
+    const { phones, user_id } = req.body;
 
     if (!Array.isArray(phones) || phones.length === 0) {
       return res.status(400).json({ error: '缺少电话号码列表' });
@@ -188,6 +190,8 @@ router.post('/batch-query', async (req: any, res: any) => {
 
     // 查询号码变更通知（active 且未过期）
     let changesMap = new Map<string, string>();
+    // 查询当前用户的本人标记号码
+    let selfMarkPhones = new Set<string>();
     try {
       const changes = await db.execute(sql`
         SELECT old_phone, display_name 
@@ -212,6 +216,30 @@ router.post('/batch-query', async (req: any, res: any) => {
       console.log('number_changes table not found, skipping');
     }
 
+    // 查询当前用户的本人标记
+    if (user_id) {
+      try {
+        const selfMarks = await db.execute(sql`
+          SELECT old_phone::TEXT
+          FROM number_changes
+          WHERE publisher_id = ${user_id}
+            AND status = 'active'
+            AND expires_at > NOW()
+            AND old_phone IN (
+              ${sql.join(
+                validPhones.map(phone => sql`${phone}`),
+                sql`, `
+              )}
+            )
+        `);
+        for (const row of (selfMarks as any[])) {
+          selfMarkPhones.add(row.old_phone);
+        }
+      } catch (e) {
+        // 忽略错误
+      }
+    }
+
     // 构建结果
     const voterMap = new Map<string, number>();
     for (const row of votes as any[]) {
@@ -221,9 +249,13 @@ router.post('/batch-query', async (req: any, res: any) => {
     const results = [];
     for (const phone of validPhones) {
       const voterCount = voterMap.get(phone) || 0;
+      const isSelfMark = selfMarkPhones.has(phone);
       let communityStatus: string | null = null;
       
-      if (voterCount >= CONFIRMED_THRESHOLD) {
+      if (isSelfMark) {
+        // 本人标记双重判定：对自己直接判定为"确认失效"
+        communityStatus = 'confirmed_stopped';
+      } else if (voterCount >= CONFIRMED_THRESHOLD) {
         communityStatus = 'confirmed_stopped';
       } else if (voterCount >= MAYBE_THRESHOLD) {
         communityStatus = 'maybe_stopped';
@@ -232,14 +264,18 @@ router.post('/batch-query', async (req: any, res: any) => {
       const hasChange = changesMap.has(phone);
       const displayNameHint = changesMap.get(phone) || null;
       
-      results.push({
+      const result: any = {
         phone,
-        stopped_count: voterCount,  // 现在是不同用户数
+        stopped_count: voterCount,
         voter_count: voterCount,
         community_status: communityStatus,
         has_change: hasChange,
         display_name_hint: displayNameHint,
-      });
+      };
+      if (isSelfMark) {
+        result.is_self_mark = true;
+      }
+      results.push(result);
     }
 
     res.json({ results });
