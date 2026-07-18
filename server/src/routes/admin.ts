@@ -96,6 +96,13 @@ router.get('/debug/db', async (req: Request, res: Response) => {
       .order('created_at', { ascending: false })
       .limit(50);
 
+    // 10. 查询 number_changes 表（号码变更通知）
+    const { data: numberChanges, error: numberChangesError } = await supabaseAdmin
+      .from('number_changes')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(50);
+
     res.json({
       success: true,
       config,
@@ -138,6 +145,12 @@ router.get('/debug/db', async (req: Request, res: Response) => {
         error: authenticationsError ? { message: authenticationsError.message, code: authenticationsError.code } : null,
         records: authentications || [],
         note: '号码认证记录（用户声称换机主）'
+      },
+      number_changes: {
+        count: numberChanges?.length || 0,
+        error: numberChangesError ? { message: numberChangesError.message, code: numberChangesError.code } : null,
+        records: numberChanges || [],
+        note: '号码变更通知（本人标记）'
       },
       profiles: {
         total_count: profilesCount || 0,
@@ -733,6 +746,123 @@ router.post('/users/:userId/reset-password', adminAuthMiddleware, async (req: Re
   } catch (err: any) {
     console.error('重置密码失败:', err);
     res.status(500).json({ error: '重置密码失败', detail: err.message });
+  }
+});
+
+// ==================== 号码变更通知管理 ====================
+
+// 获取号码变更通知列表
+router.get('/number-changes', adminAuthMiddleware, async (req: Request, res: Response) => {
+  try {
+    const { page = '1', limit = '20', status, search } = req.query;
+
+    let query = supabaseAdmin
+      .from('number_changes')
+      .select('*', { count: 'exact' })
+      .order('created_at', { ascending: false });
+
+    // 状态过滤
+    if (status && status !== 'all') {
+      query = query.eq('status', status as string);
+    }
+
+    // 搜索过滤（按旧号码、新号码、称呼）
+    if (search) {
+      const keyword = String(search);
+      query = query.or(`old_phone.ilike.%${keyword}%,new_phone.ilike.%${keyword}%,display_name.ilike.%${keyword}%`);
+    }
+
+    // 分页
+    const offset = (Number(page) - 1) * Number(limit);
+    query = query.range(offset, offset + Number(limit) - 1);
+
+    const { data, error, count } = await query;
+
+    if (error) throw error;
+
+    res.json({
+      success: true,
+      data: data || [],
+      total: count || 0,
+      page: Number(page),
+      limit: Number(limit)
+    });
+  } catch (err: any) {
+    console.error('获取号码变更列表失败:', err);
+    res.status(500).json({ error: '获取号码变更列表失败', detail: err.message });
+  }
+});
+
+// 获取单个号码变更详情
+router.get('/number-changes/:id', adminAuthMiddleware, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { data, error } = await supabaseAdmin
+      .from('number_changes')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) throw error;
+    if (!data) {
+      return res.status(404).json({ error: '记录不存在' });
+    }
+
+    res.json({ success: true, data });
+  } catch (err: any) {
+    console.error('获取号码变更详情失败:', err);
+    res.status(500).json({ error: '获取详情失败', detail: err.message });
+  }
+});
+
+// 管理员撤回号码变更
+router.post('/number-changes/:id/revoke', adminAuthMiddleware, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+
+    const { data, error } = await supabaseAdmin
+      .from('number_changes')
+      .update({ 
+        status: 'revoked', 
+        updated_at: new Date().toISOString(),
+        remark: reason ? `[管理员撤回] ${reason}` : '[管理员撤回]'
+      })
+      .eq('id', id)
+      .eq('status', 'active')
+      .select()
+      .single();
+
+    if (error) throw error;
+    if (!data) {
+      return res.status(404).json({ error: '记录不存在或已非active状态' });
+    }
+
+    console.log(`[admin] Number change ${id} revoked by admin`);
+    res.json({ success: true, message: '已撤回' });
+  } catch (err: any) {
+    console.error('管理员撤回号码变更失败:', err);
+    res.status(500).json({ error: '撤回失败', detail: err.message });
+  }
+});
+
+// 号码变更统计概览
+router.get('/number-changes-stats', adminAuthMiddleware, async (req: Request, res: Response) => {
+  try {
+    const { data: allRecords } = await supabaseAdmin
+      .from('number_changes')
+      .select('status');
+
+    const stats = {
+      total: allRecords?.length || 0,
+      active: (allRecords || []).filter(r => r.status === 'active').length,
+      revoked: (allRecords || []).filter(r => r.status === 'revoked').length,
+      expired: (allRecords || []).filter(r => r.status === 'expired').length,
+    };
+
+    res.json({ success: true, data: stats });
+  } catch (err: any) {
+    res.status(500).json({ error: '获取统计失败', detail: err.message });
   }
 });
 

@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>号簿云 - 号码变更管理</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f5; color: #333; }
+    .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; text-align: center; }
+    .header h1 { font-size: 20px; margin-bottom: 5px; }
+    .header .subtitle { font-size: 13px; opacity: 0.8; }
+    .nav { background: white; padding: 10px 20px; border-bottom: 1px solid #e0e0e0; display: flex; gap: 15px; }
+    .nav a { color: #667eea; text-decoration: none; font-size: 14px; padding: 5px 10px; border-radius: 4px; }
+    .nav a:hover { background: #f0f0ff; }
+    .nav a.active { background: #667eea; color: white; }
+    .container { max-width: 1200px; margin: 20px auto; padding: 0 20px; }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px; }
+    .stat-card { background: white; border-radius: 10px; padding: 20px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    .stat-card .number { font-size: 28px; font-weight: bold; color: #667eea; }
+    .stat-card .label { font-size: 13px; color: #888; margin-top: 5px; }
+    .toolbar { background: white; border-radius: 10px; padding: 15px 20px; margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    .toolbar select, .toolbar input { padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+    .toolbar input { flex: 1; min-width: 200px; }
+    .toolbar button { padding: 8px 20px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; }
+    .toolbar button:hover { background: #5a6fd6; }
+    .toolbar button.reset { background: #888; }
+    table { width: 100%; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    th { background: #f8f9fa; padding: 12px 15px; text-align: left; font-size: 13px; color: #666; border-bottom: 1px solid #eee; white-space: nowrap; }
+    td { padding: 12px 15px; font-size: 14px; border-bottom: 1px solid #f0f0f0; }
+    tr:hover { background: #f8f9ff; }
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 500; }
+    .badge.active { background: #d4edda; color: #155724; }
+    .badge.revoked { background: #f8d7da; color: #721c24; }
+    .badge.expired { background: #fff3cd; color: #856404; }
+    .btn { padding: 5px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; }
+    .btn-danger { background: #dc3545; color: white; }
+    .btn-danger:hover { background: #c82333; }
+    .btn-info { background: #17a2b8; color: white; }
+    .btn-info:hover { background: #138496; }
+    .pagination { display: flex; justify-content: center; gap: 10px; margin-top: 20px; padding-bottom: 30px; }
+    .pagination button { padding: 8px 15px; border: 1px solid #ddd; background: white; border-radius: 6px; cursor: pointer; }
+    .pagination button.active-page { background: #667eea; color: white; border-color: #667eea; }
+    .pagination button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .login-container { max-width: 400px; margin: 100px auto; padding: 30px; background: white; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+    .login-container h2 { text-align: center; margin-bottom: 20px; color: #667eea; }
+    .login-container input { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 6px; font-size: 16px; }
+    .login-container button { width: 100%; padding: 12px; background: #667eea; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; }
+    .hidden { display: none; }
+    .toast { position: fixed; top: 20px; right: 20px; padding: 12px 24px; border-radius: 8px; color: white; font-size: 14px; z-index: 1000; }
+    .toast.success { background: #28a745; }
+    .toast.error { background: #dc3545; }
+    .empty { text-align: center; padding: 60px 20px; color: #888; }
+    .empty .icon { font-size: 48px; margin-bottom: 10px; }
+    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 100; display: flex; align-items: center; justify-content: center; }
+    .modal-box { background: white; border-radius: 12px; padding: 25px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto; }
+    .modal-box h3 { margin-bottom: 15px; color: #667eea; }
+    .detail-row { padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
+    .detail-row strong { color: #666; display: inline-block; width: 80px; }
+    .modal-close { margin-top: 15px; padding: 8px 20px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer; width: 100%; }
+    @media (max-width: 768px) {
+      table { font-size: 12px; }
+      th, td { padding: 8px 10px; }
+      .stats { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <div id="loginPage" class="login-container">
+    <h2>号簿云管理后台</h2>
+    <p style="text-align:center;color:#888;margin-bottom:20px;font-size:14px;">号码变更通知管理</p>
+    <input type="password" id="loginPassword" placeholder="请输入管理密码" onkeypress="if(event.key==='Enter')doLogin()">
+    <button onclick="doLogin()">登 录</button>
+  </div>
+
+  <div id="mainPage" class="hidden">
+    <div class="header">
+      <h1>号簿云 - 号码变更管理</h1>
+      <div class="subtitle">管理用户提交的号码变更通知</div>
+    </div>
+    <div class="nav">
+      <a href="/admin/">投票管理</a>
+      <a href="/admin/number-changes.html" class="active">号码变更</a>
+      <a href="#" onclick="doLogout()">退出登录</a>
+    </div>
+    <div class="container">
+      <div class="stats">
+        <div class="stat-card"><div class="number" id="statTotal">-</div><div class="label">总数</div></div>
+        <div class="stat-card"><div class="number" id="statActive" style="color:#28a745">-</div><div class="label">生效中</div></div>
+        <div class="stat-card"><div class="number" id="statRevoked" style="color:#dc3545">-</div><div class="label">已撤回</div></div>
+        <div class="stat-card"><div class="number" id="statExpired" style="color:#ffc107">-</div><div class="label">已过期</div></div>
+      </div>
+      <div class="toolbar">
+        <select id="filterStatus" onchange="loadData()">
+          <option value="all">全部状态</option>
+          <option value="active">生效中</option>
+          <option value="revoked">已撤回</option>
+          <option value="expired">已过期</option>
+        </select>
+        <input type="text" id="searchInput" placeholder="搜索号码或称呼..." onkeypress="if(event.key==='Enter')loadData()">
+        <button onclick="loadData()">搜索</button>
+        <button class="reset" onclick="resetFilter()">重置</button>
+      </div>
+      <div id="tableContainer">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th><th>旧号码</th><th>新号码</th><th>称呼</th><th>状态</th><th>保留天数</th><th>创建时间</th><th>过期时间</th><th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody">
+            <tr><td colspan="9" class="empty"><div class="icon">...</div><div>加载中</div></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="pagination" id="pagination"></div>
+    </div>
+  </div>
+
+  <div id="detailModal" class="hidden">
+    <div class="modal-overlay" onclick="if(event.target===this)closeDetail()">
+      <div class="modal-box">
+        <h3>变更详情</h3>
+        <div id="detailContent"></div>
+        <button class="modal-close" onclick="closeDetail()">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = "/api/v1/admin";
+    let authToken = localStorage.getItem("admin_token") || "";
+    let currentPage = 1;
+
+    if (authToken) showMain();
+
+    async function doLogin() {
+      const password = document.getElementById("loginPassword").value;
+      if (!password) return showToast("请输入密码", "error");
+      try {
+        const res = await fetch(API_BASE + "/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password })
+        });
+        const data = await res.json();
+        if (data.token) {
+          authToken = data.token;
+          localStorage.setItem("admin_token", authToken);
+          showMain();
+        } else {
+          showToast(data.error || "登录失败", "error");
+        }
+      } catch (e) { showToast("网络错误", "error"); }
+    }
+
+    function doLogout() {
+      authToken = "";
+      localStorage.removeItem("admin_token");
+      document.getElementById("loginPage").classList.remove("hidden");
+      document.getElementById("mainPage").classList.add("hidden");
+    }
+
+    function showMain() {
+      document.getElementById("loginPage").classList.add("hidden");
+      document.getElementById("mainPage").classList.remove("hidden");
+      loadStats();
+      loadData();
+    }
+
+    async function apiGet(path) {
+      const res = await fetch(API_BASE + path, {
+        headers: { "Authorization": "Bearer " + authToken }
+      });
+      if (res.status === 401) { doLogout(); return null; }
+      return res.json();
+    }
+
+    async function apiPost(path, body) {
+      const res = await fetch(API_BASE + path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + authToken },
+        body: JSON.stringify(body)
+      });
+      if (res.status === 401) { doLogout(); return null; }
+      return res.json();
+    }
+
+    async function loadStats() {
+      const data = await apiGet("/number-changes-stats");
+      if (data && data.success) {
+        document.getElementById("statTotal").textContent = data.data.total;
+        document.getElementById("statActive").textContent = data.data.active;
+        document.getElementById("statRevoked").textContent = data.data.revoked;
+        document.getElementById("statExpired").textContent = data.data.expired;
+      }
+    }
+
+    async function loadData(page) {
+      if (page) currentPage = page;
+      const status = document.getElementById("filterStatus").value;
+      const search = document.getElementById("searchInput").value;
+      let url = "/number-changes?page=" + currentPage + "&limit=20";
+      if (status !== "all") url += "&status=" + status;
+      if (search) url += "&search=" + encodeURIComponent(search);
+
+      const data = await apiGet(url);
+      if (!data || !data.success) return;
+
+      const tbody = document.getElementById("tableBody");
+      if (data.data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" class="empty"><div class="icon">📭</div><div>暂无数据</div></td></tr>';
+        document.getElementById("pagination").innerHTML = "";
+        return;
+      }
+
+      let html = "";
+      data.data.forEach(function(item) {
+        const badgeClass = {active:"badge active", revoked:"badge revoked", expired:"badge expired"}[item.status] || "badge";
+        const statusText = {active:"生效中", revoked:"已撤回", expired:"已过期"}[item.status] || item.status;
+        const created = new Date(item.created_at).toLocaleString("zh-CN");
+        const expires = new Date(item.expires_at).toLocaleString("zh-CN");
+        let actions = '<button class="btn btn-info" data-id="' + item.id + '" data-action="view">详情</button> ';
+        if (item.status === "active") {
+          actions += '<button class="btn btn-danger" data-id="' + item.id + '" data-action="revoke">撤回</button>';
+        }
+        html += '<tr>' +
+          '<td>' + (item.id || "").slice(0, 8) + '...</td>' +
+          '<td>' + (item.old_phone || "") + '</td>' +
+          '<td>' + (item.new_phone || "") + '</td>' +
+          '<td>' + (item.display_name || "") + '</td>' +
+          '<td><span class="' + badgeClass + '">' + statusText + '</span></td>' +
+          '<td>' + (item.expire_days || "-") + '天</td>' +
+          '<td>' + created + '</td>' +
+          '<td>' + expires + '</td>' +
+          '<td>' + actions + '</td>' +
+          '</tr>';
+      });
+      tbody.innerHTML = html;
+
+      // 事件委托
+      tbody.onclick = function(e) {
+        const btn = e.target.closest("button");
+        if (!btn) return;
+        const id = btn.getAttribute("data-id");
+        const action = btn.getAttribute("data-action");
+        if (action === "view") viewDetail(id);
+        else if (action === "revoke") revokeChange(id);
+      };
+
+      // 分页
+      const totalPages = Math.ceil(data.total / 20);
+      const pag = document.getElementById("pagination");
+      let pagHtml = '<button ' + (currentPage <= 1 ? 'disabled' : '') + ' onclick="loadData(' + (currentPage - 1) + ')">上一页</button>';
+      for (let i = 1; i <= totalPages; i++) {
+        pagHtml += '<button class="' + (i === currentPage ? 'active-page' : '') + '" onclick="loadData(' + i + ')">' + i + '</button>';
+      }
+      pagHtml += '<button ' + (currentPage >= totalPages ? 'disabled' : '') + ' onclick="loadData(' + (currentPage + 1) + ')">下一页</button>';
+      pag.innerHTML = pagHtml;
+    }
+
+    function resetFilter() {
+      document.getElementById("filterStatus").value = "all";
+      document.getElementById("searchInput").value = "";
+      currentPage = 1;
+      loadData();
+    }
+
+    async function viewDetail(id) {
+      const data = await apiGet("/number-changes/" + id);
+      if (!data || !data.success) return showToast("获取详情失败", "error");
+      const item = data.data;
+      const fields = [
+        ["记录ID", item.id],
+        ["旧号码", item.old_phone],
+        ["新号码", item.new_phone],
+        ["称呼", item.display_name],
+        ["状态", {active:"生效中",revoked:"已撤回",expired:"已过期"}[item.status] || item.status],
+        ["保留天数", (item.expire_days || 0) + "天"],
+        ["备注", item.remark || "无"],
+        ["发布者ID", item.publisher_id],
+        ["创建时间", new Date(item.created_at).toLocaleString("zh-CN")],
+        ["过期时间", new Date(item.expires_at).toLocaleString("zh-CN")],
+        ["更新时间", new Date(item.updated_at).toLocaleString("zh-CN")]
+      ];
+      let detailHtml = "";
+      fields.forEach(function(f) {
+        detailHtml += '<div class="detail-row"><strong>' + f[0] + ':</strong> ' + (f[1] || "-") + '</div>';
+      });
+      document.getElementById("detailContent").innerHTML = detailHtml;
+      document.getElementById("detailModal").classList.remove("hidden");
+    }
+
+    function closeDetail() {
+      document.getElementById("detailModal").classList.add("hidden");
+    }
+
+    async function revokeChange(id) {
+      if (!confirm("确定要撤回这条变更通知吗？")) return;
+      const data = await apiPost("/number-changes/" + id + "/revoke", { reason: "管理员手动撤回" });
+      if (data && data.success) {
+        showToast("已撤回", "success");
+        loadStats();
+        loadData();
+      } else {
+        showToast((data && data.error) || "撤回失败", "error");
+      }
+    }
+
+    function showToast(msg, type) {
+      const toast = document.createElement("div");
+      toast.className = "toast " + type;
+      toast.textContent = msg;
+      document.body.appendChild(toast);
+      setTimeout(function() { toast.remove(); }, 3000);
+    }
+  </script>
+</body>
+</html>
