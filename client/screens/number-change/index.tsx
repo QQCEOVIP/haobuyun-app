@@ -17,11 +17,12 @@ const API_BASE_URL = process.env.EXPO_PUBLIC_BACKEND_BASE_URL || 'http://localho
 
 interface ChangeNumberFormProps {
   onSuccess?: () => void;
+  initialOldPhone?: string;
 }
 
-export default function ChangeNumberForm({ onSuccess }: ChangeNumberFormProps) {
+export default function ChangeNumberForm({ onSuccess, initialOldPhone }: ChangeNumberFormProps) {
   const { user } = useAuth();
-  const [oldPhone, setOldPhone] = useState('');
+  const [oldPhone, setOldPhone] = useState(initialOldPhone || '');
   const [newPhone, setNewPhone] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [remark, setRemark] = useState('');

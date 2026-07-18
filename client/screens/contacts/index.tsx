@@ -14,6 +14,8 @@ import {
   ImageBackground,
   ScrollView,
   Platform,
+  Modal,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
@@ -31,6 +33,7 @@ import ContactAvatar from '@/components/ContactAvatar';
 import { isServiceNumber, getServiceNumberMessage } from '@/utils/serviceNumber';
 import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
 import BackgroundWrapper from '@/components/BackgroundWrapper';
+import ChangeNumberForm from '@/screens/number-change';
 
 // 替代 Modal 的轻量级遮罩组件，避免 Modal 原生行为导致的闪屏
 const Overlay = ({ visible, children, onClose }: { visible: boolean; children: React.ReactNode; onClose?: () => void }) => {
@@ -100,6 +103,8 @@ export default function ContactsScreen() {
   const [syncLoading, setSyncLoading] = useState(false);
   const [contactAvatars, setContactAvatars] = useState<Record<string, string>>({});
   const [avatarMenuContact, setAvatarMenuContact] = useState<Contact | null>(null);
+  const [markTypeContact, setMarkTypeContact] = useState<Contact | null>(null);
+  const [changeNumberModalVisible, setChangeNumberModalVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [editName, setEditName] = useState('');
@@ -134,6 +139,8 @@ export default function ContactsScreen() {
       setAvatarMenuContact(null);
       setEditModalVisible(false);
       setVotePanelVisible(false);
+      setMarkTypeContact(null);
+      setChangeNumberModalVisible(false);
 
       return () => {
         setInfoModalVisible(false);
@@ -141,6 +148,8 @@ export default function ContactsScreen() {
         setAvatarMenuContact(null);
         setEditModalVisible(false);
         setVotePanelVisible(false);
+        setMarkTypeContact(null);
+        setChangeNumberModalVisible(false);
       };
     }, [])
   );
@@ -1478,7 +1487,10 @@ export default function ContactsScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.statusMenuOption, { backgroundColor: '#FEF0F0' }]}
-            onPress={() => updateContactStatus(statusMenuContact, 'stopped')}
+            onPress={() => {
+              setStatusMenuContact(null);
+              setMarkTypeContact(statusMenuContact);
+            }}
           >
             <Ionicons name="close-circle" size={20} color="#F56C6C" />
             <Text style={[styles.statusMenuOptionText, { color: '#F56C6C' }]}>停用</Text>
@@ -1491,6 +1503,70 @@ export default function ContactsScreen() {
           </TouchableOpacity>
         </View>
       </Overlay>
+
+      {/* 标记类型选择对话框 */}
+      <Overlay visible={markTypeContact !== null} onClose={() => setMarkTypeContact(null)}>
+        <View style={styles.statusMenuCard}>
+          <Text style={styles.statusMenuTitle}>选择标记方式</Text>
+          <Text style={styles.statusMenuContactName}>
+            {markTypeContact?.name} ({markTypeContact?.phone})
+          </Text>
+          <TouchableOpacity
+            style={[styles.statusMenuOption, { backgroundColor: '#FFF3E0' }]}
+            onPress={() => {
+              const contact = markTypeContact;
+              setMarkTypeContact(null);
+              if (contact) {
+                updateContactStatus(contact, 'stopped');
+              }
+            }}
+          >
+            <Ionicons name="people" size={20} color="#FF9800" />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.statusMenuOptionText, { color: '#E65100' }]}>普通标记</Text>
+              <Text style={{ fontSize: 11, color: '#999', marginTop: 2 }}>需社区共识，多人投票确认</Text>
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.statusMenuOption, { backgroundColor: '#E8F5E9' }]}
+            onPress={() => {
+              setMarkTypeContact(null);
+              setChangeNumberModalVisible(true);
+            }}
+          >
+            <Ionicons name="person" size={20} color="#4CAF50" />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.statusMenuOptionText, { color: '#2E7D32' }]}>本人标记</Text>
+              <Text style={{ fontSize: 11, color: '#999', marginTop: 2 }}>本人确认换号，一票即生效</Text>
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.statusMenuCancel}
+            onPress={() => setMarkTypeContact(null)}
+          >
+            <Text style={styles.statusMenuCancelText}>取消</Text>
+          </TouchableOpacity>
+        </View>
+      </Overlay>
+
+      {/* 本人标记（号码变更）Modal */}
+      <Modal visible={changeNumberModalVisible} animationType="slide" transparent={false}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#f5f5f5' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#eee' }}>
+            <TouchableOpacity onPress={() => setChangeNumberModalVisible(false)} style={{ padding: 8 }}>
+              <Ionicons name="close" size={24} color="#333" />
+            </TouchableOpacity>
+            <Text style={{ flex: 1, fontSize: 17, fontWeight: '600', color: '#333', textAlign: 'center', marginRight: 40 }}>本人标记</Text>
+          </View>
+          <ChangeNumberForm
+            initialOldPhone={markTypeContact?.phone || ''}
+            onSuccess={() => {
+              setChangeNumberModalVisible(false);
+              Alert.alert('成功', '号码变更通知已发布');
+            }}
+          />
+        </SafeAreaView>
+      </Modal>
 
       {/* 头像设置菜单 */}
       <Overlay visible={avatarMenuContact !== null} onClose={() => setAvatarMenuContact(null)}>
