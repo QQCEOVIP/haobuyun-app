@@ -52,49 +52,21 @@ router.post('/', async (req: any, res: any) => {
 
     const { old_phone, new_phone, display_name, remark, disclaimer_agreed, id_card, expire_days } = req.body;
 
-    // 验证免责声明同意
+    // 1. 验证免责声明同意
     if (disclaimer_agreed !== true) {
       return res.status(400).json({ error: '请先阅读并同意免责声明' });
     }
 
-    // 验证必填字段
+    // 2. 验证必填字段
     if (!old_phone || !new_phone || !display_name || !id_card) {
       return res.status(400).json({ error: '缺少必填字段' });
     }
 
-    // 验证 expire_days（只接受 30/90/180/360）
-    const validExpireDays = [30, 90, 180, 360];
-    const finalExpireDays = expire_days || 90;
-    if (!validExpireDays.includes(finalExpireDays)) {
-      return res.status(400).json({ error: '保留期限只能是30、90、180或360天' });
-    }
-
-    // 身份证验证：从 auth.users 获取用户的 id_card
-    const { data: userData, error: userError } = await supabaseAdmin
-      .from('users')
-      .select('raw_user_meta_data')
-      .eq('id', userId)
-      .single();
-
-    if (userError || !userData) {
-      console.error('[number-changes] User lookup error:', userError);
-      return res.status(400).json({ error: '无法获取用户信息' });
-    }
-
-    const storedIdCard = userData.raw_user_meta_data?.id_card;
-    if (!storedIdCard || id_card !== storedIdCard) {
-      return res.status(400).json({ error: '身份证号码与注册信息不一致' });
-    }
-
-    // 验证 display_name 长度
-    if (display_name.length < 2 || display_name.length > 20) {
-      return res.status(400).json({ error: '称呼长度必须在2-20个字符之间' });
-    }
-
-    // 服务号码检查
+    // 3. 手机号规范化
     const normalizedOld = normalizePhone(old_phone);
     const normalizedNew = normalizePhone(new_phone);
 
+    // 4. 服务号码检查（最先执行，优先于其他业务校验）
     if (isServiceNumber(normalizedOld)) {
       return res.status(400).json({ error: '该号码是官方服务号码，不允许发布变更通知' });
     }
@@ -103,7 +75,7 @@ router.post('/', async (req: any, res: any) => {
       return res.status(400).json({ error: '新号码是官方服务号码，不允许发布变更通知' });
     }
 
-    // 手机号格式校验
+    // 5. 手机号格式校验
     if (!isValidPhone(normalizedOld)) {
       return res.status(400).json({ error: '旧手机号格式无效' });
     }
@@ -112,21 +84,51 @@ router.post('/', async (req: any, res: any) => {
       return res.status(400).json({ error: '新手机号格式无效' });
     }
 
-    // 生成 name_hash
+    // 6. 验证 display_name 长度
+    if (display_name.length < 2 || display_name.length > 20) {
+      return res.status(400).json({ error: '称呼长度必须在2-20个字符之间' });
+    }
+
+    // 7. 验证 expire_days（只接受 30/90/180/360）
+    const validExpireDays = [30, 90, 180, 360];
+    const finalExpireDays = expire_days || 90;
+    if (!validExpireDays.includes(finalExpireDays)) {
+      return res.status(400).json({ error: '保留期限只能是30、90、180或360天' });
+    }
+
+    // 8. 身份证验证：从 auth.users 获取用户信息
+    const { data: authUserData, error: authError } = await supabaseAdmin.auth.admin.getUserById(userId);
+
+    if (authError || !authUserData?.user) {
+      console.error('[number-changes] User lookup error:', authError);
+      return res.status(400).json({ error: '无法获取用户信息' });
+    }
+
+    const storedIdCard = authUserData.user.user_metadata?.id_card;
+    if (!storedIdCard) {
+      console.error('[number-changes] User has no id_card in metadata, userId:', userId);
+      return res.status(400).json({ error: '您的账户未绑定身份证信息，请先完成实名认证' });
+    }
+
+    if (id_card !== storedIdCard) {
+      return res.status(400).json({ error: '身份证号码与注册信息不一致' });
+    }
+
+    // 9. 生成 name_hash
     const nameHash = await bcrypt.hash(display_name, 12);
 
-    // 计算过期时间
+    // 10. 计算过期时间
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + finalExpireDays);
 
-    // 如果已有 active 记录，先 revoke
+    // 11. 如果已有 active 记录，先 revoke
     await supabaseAdmin
       .from('number_changes')
       .update({ status: 'revoked', updated_at: new Date().toISOString() })
       .eq('old_phone', normalizedOld)
       .eq('status', 'active');
 
-    // 插入新记录
+    // 12. 插入新记录
     const { data, error } = await supabaseAdmin
       .from('number_changes')
       .insert({
