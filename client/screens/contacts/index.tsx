@@ -124,6 +124,9 @@ export default function ContactsScreen() {
   // 首次加载标记：防止Tab切换时闪屏
   const [initialLoaded, setInitialLoaded] = useState(false);
 
+  // 号码变更通知：Map<phone, { has_change, display_name_hint }>
+  const [numberChanges, setNumberChanges] = useState<Map<string, { has_change: boolean; display_name_hint: string | null }>>(new Map());
+
   // 批量管理相关状态
   const [batchMode, setBatchMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -1034,6 +1037,51 @@ export default function ContactsScreen() {
     }
   };
 
+  // 查询号码变更通知（batch-check）
+  const fetchNumberChanges = useCallback(async (contactList: Contact[]) => {
+    try {
+      const phones = contactList
+        .map(c => c.phone)
+        .filter(p => p && p !== '(无号码)' && p.length >= 7);
+      
+      if (phones.length === 0) return;
+
+      // 分批查询，每批最多50个号码
+      const batchSize = 50;
+      const allResults: Array<{ phone: string; has_change: boolean; display_name_hint: string | null }> = [];
+      
+      for (let i = 0; i < phones.length; i += batchSize) {
+        const batch = phones.slice(i, i + batchSize);
+        const response = await fetch(`${getBackendBaseUrl()}/api/v1/number-changes/batch-check`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phones: batch }),
+        });
+        if (response.ok) {
+          const json = await response.json();
+          if (json.results) {
+            allResults.push(...json.results);
+          }
+        }
+      }
+
+      // 构建 Map
+      const changeMap = new Map<string, { has_change: boolean; display_name_hint: string | null }>();
+      for (const r of allResults) {
+        if (r.has_change) {
+          changeMap.set(r.phone, { has_change: r.has_change, display_name_hint: r.display_name_hint });
+        }
+      }
+      setNumberChanges(changeMap);
+      
+      if (changeMap.size > 0) {
+        console.log(`[NumberChange] 发现 ${changeMap.size} 个号码有变更通知`);
+      }
+    } catch (error) {
+      console.error('[NumberChange] 查询号码变更失败:', error);
+    }
+  }, []);
+
   const fetchCommunityMarks = async () => {
     try {
       const response = await fetch(`${getBackendBaseUrl()}/api/v1/community-statuses`);
@@ -1132,9 +1180,11 @@ export default function ContactsScreen() {
   useEffect(() => {
     if (contacts.length > 0) {
       fetchCleanupStats();
+      fetchNumberChanges(contacts);
     } else {
       // 通讯录为0时，清除残留的旧统计数据
       setCleanupStats({ duplicate: 0, stopped: 0, suspected: 0 });
+      setNumberChanges(new Map());
     }
   }, [contacts]);
 
@@ -1183,6 +1233,8 @@ export default function ContactsScreen() {
     const customAvatarUri = contactAvatars[item.phone];
     const totalCount = communityVote ? communityVote.stoppedCount : 0;
     const isSelected = selectedIds.has(item.id);
+    const numberChange = numberChanges.get(item.phone);
+    const hasNumberChange = numberChange?.has_change === true;
 
     return (
       <TouchableOpacity
@@ -1232,6 +1284,24 @@ export default function ContactsScreen() {
           <Ionicons name="create-outline" size={20} color="#4A90D9" />
         </TouchableOpacity>
         <View style={styles.badgeContainer}>
+          {hasNumberChange && (
+            <TouchableOpacity
+              style={styles.badgeGroup}
+              activeOpacity={0.7}
+              onPress={() => Alert.alert(
+                '号码已变更',
+                `${item.name} 的号码已变更。发布人称呼：${numberChange?.display_name_hint || '未知'}。\n\n该号码的机主已更换新号码。`,
+                [{ text: '知道了' }]
+              )}
+            >
+              <Text style={styles.badgeLabel}>变更</Text>
+              <View style={[styles.statusBadge, { backgroundColor: '#E8F5E9' }]}>
+                <Text style={[styles.statusText, { color: '#2E7D32' }]}>
+                  已变更 {numberChange?.display_name_hint || ''}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          )}
           {communityVoteStyle ? (
             <>
               <TouchableOpacity
