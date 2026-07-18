@@ -1236,16 +1236,14 @@ export default function ContactsScreen() {
   };
 
   const renderContact = ({ item }: { item: Contact }) => {
-    const statusStyle = getStatusStyle(item.status);
-    const communityVote = communityVotes.get(item.phone);
     // 检查本人标记（来自 communityMarks，包含 is_self_mark 信息）
     const communityMark = communityMarks.get(item.phone);
     const isSelfMark = communityMark?.isSelfMark === true;
-    // 本人标记时强制显示"确认失效"
-    const effectiveCommunityStatus = isSelfMark ? 'confirmed_stopped' : (communityVote?.communityStatus || null);
-    const communityVoteStyle = effectiveCommunityStatus ? getCommunityVoteStyle(effectiveCommunityStatus) : null;
+    // 本人标记时直接显示"停用"
+    const statusStyle = isSelfMark
+      ? { bg: '#FEF0F0', text: '#F56C6C', label: '停用' }
+      : getStatusStyle(item.status);
     const customAvatarUri = contactAvatars[item.phone];
-    const totalCount = communityVote ? communityVote.stoppedCount : (communityMark?.voteCount || 0);
     const isSelected = selectedIds.has(item.id);
     const numberChange = numberChanges.get(item.phone);
     const hasNumberChange = numberChange?.has_change === true;
@@ -1298,7 +1296,7 @@ export default function ContactsScreen() {
           <Ionicons name="create-outline" size={20} color="#4A90D9" />
         </TouchableOpacity>
         <View style={styles.badgeContainer}>
-          {hasNumberChange && (
+          {hasNumberChange && !isSelfMark && (
             <TouchableOpacity
               style={styles.badgeGroup}
               activeOpacity={0.7}
@@ -1308,7 +1306,6 @@ export default function ContactsScreen() {
                 [{ text: '知道了' }]
               )}
             >
-              <Text style={styles.badgeLabel}>变更</Text>
               <View style={[styles.statusBadge, { backgroundColor: '#E8F5E9' }]}>
                 <Text style={[styles.statusText, { color: '#2E7D32' }]}>
                   已变更 {numberChange?.display_name_hint || ''}
@@ -1316,48 +1313,14 @@ export default function ContactsScreen() {
               </View>
             </TouchableOpacity>
           )}
-          {communityVoteStyle ? (
-            <>
-              <TouchableOpacity
-                style={styles.badgeGroup}
-                activeOpacity={0.7}
-                onPress={() => setStatusMenuContact(item)}
-              >
-                <Text style={styles.badgeLabel}>我的</Text>
-                <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
-                  <Text style={[styles.statusText, { color: statusStyle.text }]}>
-                    {statusStyle.label}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.badgeGroup}
-                activeOpacity={0.7}
-                onPress={() => {
-                  setVotePanelContact(item);
-                  setVotePanelVisible(true);
-                  // 获取实时社区状态
-                  fetchNumberStatus(item.phone);
-                }}
-              >
-                <Text style={styles.badgeLabel}>{isSelfMark ? '本人' : '社区'}</Text>
-                <View style={[styles.statusBadge, { backgroundColor: communityVoteStyle.bg }]}>
-                  <Text style={[styles.statusText, { color: communityVoteStyle.text }]}>
-                    {isSelfMark ? `本人标记${communityVoteStyle.label}` : `${totalCount}人标记${communityVoteStyle.label}`}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            </>
-          ) : (
-            <TouchableOpacity
-              style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}
-              onPress={() => setStatusMenuContact(item)}
-            >
-              <Text style={[styles.statusText, { color: statusStyle.text }]}>
-                {statusStyle.label}
-              </Text>
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity
+            style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}
+            onPress={() => setStatusMenuContact(item)}
+          >
+            <Text style={[styles.statusText, { color: statusStyle.text }]}>
+              {statusStyle.label}
+            </Text>
+          </TouchableOpacity>
         </View>
       </TouchableOpacity>
     );
