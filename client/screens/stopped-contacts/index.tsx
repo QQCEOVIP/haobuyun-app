@@ -27,6 +27,7 @@ interface StoppedContact {
   normalizedPhone: string;
   label: string;
   authenticatedName?: string;
+  isSelfMark?: boolean;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -114,14 +115,23 @@ export default function StoppedContactsScreen() {
       const communityStatusMap = new Map<string, string>();
       const communityNameMap = new Map<string, string>();
       const authenticatedPhones = new Set<string>();
+      const selfMarkPhones = new Set<string>();
       try {
-        const response = await fetch(`${getBackendBaseUrl()}/api/v1/community-statuses`);
+        const userId = (user as any)?.id;
+        const statusUrl = userId
+          ? `${getBackendBaseUrl()}/api/v1/community-statuses?user_id=${encodeURIComponent(userId)}`
+          : `${getBackendBaseUrl()}/api/v1/community-statuses`;
+        const response = await fetch(statusUrl);
         if (response.ok) {
           const json = await response.json();
           const statuses = json.statuses || [];
           for (const row of statuses) {
             const normalized = normalizePhone(row.phone || '');
             if (normalized) {
+              // Track self-marked phones
+              if (row.is_self_mark) {
+                selfMarkPhones.add(normalized);
+              }
               // Skip authenticated numbers - they should not appear in possibly-invalid list
               if (row.authenticated_name) {
                 authenticatedPhones.add(normalized);
@@ -167,6 +177,7 @@ export default function StoppedContactsScreen() {
               normalizedPhone: normalized,
               label: finalLabel,
               authenticatedName: normalized ? communityNameMap.get(normalized) : undefined,
+              isSelfMark: normalized ? selfMarkPhones.has(normalized) : false,
             });
           }
         } catch (storageError) {
@@ -312,6 +323,38 @@ export default function StoppedContactsScreen() {
     }
   }, []);
 
+  const handleRevokeMark = useCallback(async (item: StoppedContact) => {
+    Alert.alert('撤回标记', `确定撤回「${item.name}」(${item.phone}) 的本人标记吗？`, [
+      { text: '取消', style: 'cancel' },
+      {
+        text: '撤回',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            const userId = (user as any)?.id;
+            const response = await fetch(`${getBackendBaseUrl()}/api/v1/number-changes`, {
+              method: 'DELETE',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-user-id': userId || '',
+              },
+              body: JSON.stringify({ old_phone: item.phone }),
+            });
+            if (response.ok) {
+              Alert.alert('成功', '已撤回标记');
+              loadContacts();
+            } else {
+              const json = await response.json().catch(() => ({}));
+              Alert.alert('失败', (json as any).error || '撤回失败');
+            }
+          } catch (err) {
+            Alert.alert('错误', '网络请求失败');
+          }
+        },
+      },
+    ]);
+  }, [user, loadContacts]);
+
   const handleDeleteSelected = useCallback(() => {
     const unselectedCount = contacts.length - selectedIds.size;
     if (unselectedCount === 0) {
@@ -434,6 +477,20 @@ export default function StoppedContactsScreen() {
               >
                 <Ionicons name="information-circle-outline" size={12} color="#10B981" />
                 <Text style={styles.statusBtnText} numberOfLines={1}>号码状态</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Revoke button for self-marked numbers */}
+          {item.isSelfMark && (
+            <View style={styles.actionRow}>
+              <TouchableOpacity
+                style={[styles.actionButton, { backgroundColor: '#FFF7ED', borderColor: '#FED7AA', borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }]}
+                onPress={() => handleRevokeMark(item)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="refresh-outline" size={12} color="#EA580C" />
+                <Text style={{ fontSize: 11, fontWeight: '600', color: '#EA580C', marginLeft: 4 }}>撤回标记</Text>
               </TouchableOpacity>
             </View>
           )}

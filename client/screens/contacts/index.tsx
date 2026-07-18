@@ -1132,6 +1132,12 @@ export default function ContactsScreen() {
       }
 
       setCommunityMarks(phoneCommunityMap);
+
+      // Update cleanup stats: add self-marked count to "确认失效"
+      const selfMarkCount = Array.from(phoneCommunityMap.values()).filter(v => v.isSelfMark).length;
+      if (selfMarkCount > 0) {
+        setCleanupStats(prev => ({ ...prev, stopped: prev.stopped + selfMarkCount }));
+      }
     } catch (error) {
       console.error('Failed to fetch community marks:', error);
     }
@@ -1525,6 +1531,36 @@ export default function ContactsScreen() {
           <Text style={styles.statusMenuContactName}>
             {statusMenuContact?.name} ({statusMenuContact?.phone})
           </Text>
+          {statusMenuContact && communityMarks.get(statusMenuContact.phone)?.isSelfMark && (
+            <TouchableOpacity
+              style={[styles.statusMenuOption, { backgroundColor: '#FFF7ED' }]}
+              onPress={async () => {
+                setStatusMenuContact(null);
+                try {
+                  const response = await fetch(`${getBackendBaseUrl()}/api/v1/number-changes`, {
+                    method: 'DELETE',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'x-user-id': userId || '',
+                    },
+                    body: JSON.stringify({ old_phone: statusMenuContact.phone }),
+                  });
+                  if (response.ok) {
+                    Alert.alert('成功', '已撤回本人标记');
+                    fetchCommunityMarks();
+                  } else {
+                    const json = await response.json().catch(() => ({}));
+                    Alert.alert('失败', (json as any).error || '撤回失败');
+                  }
+                } catch (err) {
+                  Alert.alert('错误', '网络请求失败');
+                }
+              }}
+            >
+              <Ionicons name="refresh-outline" size={20} color="#EA580C" />
+              <Text style={[styles.statusMenuOptionText, { color: '#EA580C' }]}>撤回本人标记</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity
             style={[styles.statusMenuOption, { backgroundColor: '#E7F7E7' }]}
             onPress={() => updateContactStatus(statusMenuContact, 'normal')}
