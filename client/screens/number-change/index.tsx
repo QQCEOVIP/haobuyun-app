@@ -37,7 +37,7 @@ export default function ChangeNumberForm({ onSuccess }: ChangeNumberFormProps) {
     { label: '360天', value: 360 },
   ];
 
-  const isFormValid = oldPhone && newPhone && displayName && idCard && agreed;
+  const isFormValid = oldPhone && newPhone && displayName && agreed;
 
   const handleSubmit = async () => {
     if (!isFormValid || loading) return;
@@ -60,7 +60,7 @@ export default function ChangeNumberForm({ onSuccess }: ChangeNumberFormProps) {
           new_phone: newPhone,
           display_name: displayName,
           remark: remark,
-          id_card: idCard,
+          ...(idCard ? { id_card: idCard } : {}),
           expire_days: expireDays,
           disclaimer_agreed: true,
         }),
@@ -144,7 +144,7 @@ export default function ChangeNumberForm({ onSuccess }: ChangeNumberFormProps) {
         </View>
 
         <View style={styles.field}>
-          <Text style={styles.label}>身份证号码 *</Text>
+          <Text style={styles.label}>身份证号码（可选）</Text>
           <TextInput
             style={styles.input}
             placeholder="请输入身份证号码进行身份验证"

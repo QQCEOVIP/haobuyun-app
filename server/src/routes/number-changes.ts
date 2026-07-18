@@ -58,7 +58,7 @@ router.post('/', async (req: any, res: any) => {
     }
 
     // 2. 验证必填字段
-    if (!old_phone || !new_phone || !display_name || !id_card) {
+    if (!old_phone || !new_phone || !display_name) {
       return res.status(400).json({ error: '缺少必填字段' });
     }
 
@@ -96,22 +96,24 @@ router.post('/', async (req: any, res: any) => {
       return res.status(400).json({ error: '保留期限只能是30、90、180或360天' });
     }
 
-    // 8. 身份证验证：从 auth.users 获取用户信息
-    const { data: authUserData, error: authError } = await supabaseAdmin.auth.admin.getUserById(userId);
+    // 8. 身份证验证（仅当用户提供 id_card 时才验证）
+    if (id_card) {
+      const { data: authUserData, error: authError } = await supabaseAdmin.auth.admin.getUserById(userId);
 
-    if (authError || !authUserData?.user) {
-      console.error('[number-changes] User lookup error:', authError);
-      return res.status(400).json({ error: '无法获取用户信息' });
-    }
+      if (authError || !authUserData?.user) {
+        console.error('[number-changes] User lookup error:', authError);
+        return res.status(400).json({ error: '无法获取用户信息' });
+      }
 
-    const storedIdCard = authUserData.user.user_metadata?.id_card;
-    if (!storedIdCard) {
-      console.error('[number-changes] User has no id_card in metadata, userId:', userId);
-      return res.status(400).json({ error: '您的账户未绑定身份证信息，请先完成实名认证' });
-    }
+      const storedIdCard = authUserData.user.user_metadata?.id_card;
+      if (!storedIdCard) {
+        console.error('[number-changes] User has no id_card in metadata, userId:', userId);
+        return res.status(400).json({ error: '您的账户未绑定身份证信息，请先完成实名认证' });
+      }
 
-    if (id_card !== storedIdCard) {
-      return res.status(400).json({ error: '身份证号码与注册信息不一致' });
+      if (id_card !== storedIdCard) {
+        return res.status(400).json({ error: '身份证号码与注册信息不一致' });
+      }
     }
 
     // 9. 生成 name_hash
