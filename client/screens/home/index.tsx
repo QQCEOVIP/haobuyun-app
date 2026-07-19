@@ -384,10 +384,18 @@ export default function HomeScreen() {
         }
       }
 
-      // 收集所有电话号码用于社区投票查询
+      // 收集所有电话号码用于社区投票查询（标准化：去除+86前缀）
       const allPhones = deviceContacts
-        .map((c: any) => c.phoneNumbers?.[0]?.number || '')
-        .filter((p: string) => p.length > 0);
+        .map((c: any) => {
+          const raw = c.phoneNumbers?.[0]?.number || '';
+          const digits = raw.replace(/\D/g, '');
+          // 去除+86/86国际区号前缀
+          if (digits.length === 13 && digits.startsWith('86')) {
+            return digits.slice(2);
+          }
+          return digits;
+        })
+        .filter((p: string) => p.length >= 7);
 
       // 查询社区投票结果
       const communityVotesMap = new Map<string, { stoppedCount: number; communityStatus: string | null }>();
@@ -439,8 +447,17 @@ export default function HomeScreen() {
         }
       }
 
-      // 电话号码标准化函数（与后端 normalizePhone 保持一致）
-      const normalizePhone = (phone: string) => phone.replace(/[\s\-()]/g, '');
+      // 电话号码标准化函数（去除所有非数字字符，处理+86/86前缀）
+      const normalizePhone = (phone: string) => {
+        const digits = phone.replace(/\D/g, '');
+        if (digits.length === 13 && digits.startsWith('86')) {
+          return digits.slice(2);
+        }
+        if (digits.length === 11) {
+          return digits;
+        }
+        return digits;
+      };
 
       // 统计检测结果（结合本地状态和社区投票）
       const result = {
@@ -2030,6 +2047,15 @@ export default function HomeScreen() {
   const fetchStats = async () => {
     if (!userId) return;
 
+    // 电话号码标准化辅助函数（去除所有非数字字符，处理86前缀）
+    const normPhone = (phone: string) => {
+      const digits = phone.replace(/\D/g, '');
+      if (digits.length === 13 && digits.startsWith('86')) {
+        return digits.slice(2);
+      }
+      return digits;
+    };
+
     try {
       // 1. 获取设备联系人数量
       let deviceContactsCount = 0;
@@ -2074,7 +2100,7 @@ export default function HomeScreen() {
       const currentPhoneSet = new Set<string>();
       allDeviceContacts.forEach(c => {
         (c.phoneNumbers || []).forEach((p: any) => {
-          const num = (p.number || '').replace(/\D/g, '');
+          const num = normPhone(p.number || '');
           if (num.length >= 7) currentPhoneSet.add(num);
         });
       });
@@ -2100,7 +2126,7 @@ export default function HomeScreen() {
           const json = await response.json();
           const statuses = json.statuses || [];
           for (const row of statuses) {
-            const normalized = (row.phone || '').replace(/\D/g, '');
+            const normalized = normPhone(row.phone || '');
             if (normalized) {
               if (row.is_self_mark) {
                 selfMarkPhones.add(normalized);
