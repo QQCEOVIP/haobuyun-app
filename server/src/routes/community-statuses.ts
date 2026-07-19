@@ -32,16 +32,36 @@ router.get('/', async (req: any, res: any) => {
     const userId = req.query.user_id as string | undefined;
 
     // 查询所有有 stopped 投票的号码（阈值>=1，包含本人标记）
-    const result = await db.execute(sql`
+    // 同时从 number_votes 和 number_changes 表获取，确保本人标记的号码即使没有投票记录也能被返回
+    const votesQuery = sql`
       SELECT 
-        v.phone::TEXT,
+        v.phone::TEXT as phone,
         COUNT(DISTINCT CASE WHEN v.vote = 'stopped' THEN v.user_id END)::INTEGER as stopped_count,
         COUNT(DISTINCT v.user_id)::INTEGER as vote_count,
         MAX(v.updated_at) as last_vote_at
       FROM number_votes v
+      WHERE v.vote = 'stopped'
+        AND v.updated_at > NOW() - INTERVAL '30 days'
       GROUP BY v.phone
       HAVING COUNT(DISTINCT CASE WHEN v.vote = 'stopped' THEN v.user_id END) >= 1
-         AND MAX(v.updated_at) > NOW() - INTERVAL '30 days'
+    `;
+
+    const changesQuery = sql`
+      SELECT 
+        nc.old_phone::TEXT as phone,
+        0::INTEGER as stopped_count,
+        0::INTEGER as vote_count,
+        nc.created_at as last_vote_at
+      FROM number_changes nc
+      WHERE nc.status = 'active'
+        AND nc.expires_at > NOW()
+    `;
+
+    const result = await db.execute(sql`
+      SELECT phone, MAX(stopped_count) as stopped_count, MAX(vote_count) as vote_count, MAX(last_vote_at) as last_vote_at
+      FROM (${votesQuery} UNION ALL ${changesQuery}) as combined
+      GROUP BY phone
+      HAVING MAX(last_vote_at) > NOW() - INTERVAL '30 days'
     `);
 
     const rows = (result as any[]) || [];
@@ -99,8 +119,12 @@ router.get('/', async (req: any, res: any) => {
       } else if (stoppedCount > 10) {
         // >10票停用且无人认证 → 确认失效
         status = 'confirmed_invalid';
-      } else {
+      } else if (stoppedCount >= 1) {
         // 1~10票停用 → 可能失效
+        status = 'possibly_invalid';
+      } else {
+        // 只有 number_changes 记录但没有投票的号码
+        // 如果是本人标记，已经在上面处理了；否则可能是其他人的标记
         status = 'possibly_invalid';
       }
 
@@ -112,10 +136,12 @@ router.get('/', async (req: any, res: any) => {
       };
       if (isSelfMark) {
         item.is_self_mark = true;
-      }
-      const authName = authMap.get(r.phone);
-      if (authName) {
-        item.authenticated_name = authName;
+        // 本人标记的号码不返回 authenticated_name，避免客户端跳过
+      } else {
+        const authName = authMap.get(r.phone);
+        if (authName) {
+          item.authenticated_name = authName;
+        }
       }
       return item;
     });
