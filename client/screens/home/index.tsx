@@ -2066,8 +2066,7 @@ export default function HomeScreen() {
         return;
       }
 
-      // 2. 从 AsyncStorage 读取状态分布（真正的标签数据源）
-      // 只统计当前设备联系人中存在的号码，忽略过期的 AsyncStorage 条目
+      // 2. 从 AsyncStorage 和 API 读取状态分布
       const allKeys = await AsyncStorage.getAllKeys();
       const statusKeys = allKeys.filter(k => k.startsWith('@contact_status_'));
       
@@ -2088,35 +2087,82 @@ export default function HomeScreen() {
         unknown: 0,
       };
 
-      if (statusKeys.length > 0) {
-        const statusEntries = await AsyncStorage.multiGet(statusKeys);
-        let matchedCount = 0;
-        for (const [key, value] of statusEntries) {
-          if (!value) continue;
-          // 检查该条目对应的电话号码是否仍在设备联系人中
-          const phone = key.replace('@contact_status_', '').replace(/\D/g, '');
-          if (currentPhoneSet.size > 0 && !currentPhoneSet.has(phone)) {
-            continue; // 跳过过期的条目
-          }
-          matchedCount++;
-          switch (value) {
-            case 'normal':
-              contactStats.active++;
-              break;
-            case 'suspected_stopped':
-              contactStats.maybeInvalid++;
-              break;
-            case 'stopped':
-              contactStats.invalid++;
-              break;
-            default:
-              break;
+      // 2a. 从 API 获取社区状态（用于补充 AsyncStorage 缺失的数据）
+      const communityStatusMap = new Map<string, string>();
+      const selfMarkPhones = new Set<string>();
+      const authenticatedPhones = new Set<string>();
+      try {
+        const statusUrl = userId
+          ? `${getBackendBaseUrl()}/api/v1/community-statuses?user_id=${encodeURIComponent(userId)}`
+          : `${getBackendBaseUrl()}/api/v1/community-statuses`;
+        const response = await fetch(statusUrl);
+        if (response.ok) {
+          const json = await response.json();
+          const statuses = json.statuses || [];
+          for (const row of statuses) {
+            const normalized = (row.phone || '').replace(/\D/g, '');
+            if (normalized) {
+              if (row.is_self_mark) {
+                selfMarkPhones.add(normalized);
+                communityStatusMap.set(normalized, 'stopped');
+              } else if (row.authenticated_name) {
+                authenticatedPhones.add(normalized);
+                // 已认证号码不计入失效统计
+              } else if (row.status === 'confirmed_invalid') {
+                communityStatusMap.set(normalized, 'stopped');
+              } else if (row.status === 'possibly_invalid') {
+                communityStatusMap.set(normalized, 'suspected_stopped');
+              }
+            }
           }
         }
-        contactStats.unknown = Math.max(0, deviceContactsCount - matchedCount);
-      } else {
-        contactStats.unknown = deviceContactsCount;
+      } catch (apiError) {
+        console.warn('[Home] Failed to fetch community statuses:', apiError);
       }
+
+      // 2b. 合并 AsyncStorage 和 API 数据
+      // 优先使用 AsyncStorage（用户手动标记），API 作为补充
+      const statusCountMap = new Map<string, string>();
+      
+      // 先处理 AsyncStorage 条目
+      if (statusKeys.length > 0) {
+        const statusEntries = await AsyncStorage.multiGet(statusKeys);
+        for (const [key, value] of statusEntries) {
+          if (!value) continue;
+          const phone = key.replace('@contact_status_', '').replace(/\D/g, '');
+          if (currentPhoneSet.size > 0 && !currentPhoneSet.has(phone)) {
+            continue;
+          }
+          statusCountMap.set(phone, value);
+        }
+      }
+      
+      // 再用 API 数据补充（如果 AsyncStorage 没有）
+      for (const [phone, status] of communityStatusMap.entries()) {
+        if (!statusCountMap.has(phone) && currentPhoneSet.has(phone)) {
+          statusCountMap.set(phone, status);
+        }
+      }
+      
+      // 统计各种状态的数量
+      for (const [phone, status] of statusCountMap.entries()) {
+        switch (status) {
+          case 'normal':
+            contactStats.active++;
+            break;
+          case 'suspected_stopped':
+            contactStats.maybeInvalid++;
+            break;
+          case 'stopped':
+            contactStats.invalid++;
+            break;
+          default:
+            break;
+        }
+      }
+      
+      const matchedCount = statusCountMap.size;
+      contactStats.unknown = Math.max(0, deviceContactsCount - matchedCount);
 
       console.log('[Home] Final stats:', JSON.stringify(contactStats));
       setStats(contactStats);
