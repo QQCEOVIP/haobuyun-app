@@ -153,7 +153,7 @@ export default function StoppedContactsScreen() {
       const result: StoppedContact[] = [];
       for (const contact of allContacts) {
         if (!contact.phoneNumbers || contact.phoneNumbers.length === 0) continue;
-        const rawPhone = contact.phoneNumbers[0].number || '';
+        const rawPhone = (contact.phoneNumbers[0].number || '').trim();
         if (!rawPhone) continue;
 
         const normalized = normalizePhone(rawPhone);

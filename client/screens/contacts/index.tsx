@@ -1148,6 +1148,11 @@ export default function ContactsScreen() {
     try {
       // Always persist to AsyncStorage first for cross-session durability
       await AsyncStorage.setItem(`@contact_status_${contact.phone}`, newStatus);
+      // Also save with normalized phone to ensure cross-page consistency
+      const normalized = normalizePhone(contact.phone);
+      if (normalized && normalized !== contact.phone) {
+        await AsyncStorage.setItem(`@contact_status_${normalized}`, newStatus);
+      }
       
       // Always update local state immediately
       setContacts(prev => prev.map(c => c.phone === contact.phone ? { ...c, status: newStatus } : c));
