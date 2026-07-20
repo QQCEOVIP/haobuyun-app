@@ -475,20 +475,36 @@ export default function HomeScreen() {
         const rawPhone = contact.phoneNumbers?.[0]?.number || '';
         const phone = normalizePhone(rawPhone); // 标准化电话号码
         
-        // Skip authenticated numbers during detection (Fix 5)
-        const digits = phone.replace(/\D/g, '');
-        const normalizedForAuth = (digits.length === 13 && digits.startsWith('86'))
-          ? digits.slice(2)
-          : digits;
-        if (normalizedForAuth && authenticatedPhones.has(normalizedForAuth)) {
-          result.active++; // Count as active/normal
-          return;
-        }
-        
         const localData = allLocalContacts?.find((lc: any) => lc.phone === phone);
         // AsyncStorage 手动标签优先，其次 Supabase 检测结果
         const cachedStatus = localStatusMap.get(phone) || localData?.status;
-        const communityVote = communityVotesMap.get(phone);
+        
+        // 在所有号码中查找社区投票（任一号码匹配即视为该联系人有社区投票）
+        let communityVote: { stoppedCount: number; communityStatus: string | null; isSelfMark?: boolean } | undefined;
+        for (const cp of contactPhones) {
+          const cv = communityVotesMap.get(cp);
+          if (cv) {
+            // 优先使用严重程度更高的投票结果
+            if (!communityVote || cv.communityStatus === 'confirmed_stopped') {
+              communityVote = cv;
+            }
+          }
+        }
+        // DEBUG: 当联系人的号码与communityVotesMap有交叉时，打印匹配详情
+        if (communityVote) {
+          console.log(`[DEBUG] MATCH! contact="${contact.name}" phones=${JSON.stringify(contactPhones)} matchedStatus="${communityVote.communityStatus}"`);
+        }
+        // DEBUG_DETECT: 每个有号码的联系人打印匹配结果
+        if (contactPhones.length > 0) {
+          console.log(`[DEBUG_DETECT] contact="${contact.name}", phones=${JSON.stringify(contactPhones)}, matched=${communityVote ? communityVote.communityStatus : 'none'}, total_contacts=${deviceContacts.length}`);
+        }
+
+        // 认证号码检查：只有在没有社区投票时才跳过（有社区投票的认证号码仍需根据投票判定状态）
+        const normalizedForAuth = phone.replace(/\D/g, '');
+        if (normalizedForAuth && authenticatedPhones.has(normalizedForAuth) && !communityVote) {
+          result.active++; // Count as active/normal
+          return;
+        }
         
         // 综合判断：本地状态 + 社区投票
         // 修复：如果没有社区投票，不使用旧的缓存状态（避免投票删除后仍显示"可能失效"）
