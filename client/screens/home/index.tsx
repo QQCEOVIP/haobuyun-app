@@ -405,7 +405,7 @@ export default function HomeScreen() {
         const response = await fetch(`${getBackendBaseUrl()}/api/v1/votes/batch-query`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phones: allPhones.slice(0, 500) }), // 限制单次查询数量
+          body: JSON.stringify({ phones: allPhones.slice(0, 500), user_id: user?.id }), // 限制单次查询数量，传user_id以识别本人标记
         });
         if (response.ok) {
           const data = await response.json();
