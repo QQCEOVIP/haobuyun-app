@@ -384,10 +384,10 @@ export default function HomeScreen() {
         }
       }
 
-      // 收集所有电话号码用于社区投票查询（标准化：去除+86前缀）
+      // 收集所有电话号码用于社区投票查询（标准化：去除+86前缀，包含每个联系人的所有号码）
       const allPhones = deviceContacts
-        .map((c: any) => {
-          const raw = c.phoneNumbers?.[0]?.number || '';
+        .flatMap((c: any) => (c.phoneNumbers || []).map((pn: any) => pn?.number || ''))
+        .map((raw: string) => {
           const digits = raw.replace(/\D/g, '');
           // 去除+86/86国际区号前缀
           if (digits.length === 13 && digits.startsWith('86')) {
@@ -478,6 +478,18 @@ export default function HomeScreen() {
         const localData = allLocalContacts?.find((lc: any) => lc.phone === phone);
         // AsyncStorage 手动标签优先，其次 Supabase 检测结果
         const cachedStatus = localStatusMap.get(phone) || localData?.status;
+        
+        // 收集该联系人的所有号码（标准化后）用于社区投票匹配
+        const contactPhones: string[] = (contact.phoneNumbers || [])
+          .map((pn: any) => {
+            const raw = pn?.number || '';
+            const digits = raw.replace(/\D/g, '');
+            if (digits.length === 13 && digits.startsWith('86')) {
+              return digits.slice(2);
+            }
+            return digits;
+          })
+          .filter((p: string) => p.length >= 7);
         
         // 在所有号码中查找社区投票（任一号码匹配即视为该联系人有社区投票）
         let communityVote: { stoppedCount: number; communityStatus: string | null; isSelfMark?: boolean } | undefined;
