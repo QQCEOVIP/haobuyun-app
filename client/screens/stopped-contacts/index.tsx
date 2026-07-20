@@ -10,6 +10,7 @@ import {
   Modal,
   ScrollView,
   TouchableWithoutFeedback,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
@@ -69,6 +70,17 @@ export default function StoppedContactsScreen() {
     is_authenticated: boolean;
   } | null>(null);
   const [statusDialogLoading, setStatusDialogLoading] = useState(false);
+  // 获取新号对话框状态
+  const [newNumberDialogVisible, setNewNumberDialogVisible] = useState(false);
+  const [newNumberDialogPhone, setNewNumberDialogPhone] = useState('');
+  const [newNumberDialogName, setNewNumberDialogName] = useState('');
+  const [newNumberDialogResult, setNewNumberDialogResult] = useState<{
+    new_phone: string;
+    remark?: string;
+    changed_at?: string;
+  } | null>(null);
+  const [newNumberDialogLoading, setNewNumberDialogLoading] = useState(false);
+  const [newNumberDialogError, setNewNumberDialogError] = useState('');
 
   // Safely resolve status - default to 'stopped' if invalid
   const validStatus = (status === 'stopped' || status === 'suspected_stopped') ? status : 'stopped';
@@ -323,6 +335,57 @@ export default function StoppedContactsScreen() {
     }
   }, []);
 
+  /**
+   * 获取新号：打开对话框，用户输入称呼后调用 verify API 匹配
+   * 服务端文件：server/src/routes/number-changes.ts
+   * 接口：POST /api/v1/number-changes/verify
+   * Body: { old_phone: string, input_name: string }
+   */
+  const handleGetNewNumber = useCallback((item: StoppedContact) => {
+    setNewNumberDialogPhone(item.phone);
+    setNewNumberDialogName('');
+    setNewNumberDialogResult(null);
+    setNewNumberDialogError('');
+    setNewNumberDialogVisible(true);
+  }, []);
+
+  const handleVerifyNewNumber = useCallback(async () => {
+    const inputName = newNumberDialogName.trim();
+    if (!inputName) {
+      setNewNumberDialogError('请输入对方预留的称呼');
+      return;
+    }
+    setNewNumberDialogLoading(true);
+    setNewNumberDialogError('');
+    setNewNumberDialogResult(null);
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (user?.id) headers['x-user-id'] = user.id;
+
+      const response = await fetch(`${getBackendBaseUrl()}/api/v1/number-changes/verify`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ old_phone: newNumberDialogPhone, input_name: inputName }),
+      });
+
+      if (response.ok) {
+        const json = await response.json();
+        if (json.verified) {
+          setNewNumberDialogResult(json.data);
+        } else {
+          setNewNumberDialogError(json.message || '称呼不匹配，无法查看');
+        }
+      } else {
+        setNewNumberDialogError('查询失败，请重试');
+      }
+    } catch (error) {
+      console.error('Failed to verify new number:', error);
+      setNewNumberDialogError('网络错误，请重试');
+    } finally {
+      setNewNumberDialogLoading(false);
+    }
+  }, [newNumberDialogName, newNumberDialogPhone, user]);
+
   const handleRevokeMark = useCallback(async (item: StoppedContact) => {
     Alert.alert('撤回标记', `确定撤回「${item.name}」(${item.phone}) 的本人标记吗？`, [
       { text: '取消', style: 'cancel' },
@@ -444,11 +507,11 @@ export default function StoppedContactsScreen() {
           </View>
           <Text style={styles.cardPhone}>{item.phone}</Text>
 
-          {/* Action buttons for possibly invalid numbers - 3 buttons evenly distributed */}
+          {/* Action buttons for possibly invalid numbers - 4 buttons evenly distributed */}
           {isPossiblyInvalid && (
             <View style={styles.actionRow}>
               <TouchableOpacity
-                style={[styles.actionButton, styles.actionButtonFlex, styles.confirmBtn]}
+                style={[styles.actionButton, styles.actionButtonFlex4, styles.confirmBtn]}
                 onPress={() => handleConfirmStopped(item)}
                 disabled={isLoading}
                 activeOpacity={0.7}
@@ -463,7 +526,7 @@ export default function StoppedContactsScreen() {
                 )}
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.actionButton, styles.actionButtonFlex, styles.changeOwnerBtn]}
+                style={[styles.actionButton, styles.actionButtonFlex4, styles.changeOwnerBtn]}
                 onPress={() => handleChangeOwner(item)}
                 activeOpacity={0.7}
               >
@@ -471,7 +534,15 @@ export default function StoppedContactsScreen() {
                 <Text style={styles.changeOwnerBtnText} numberOfLines={1}>已换机主</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.actionButton, styles.actionButtonFlex, styles.statusBtn]}
+                style={[styles.actionButton, styles.actionButtonFlex4, styles.getNewNumberBtn]}
+                onPress={() => handleGetNewNumber(item)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="phone-portrait-outline" size={12} color="#10B981" />
+                <Text style={styles.getNewNumberBtnText} numberOfLines={1}>获取新号</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionButton, styles.actionButtonFlex4, styles.statusBtn]}
                 onPress={() => handleShowNumberStatus(item)}
                 activeOpacity={0.7}
               >
@@ -761,6 +832,73 @@ export default function StoppedContactsScreen() {
           </View>
         </View>
       )}
+
+      {/* 获取新号对话框 */}
+      {newNumberDialogVisible && (
+        <View style={styles.newNumberDialogOverlay}>
+          <View style={styles.newNumberDialogContent}>
+            <View style={styles.newNumberDialogHeader}>
+              <Text style={styles.newNumberDialogTitle}>获取新号</Text>
+              <TouchableOpacity onPress={() => setNewNumberDialogVisible(false)} style={styles.newNumberDialogClose}>
+                <Ionicons name="close" size={22} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.newNumberDialogPhone}>旧号码：{newNumberDialogPhone}</Text>
+            {newNumberDialogResult ? (
+              // 验证成功，显示新号码
+              <View>
+                <View style={styles.newNumberResultBox}>
+                  <Text style={styles.newNumberResultLabel}>✅ 匹配成功！新号码为：</Text>
+                  <Text style={styles.newNumberResultPhone}>{newNumberDialogResult.new_phone}</Text>
+                  {newNumberDialogResult.remark ? (
+                    <Text style={styles.newNumberResultRemark}>备注：{newNumberDialogResult.remark}</Text>
+                  ) : null}
+                </View>
+                <TouchableOpacity
+                  style={[styles.newNumberDialogSubmitBtn, { marginTop: 16 }]}
+                  onPress={() => {
+                    // 复制到剪贴板
+                    Alert.alert('新号码', newNumberDialogResult.new_phone, [{ text: '好的' }]);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.newNumberDialogSubmitText}>复制新号码</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              // 输入称呼阶段
+              <View>
+                <Text style={styles.newNumberDialogHint}>
+                  请输入对方换号时预留的称呼（如"张三"），匹配成功后即可查看新号码。
+                </Text>
+                <TextInput
+                  style={[styles.newNumberDialogInput, newNumberDialogError ? { borderColor: '#EF4444' } : null]}
+                  placeholder="输入对方预留的称呼"
+                  value={newNumberDialogName}
+                  onChangeText={(text) => { setNewNumberDialogName(text); setNewNumberDialogError(''); }}
+                  placeholderTextColor="#9CA3AF"
+                  autoCapitalize="none"
+                />
+                {newNumberDialogError ? (
+                  <Text style={styles.newNumberDialogError}>{newNumberDialogError}</Text>
+                ) : null}
+                <TouchableOpacity
+                  style={[styles.newNumberDialogSubmitBtn, newNumberDialogLoading && styles.newNumberDialogSubmitBtnDisabled]}
+                  onPress={handleVerifyNewNumber}
+                  disabled={newNumberDialogLoading}
+                  activeOpacity={0.7}
+                >
+                  {newNumberDialogLoading ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.newNumberDialogSubmitText}>查询新号</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -791,12 +929,33 @@ const styles = StyleSheet.create({
   actionRow: { flexDirection: 'row', gap: 6, marginTop: 10 },
   actionButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6, paddingVertical: 6, borderRadius: 8, gap: 3 },
   actionButtonFlex: { flex: 1 },
+  actionButtonFlex4: { flex: 0.25 },
   confirmBtn: { backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FECACA' },
   confirmBtnText: { fontSize: 11, fontWeight: '600', color: '#EF4444' },
   changeOwnerBtn: { backgroundColor: '#EEF2FF', borderWidth: 1, borderColor: '#C7D2FE' },
   changeOwnerBtnText: { fontSize: 11, fontWeight: '600', color: '#6366F1' },
   statusBtn: { backgroundColor: '#ECFDF5', borderWidth: 1, borderColor: '#A7F3D0' },
   statusBtnText: { fontSize: 11, fontWeight: '600', color: '#10B981' },
+  getNewNumberBtn: { backgroundColor: '#ECFDF5', borderWidth: 1, borderColor: '#A7F3D0' },
+  getNewNumberBtnText: { fontSize: 11, fontWeight: '600', color: '#10B981' },
+  // 获取新号对话框样式
+  newNumberDialogOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center', zIndex: 1000 },
+  newNumberDialogContent: { backgroundColor: '#fff', borderRadius: 16, padding: 20, marginHorizontal: 32, minWidth: 280, maxWidth: 340 },
+  newNumberDialogHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  newNumberDialogTitle: { fontSize: 16, fontWeight: '700', color: '#111827' },
+  newNumberDialogClose: { padding: 4 },
+  newNumberDialogPhone: { fontSize: 13, color: '#6B7280', marginBottom: 12 },
+  newNumberDialogHint: { fontSize: 12, color: '#9CA3AF', marginBottom: 8, lineHeight: 18 },
+  newNumberDialogInput: { borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, fontSize: 15, color: '#111827', marginBottom: 8 },
+  newNumberDialogInputFocused: { borderColor: '#10B981' },
+  newNumberDialogError: { fontSize: 12, color: '#EF4444', marginBottom: 8 },
+  newNumberDialogSubmitBtn: { backgroundColor: '#10B981', borderRadius: 10, paddingVertical: 12, alignItems: 'center', marginTop: 4 },
+  newNumberDialogSubmitBtnDisabled: { backgroundColor: '#9CA3AF' },
+  newNumberDialogSubmitText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  newNumberResultBox: { backgroundColor: '#ECFDF5', borderRadius: 12, padding: 16, marginTop: 12, borderWidth: 1, borderColor: '#A7F3D0' },
+  newNumberResultLabel: { fontSize: 12, color: '#059669', marginBottom: 4 },
+  newNumberResultPhone: { fontSize: 22, fontWeight: '700', color: '#059669', letterSpacing: 1 },
+  newNumberResultRemark: { fontSize: 12, color: '#6B7280', marginTop: 4 },
   statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginLeft: 8 },
   statusBadgeText: { fontSize: 11, fontWeight: '600' },
   // Status dialog styles
