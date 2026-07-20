@@ -132,12 +132,13 @@ export default function StoppedContactsScreen() {
               if (row.is_self_mark) {
                 selfMarkPhones.add(normalized);
               }
-              // Skip authenticated numbers - they should not appear in possibly-invalid list
+              // Track authenticated numbers for badge display
               if (row.authenticated_name) {
                 authenticatedPhones.add(normalized);
                 communityNameMap.set(normalized, row.authenticated_name);
-                continue; // Don't add to communityStatusMap
               }
+              // Map status for ALL numbers including authenticated ones
+              // Authenticated numbers with possibly_invalid status should appear in 可能失效 list
               if (row.status === 'confirmed_invalid') {
                 communityStatusMap.set(normalized, 'stopped');
               } else if (row.status === 'possibly_invalid') {
@@ -167,9 +168,8 @@ export default function StoppedContactsScreen() {
           // Fall back to community status if no local status
           const finalLabel = storedLabel || (normalized ? communityStatusMap.get(normalized) : null);
 
-          // Skip authenticated numbers from possibly-invalid list (Fix 1)
-          const isAuth = normalized && authenticatedPhones.has(normalized);
-          if (finalLabel === validStatus && !(validStatus === 'suspected_stopped' && isAuth)) {
+          // Authenticated numbers are now included in communityStatusMap and should appear in lists
+          if (finalLabel === validStatus) {
             result.push({
               id: contact.id || normalized || rawPhone,
               name: contact.name || '未知联系人',

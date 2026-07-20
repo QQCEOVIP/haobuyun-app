@@ -1133,11 +1133,8 @@ export default function ContactsScreen() {
 
       setCommunityMarks(phoneCommunityMap);
 
-      // Update cleanup stats: add self-marked count to "确认失效"
-      const selfMarkCount = Array.from(phoneCommunityMap.values()).filter(v => v.isSelfMark).length;
-      if (selfMarkCount > 0) {
-        setCleanupStats(prev => ({ ...prev, stopped: prev.stopped + selfMarkCount }));
-      }
+      // Self-marked numbers are already saved as 'stopped' in AsyncStorage by detection logic,
+      // so fetchCleanupStats already counts them. No need to add selfMarkCount again (fixes double-count).
     } catch (error) {
       console.error('Failed to fetch community marks:', error);
     }
